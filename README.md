@@ -60,7 +60,41 @@ faltar. É idempotente e **nunca reescreve uma taxa já gravada**: aquele númer
 pode ter sustentado um patrimônio que alguém já olhou.
 
 Vale rodar diariamente. Sem coleta por mais de uma semana, o total em moeda base
-deixa de aparecer -- taxa velha demais não é taxa, é chute.
+deixa de aparecer -- taxa velha demais não é taxa, é chute. No VPS quem roda é
+o `atualizar-cambio.timer` do repositório `manutencao`.
+
+## Produção (VPS1)
+
+`https://networth-mspa.duckdns.org`, com o mesmo arranjo dos irmãos: o Nginx
+do host termina TLS e encaminha para `127.0.0.1:5701`. O acesso SSH ao
+servidor é pelo Tailscale. O código no servidor espelha o `main` e é implantado
+com `~/deploy.sh networth`.
+
+**Primeira publicação:**
+
+1. Clonar com a deploy key (apelido `github-networth` no `~/.ssh/config`) em
+   `~/apps/networth`.
+2. Criar `.env.vps` a partir de `.env.vps.example`.
+3. Criar `.secrets/`, com modo `700` e arquivos com modo `644`. O PostgreSQL e
+   o Django rodam com usuários diferentes, e o Compose sem Swarm monta cada
+   arquivo com as permissões do host. São quatro arquivos:
+   - `django_secret_key` e `postgres_password`: gerados na hora;
+   - `fonte_cb_token`: **o mesmo valor** do `.secrets/patrimonio_token` do
+     Controle Bancário (lá ele pertence ao usuário do contêiner, então a
+     leitura exige `sudo`);
+   - `fonte_crv_token`: o mesmo valor do `.secrets/patrimonio_token` do
+     Controle de Renda Variável.
+4. Subir com `docker compose --env-file .env.vps -f compose.yaml up --build -d`.
+5. Emitir o certificado e instalar o vhost `networth` pelo instalador central
+   do Nginx (`manutencao/vps/nginx`).
+6. Criar o login:
+   `docker compose --env-file .env.vps -f compose.yaml exec web python manage.py createsuperuser`.
+7. Preencher a série de câmbio uma vez com `atualizar_cambio`; dali em diante
+   o timer cuida dela.
+
+**Trocar um token** é uma operação dos dois lados ao mesmo tempo. Se só o
+publicador mudar, a fonte passa a responder 401. A tela diz qual fonte falhou
+e avisa, antes do número, que aquele total não é o patrimônio inteiro.
 
 ## Validação
 

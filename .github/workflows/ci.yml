@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Qualidade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Criar segredos efêmeros de CI
+        # Os quatro arquivos precisam existir para o Compose montar os
+        # segredos declarados. A senha do PostgreSQL fica com modo 0644 porque
+        # o contêiner do banco lê como `postgres` (uid 70), e não como o runner.
+        # Os tokens de fonte vão VAZIOS: é o estado "fonte ainda não concedida",
+        # e a suíte concede os seus próprios. Os valores são constantes
+        # públicas deste arquivo e não protegem nada.
+        run: |
+          umask 077
+          mkdir -p .secrets
+          printf '%s\n' 'ci-django-secret-key-not-for-production-networth' > .secrets/django_secret_key
+          printf '%s\n' 'ci-postgres-password-not-for-production' > .secrets/postgres_password
+          : > .secrets/fonte_cb_token
+          : > .secrets/fonte_crv_token
+          chmod 0644 .secrets/postgres_password
+      - name: Validar Compose
+        run: docker compose config --quiet
+      - name: Construir quality sem cache
+        run: docker compose --profile quality build --no-cache quality
+      - name: Executar quality
+        run: docker compose --profile quality run --rm quality
+      - name: Construir runtime
+        run: docker compose -f compose.yaml build --no-cache web
+      - name: Verificar fronteira do runtime
+        # A imagem servida não pode levar segredo, arquivo de ambiente nem
+        # certificado: o `.dockerignore` e os COPY explícitos do estágio
+        # `runtime` garantem isso, e esta conferência reprova se um dos dois
+        # deixar de garantir.
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker create networth:local)"
+          trap 'docker rm -f "$container" >/dev/null' EXIT
+          if docker export "$container" | tar -t | grep -E '(^|/)workspace/(\.secrets(/|$)|\.env(\..*)?$|.*\.(key|pem|crt)$)'; then
+            echo "Segredo, arquivo de ambiente ou certificado encontrado no runtime." >&2
+            exit 1
+          fi
