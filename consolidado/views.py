@@ -17,7 +17,9 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from django.utils import timezone
 
+from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.leitor import consolidar
 
 
@@ -33,11 +35,16 @@ def patrimonio_view(request):
             data_invalida = True
 
     consolidado = consolidar(referencia)
+    # A taxa é a do dia da foto, não a de hoje: converter o passado pela taxa de
+    # hoje faria o patrimônio de março mudar toda manhã.
+    conversao = converter_totais(consolidado.totais_por_moeda, referencia or timezone.localdate())
     return render(
         request,
         "consolidado/patrimonio.html",
         {
             "consolidado": consolidado,
+            "conversao": conversao,
+            "moeda_base": MOEDA_BASE,
             "referencia": referencia,
             "data_invalida": data_invalida,
             "por_instituicao": consolidado.por_instituicao(),

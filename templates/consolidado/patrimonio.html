@@ -42,6 +42,31 @@
   </p>
 {% endif %}
 
+{# O total em moeda base vem primeiro, e nunca sozinho: ele carrega a data e a
+   fonte de cada taxa usada. Um número convertido sem essas duas coisas não é
+   verificável por ninguém. #}
+{% if conversao.possivel %}
+  <section class="totais">
+    <article class="cartao cartao-base">
+      <h2>Total em {{ moeda_base }}</h2>
+      <p class="valor">{{ conversao.total|dinheiro:moeda_base }}</p>
+      <p class="rodape">
+        {% for taxa in conversao.taxas %}
+          {{ taxa.moeda }} a {{ taxa.taxa|floatformat:4 }}
+          de {{ taxa.data|date:"d/m/Y" }} ({{ taxa.fonte }}){% if not forloop.last %};{% endif %}
+        {% empty %}
+          tudo já estava em {{ moeda_base }}
+        {% endfor %}
+      </p>
+    </article>
+  </section>
+{% elif conversao.motivo %}
+  <p class="aviso">
+    Sem total em {{ moeda_base }}: {{ conversao.motivo }}. Os valores abaixo
+    continuam certos, cada um na sua moeda.
+  </p>
+{% endif %}
+
 <section class="totais">
   {% for total in consolidado.totais_por_moeda %}
     <article class="cartao">
@@ -54,12 +79,11 @@
   {% endfor %}
 </section>
 
-{# Moedas nunca somadas entre si -- nem aqui, nem em lugar nenhum deste
-   aplicativo. Converter exige taxa datada, e ela ainda não existe. #}
 <p class="nota">
-  Os totais são por moeda, e não somados entre si: converter exige a taxa do dia
-  da foto, com data e fonte. Enquanto ela não existir, dois números certos valem
-  mais que um número redondo e errado.
+  Cada linha acima é o total da sua moeda, sem conversão. O total em
+  {{ moeda_base }} usa a taxa do <strong>dia da foto</strong> -- nunca a de hoje --,
+  e quando a taxa falta ou está velha demais ele não aparece: um número redondo
+  e errado é pior que dois números certos.
 </p>
 
 <h2>Por instituição</h2>

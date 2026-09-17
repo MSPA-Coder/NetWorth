@@ -123,3 +123,9 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
     --aviso-borda: #8a6d1f;
   }
 }
+
+.cartao-base {
+  border-color: var(--texto);
+  border-width: 2px;
+}
+.cartao-base .valor { font-size: 2.1rem; }

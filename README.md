@@ -14,9 +14,10 @@ duas e soma **dentro de cada moeda**.
 - **um total nunca aparece sem dizer de quantas fontes ele é feito.** Uma fonte
   fora do ar não pode produzir um patrimônio menor em silêncio -- o número
   continuaria plausível, e ninguém desconfiaria;
-- **moedas nunca são somadas entre si.** Converter exige a taxa do dia da foto,
-  com data e fonte. Enquanto ela não existir, a tela mostra dois números certos
-  em vez de um número redondo e errado;
+- **a conversão usa a taxa do dia da foto**, nunca a de hoje, e mostra a data e a
+  fonte de cada taxa usada. Sem taxa, ou com taxa velha demais, o total em moeda
+  base simplesmente não aparece: um número redondo e errado é pior que dois
+  números certos;
 - **ele não escreve nos outros sistemas**, e não conhece o banco de nenhum deles.
 
 ## Rodar local
@@ -43,6 +44,23 @@ diz que está configurada pela metade. Erro de implantação tem de ser visível
 .venv\Scripts\python.exe manage.py createsuperuser
 .venv\Scripts\python.exe manage.py runserver
 ```
+
+## A série de câmbio
+
+O total em moeda base depende de uma série diária, e ela é preenchida por um
+comando -- não por consulta ao vivo a cada tela:
+
+```bash
+docker compose --env-file .env.docker -f compose.yaml run --rm web python manage.py atualizar_cambio
+```
+
+Ele busca no Yahoo (a mesma fonte que o Controle de Renda Variável usa para
+cotação), pega as moedas que as fontes estiverem mostrando e preenche o que
+faltar. É idempotente e **nunca reescreve uma taxa já gravada**: aquele número
+pode ter sustentado um patrimônio que alguém já olhou.
+
+Vale rodar diariamente. Sem coleta por mais de uma semana, o total em moeda base
+deixa de aparecer -- taxa velha demais não é taxa, é chute.
 
 ## Validação
 

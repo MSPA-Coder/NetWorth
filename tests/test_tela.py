@@ -8,6 +8,7 @@ exatamente o número enganoso que este aplicativo não pode mostrar.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -116,6 +117,51 @@ def test_moedas_aparecem_separadas_e_com_o_simbolo_de_cada_uma(logado, monkeypat
     assert "R$ 1.234,56" in corpo
     assert "US$ 7.641,72" in corpo
     assert "R$ 7.641,72" not in corpo
+
+
+def test_o_total_em_moeda_base_traz_a_data_e_a_fonte_da_taxa(logado, monkeypatch):
+    """Número convertido sem data e sem fonte não é verificável por ninguém."""
+    from consolidado.models import TaxaDeCambio
+
+    TaxaDeCambio.objects.create(
+        moeda="USD", data=date(2026, 9, 16), taxa=Decimal("5.20"), fonte="yahoo"
+    )
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(
+                    fonte=CB, estado=leitor.OK, linhas=[linha("100.00", moeda="USD")]
+                )
+            ]
+        ),
+    )
+
+    corrido = " ".join(logado.get("/patrimonio/", {"data": "2026-09-16"}).content.decode().split())
+
+    assert "Total em BRL" in corrido
+    assert "R$ 520,00" in corrido
+    assert "16/09/2026" in corrido
+    assert "yahoo" in corrido
+
+
+def test_sem_taxa_nao_aparece_total_em_moeda_base(logado, monkeypatch):
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(
+                    fonte=CB, estado=leitor.OK, linhas=[linha("100.00", moeda="USD")]
+                )
+            ]
+        ),
+    )
+
+    corrido = " ".join(logado.get("/patrimonio/", {"data": "2026-09-16"}).content.decode().split())
+
+    assert "Total em BRL" not in corrido
+    assert "Sem total em BRL: sem taxa para USD" in corrido
+    assert "US$ 100,00" in corrido
 
 
 def test_fonte_configurada_pela_metade_aparece(logado, monkeypatch):
