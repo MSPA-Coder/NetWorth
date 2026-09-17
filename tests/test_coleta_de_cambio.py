@@ -32,19 +32,21 @@ def instante(dia: str) -> int:
     return int(datetime.combine(date.fromisoformat(dia), time.min, tzinfo=UTC).timestamp())
 
 
+def resposta_crua(
+    instantes: list[int], fechamentos: list[float | None], fuso: str | None = "Europe/London"
+) -> bytes:
+    """O formato que o Yahoo devolve, com o `meta` que diz o fuso da bolsa."""
+    serie = {
+        "timestamp": instantes,
+        "indicators": {"quote": [{"close": fechamentos}]},
+    }
+    if fuso is not None:
+        serie["meta"] = {"exchangeTimezoneName": fuso}
+    return json.dumps({"chart": {"result": [serie]}}).encode("utf-8")
+
+
 def resposta_do_yahoo(pares: list[tuple[str, float | None]]) -> bytes:
-    return json.dumps(
-        {
-            "chart": {
-                "result": [
-                    {
-                        "timestamp": [instante(dia) for dia, _ in pares],
-                        "indicators": {"quote": [{"close": [valor for _, valor in pares]}]},
-                    }
-                ]
-            }
-        }
-    ).encode("utf-8")
+    return resposta_crua([instante(dia) for dia, _ in pares], [valor for _, valor in pares])
 
 
 class RespostaFalsa:
@@ -96,6 +98,38 @@ def test_dia_sem_negocio_e_pulado_e_nao_interpolado(monkeypatch):
     assert [f.data for f in serie] == [date(2026, 9, 17)]
 
 
+def test_no_verao_de_londres_o_carimbo_das_23h_utc_e_do_dia_seguinte(monkeypatch):
+    """Carimbos reais de setembro/2026: a meia-noite de Londres é 23:00 UTC.
+
+    Convertidos em UTC, 5,1428 virava taxa de 15/09, quando é o fechamento de
+    16/09 -- a série inteira andava um dia para trás de abril a outubro.
+    """
+    responder(monkeypatch, resposta_crua([1789426800, 1789513200], [5.138, 5.1429]))
+
+    serie = yahoo.buscar_serie("USD", "BRL", date(2026, 9, 15), date(2026, 9, 16))
+
+    assert [(f.data, f.taxa) for f in serie] == [
+        (date(2026, 9, 15), Decimal("5.138")),
+        (date(2026, 9, 16), Decimal("5.1429")),
+    ]
+
+
+def test_no_inverno_de_londres_o_carimbo_e_a_meia_noite_utc(monkeypatch):
+    responder(monkeypatch, resposta_crua([instante("2026-01-15")], [5.40]))
+
+    serie = yahoo.buscar_serie("USD", "BRL", date(2026, 1, 15), date(2026, 1, 15))
+
+    assert [f.data for f in serie] == [date(2026, 1, 15)]
+
+
+def test_serie_sem_fuso_e_recusada(monkeypatch):
+    """Adivinhar UTC foi exatamente o erro que deslocava a série."""
+    responder(monkeypatch, resposta_crua([instante(DIA_16)], [5.2], fuso=None))
+
+    with pytest.raises(yahoo.ColetaDeCambioError):
+        yahoo.buscar_serie("USD", "BRL", date(2026, 9, 16), date(2026, 9, 16))
+
+
 def test_resposta_estranha_vira_erro_de_coleta(monkeypatch):
     responder(monkeypatch, b'{"chart": {"result": []}}')
 
@@ -113,6 +147,19 @@ def test_periodo_invertido_nao_chama_a_rede(monkeypatch):
 
 
 # --- O comando -------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def hoje_e_dia_18(monkeypatch):
+    """O comando depende do dia em que roda, e o teste não pode depender.
+
+    Sem isto, os testes abaixo davam um resultado no dia 17/09/2026 e outro em
+    qualquer dia depois dele. Com o dia 18, 16 e 17 já estão fechados.
+    """
+    monkeypatch.setattr(
+        "consolidado.management.commands.atualizar_cambio.timezone.localdate",
+        lambda *_args, **_kwargs: date(2026, 9, 18),
+    )
 
 
 def rodar(**opcoes) -> str:
@@ -143,6 +190,51 @@ def test_comando_nao_reescreve_taxa_ja_gravada(monkeypatch):
     assert guardada.taxa == Decimal("5.20")
     assert "1 nova" in relatorio
     assert "1 já existia" in relatorio
+
+
+def test_o_dia_corrente_nunca_vira_taxa(monkeypatch):
+    """O Yahoo devolve o dia de hoje com o preço do momento, não o fechamento.
+
+    Gravado, aquele valor parcial nunca mais seria corrigido, porque uma taxa
+    gravada não é reescrita. O dia só entra depois de fechado.
+    """
+    monkeypatch.setattr(
+        "consolidado.management.commands.atualizar_cambio.timezone.localdate",
+        lambda *_args, **_kwargs: date(2026, 9, 17),
+    )
+    pedidos = []
+
+    def serie_com_o_dia_de_hoje(moeda, base, inicio, fim):
+        pedidos.append((inicio, fim))
+        return [
+            yahoo.Fechamento(date(2026, 9, 16), Decimal("5.20")),
+            yahoo.Fechamento(date(2026, 9, 17), Decimal("5.31")),
+        ]
+
+    monkeypatch.setattr(
+        "consolidado.management.commands.atualizar_cambio.buscar_serie",
+        serie_com_o_dia_de_hoje,
+    )
+
+    rodar(moeda=["USD"], desde="2026-09-16")
+
+    assert pedidos == [(date(2026, 9, 16), date(2026, 9, 16))]
+    assert list(TaxaDeCambio.objects.values_list("data", flat=True)) == [date(2026, 9, 16)]
+
+
+def test_em_dia_ate_ontem_nao_chama_a_rede(monkeypatch):
+    TaxaDeCambio.objects.create(
+        moeda="USD", data=date(2026, 9, 17), taxa=Decimal("5.20"), fonte="yahoo"
+    )
+
+    def nao_deveria(*_args, **_kwargs):
+        raise AssertionError("não era para chamar a rede")
+
+    monkeypatch.setattr(
+        "consolidado.management.commands.atualizar_cambio.buscar_serie", nao_deveria
+    )
+
+    assert "já está em dia" in rodar(moeda=["USD"])
 
 
 def test_rodar_duas_vezes_nao_muda_nada(monkeypatch):

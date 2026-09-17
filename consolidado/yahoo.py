@@ -21,9 +21,10 @@ import json
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FONTE = "yahoo"
 TEMPO_LIMITE_SEGUNDOS = 15
@@ -91,6 +92,7 @@ def _fechamentos(corpo, moeda: str, base: str) -> list[Fechamento]:
     if not isinstance(fechamentos, list):
         raise ColetaDeCambioError(f"Série inválida para {simbolo(moeda, base)}.")
 
+    fuso = _fuso_da_bolsa(serie, moeda, base)
     colhidos: dict[date, Fechamento] = {}
     for indice, instante in enumerate(instantes):
         valor = fechamentos[indice] if indice < len(fechamentos) else None
@@ -98,7 +100,7 @@ def _fechamentos(corpo, moeda: str, base: str) -> list[Fechamento]:
             # Dia sem negócio. Pular é o certo: interpolar inventaria mercado.
             continue
         try:
-            dia = datetime.fromtimestamp(int(instante), UTC).date()
+            dia = datetime.fromtimestamp(int(instante), fuso).date()
             taxa = Decimal(str(valor))
         except (TypeError, ValueError, InvalidOperation, OSError, OverflowError) as erro:
             raise ColetaDeCambioError(f"Série inválida para {simbolo(moeda, base)}.") from erro
@@ -107,3 +109,23 @@ def _fechamentos(corpo, moeda: str, base: str) -> list[Fechamento]:
         # O mesmo dia pode voltar repetido; a última leitura do dia é a que vale.
         colhidos[dia] = Fechamento(data=dia, taxa=taxa)
     return [colhidos[dia] for dia in sorted(colhidos)]
+
+
+def _fuso_da_bolsa(serie: dict, moeda: str, base: str) -> tzinfo:
+    """O fuso em que o Yahoo marca o dia de cada fechamento.
+
+    Câmbio é negociado em Londres, e o carimbo de cada dia é a meia-noite de
+    lá. No horário de verão britânico, essa meia-noite cai às 23:00 UTC do dia
+    anterior. Convertido em UTC, o fechamento de 16/09 virava taxa de 15/09 --
+    de abril a outubro, a série inteira andava um dia para trás.
+
+    Sem o fuso, a série é recusada: adivinhar UTC é justamente o erro acima.
+    """
+    meta = serie.get("meta") if isinstance(serie.get("meta"), dict) else {}
+    nome = meta.get("exchangeTimezoneName")
+    if isinstance(nome, str) and nome:
+        try:
+            return ZoneInfo(nome)
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    raise ColetaDeCambioError(f"O Yahoo não informou o fuso da série {simbolo(moeda, base)}.")
