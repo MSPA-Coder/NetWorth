@@ -1,0 +1,125 @@
+/* Aparência do NetWorth.
+ *
+ * Tudo em arquivo, nada embutido: a CSP deste projeto é fechada e não tem
+ * nonce, porque não há nada que precise de um.
+ */
+
+:root {
+  --fundo: #f6f7f9;
+  --superficie: #ffffff;
+  --borda: #dfe3e8;
+  --texto: #1f2933;
+  --suave: #6b7280;
+  --ok: #157f3d;
+  --falha: #a8201a;
+  --aviso-fundo: #fff4e5;
+  --aviso-borda: #f0b429;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+.marca { font-weight: 700; text-decoration: none; color: var(--texto); }
+.sair { display: flex; align-items: center; gap: 10px; }
+.quem { color: var(--suave); font-size: 0.9rem; }
+
+main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+h1 { font-size: 1.5rem; margin: 0 0 16px; }
+h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+
+.fontes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.fonte {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  border: 1px solid var(--borda);
+  background: var(--superficie);
+}
+.fonte-ok { color: var(--ok); border-color: var(--ok); }
+.fonte-falha { color: var(--falha); border-color: var(--falha); }
+
+.aviso {
+  background: var(--aviso-fundo);
+  border: 1px solid var(--aviso-borda);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+.aviso.destaque { font-weight: 600; }
+
+.totais { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+.cartao {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 16px 20px;
+  min-width: 220px;
+}
+.cartao h2 { margin: 0; font-size: 0.85rem; color: var(--suave); letter-spacing: 0.06em; }
+.valor { font-size: 1.8rem; font-weight: 700; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.rodape { margin: 4px 0 0; color: var(--suave); font-size: 0.85rem; }
+
+.nota { color: var(--suave); font-size: 0.9rem; max-width: 70ch; }
+
+table.detalhe { width: 100%; border-collapse: collapse; background: var(--superficie); }
+table.detalhe th, table.detalhe td {
+  border-bottom: 1px solid var(--borda);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
+.linha { display: block; color: var(--suave); font-size: 0.85rem; }
+
+.entrada {
+  max-width: 360px;
+  margin: 48px auto;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 24px;
+}
+.entrada .sub { color: var(--suave); margin-top: 0; }
+.entrada label { display: block; margin-top: 12px; font-size: 0.9rem; }
+.entrada input { width: 100%; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; }
+.entrada button, .sair button {
+  margin-top: 16px;
+  padding: 8px 16px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--texto);
+  color: #fff;
+  cursor: pointer;
+}
+.sair button { margin-top: 0; padding: 4px 12px; font-size: 0.85rem; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #12161c;
+    --superficie: #1b212a;
+    --borda: #2c3540;
+    --texto: #e6e9ee;
+    --suave: #9aa4b2;
+    --aviso-fundo: #3a2e16;
+    --aviso-borda: #8a6d1f;
+  }
+}

@@ -1,0 +1,209 @@
+name: networth
+
+x-app-build: &app-build
+  # Nome fixo em vez do derivado do diretório: a varredura de vulnerabilidade
+  # precisa apontar para uma imagem por NOME, e nome que depende do caminho do
+  # checkout não serve de alvo.
+  image: networth:local
+  build:
+    context: .
+    target: runtime
+
+x-app-environment: &app-environment
+  DJANGO_SETTINGS_MODULE: networth.settings
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER:-networth}
+  POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+  POSTGRES_DB: ${POSTGRES_DB:-networth}
+  DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
+  # Os tokens das fontes seguem o mesmo contrato dos outros segredos: arquivo
+  # montado, nunca variável direta.
+  FONTE_CB_URL: ${FONTE_CB_URL:-}
+  FONTE_CB_TOKEN_FILE: /run/secrets/fonte_cb_token
+  FONTE_CRV_URL: ${FONTE_CRV_URL:-}
+  FONTE_CRV_TOKEN_FILE: /run/secrets/fonte_crv_token
+  REQUIRE_FILE_SECRETS: "true"
+  TZ: America/Sao_Paulo
+  PYTHONUNBUFFERED: "1"
+
+x-app-secrets: &app-secrets
+  secrets:
+    - django_secret_key
+    - postgres_password
+    - fonte_cb_token
+    - fonte_crv_token
+
+x-service-logging: &service-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Serviços de aplicação não precisam escrever na camada da imagem.
+x-app-hardening: &app-hardening
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:mode=1777,rw,noexec,nosuid,size=64m
+
+x-postgres-hardening: &postgres-hardening
+  user: "postgres"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:mode=1777,rw,noexec,nosuid,size=64m
+    - /var/run/postgresql:mode=1777,rw,noexec,nosuid,size=16m
+  pids_limit: 256
+
+services:
+  postgres:
+    <<: *postgres-hardening
+    image: postgres:17-alpine
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 512m
+    logging: *service-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-networth}
+      POSTGRES_USER: ${POSTGRES_USER:-networth}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5702}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-networth} -d ${POSTGRES_DB:-networth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Etapa controlada de inicialização: aplica migrations e materializa os
+  # arquivos estáticos com hash no volume que o `web` consome. O `web` só sobe
+  # depois que esta etapa termina com sucesso -- sem ela, a primeira tela a
+  # usar `{% static %}` responde 500 por falta do manifesto.
+  migrate:
+    <<: [*app-build, *app-hardening, *app-secrets]
+    logging: *service-logging
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # `--clear` é necessário: sem ele, um arquivo removido do código continua
+    # sendo servido a partir do volume indefinidamente.
+    command:
+      - sh
+      - -c
+      - "python manage.py migrate --noinput && python manage.py collectstatic --noinput --clear"
+    restart: "no"
+    volumes:
+      - static_volume:/workspace/staticfiles
+
+  web:
+    <<: [*app-build, *app-hardening, *app-secrets]
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 384m
+    init: true
+    pids_limit: 256
+    logging: *service-logging
+    environment:
+      <<: *app-environment
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      DEBUG: ${DEBUG:-False}
+      USE_HTTPS: ${USE_HTTPS:-False}
+    ports:
+      - "127.0.0.1:${APP_PORT:-5701}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # `host.docker.internal` deixa o contêiner alcançar os outros dois
+    # aplicativos, que publicam as rotas deles no loopback do host. Num servidor
+    # onde os três convivem, o endereço da fonte é o do próprio host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - static_volume:/workspace/staticfiles
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+      start_interval: 1s
+
+  # Banco EFÊMERO da suíte. Não é o `postgres` de cima, e isso é deliberado: a
+  # suíte não pode ter caminho até o volume com dados reais, nem por engano.
+  postgres-teste:
+    <<: *postgres-hardening
+    image: postgres:17-alpine
+    profiles: ["quality"]
+    cpus: 1.0
+    mem_limit: 512m
+    logging: *service-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-networth}
+      POSTGRES_USER: ${POSTGRES_USER:-networth}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+    # Sem volume nomeado: os dados vivem em tmpfs e somem com o contêiner.
+    tmpfs:
+      - /tmp:mode=1777,rw,noexec,nosuid,size=64m
+      - /var/run/postgresql:mode=1777,rw,noexec,nosuid,size=16m
+      - /var/lib/postgresql/data:mode=0700,uid=70,gid=70,rw,size=256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-networth} -d ${POSTGRES_DB:-networth}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  # `docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality`
+  # O `--build` faz parte do comando: este serviço não monta o código do host, e
+  # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
+  quality:
+    <<: *app-secrets
+    build:
+      context: .
+      target: quality
+    environment:
+      <<: *app-environment
+      POSTGRES_HOST: postgres-teste
+    depends_on:
+      postgres-teste:
+        condition: service_healthy
+    profiles: ["quality"]
+    stop_grace_period: 15s
+    logging: *service-logging
+
+volumes:
+  postgres_data:
+  # Resultado regenerável de `collectstatic`: o `migrate` materializa, o `web`
+  # serve pelo WhiteNoise. Não é fonte de verdade de nada.
+  static_volume:
+
+secrets:
+  django_secret_key:
+    file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/django_secret_key
+  postgres_password:
+    file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/postgres_password
+  # Os tokens que este aplicativo APRESENTA às fontes. Cada fonte tem o seu:
+  # um vazamento não abre as duas, e a rotação de um não derruba o outro.
+  fonte_cb_token:
+    file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/fonte_cb_token
+  fonte_crv_token:
+    file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/fonte_crv_token

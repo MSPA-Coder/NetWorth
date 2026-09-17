@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+staticfiles/
+logs/
+.env
+.env.docker
+.env.vps
+.secrets/
+.certs/
+.pytest_cache/
+.ruff_cache/

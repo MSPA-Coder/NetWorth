@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load dinheiro %}
+
+{% block titulo %}Patrimônio — NetWorth{% endblock %}
+
+{% block conteudo %}
+<h1>Patrimônio</h1>
+
+{# O estado das fontes vem ANTES dos números, e não num rodapé: um total
+   incompleto precisa ser lido antes do número, não depois dele. #}
+<section class="fontes" aria-label="Estado das fontes">
+  {% for leitura in consolidado.leituras %}
+    <span class="fonte {% if leitura.respondeu %}fonte-ok{% else %}fonte-falha{% endif %}">
+      {{ leitura.fonte.nome }}:
+      {% if leitura.respondeu %}
+        respondeu ({{ leitura.data_de_referencia|date:"d/m/Y" }})
+      {% else %}
+        {{ leitura.motivo }}
+      {% endif %}
+    </span>
+  {% empty %}
+    <span class="fonte fonte-falha">Nenhuma fonte configurada.</span>
+  {% endfor %}
+</section>
+
+{% if consolidado.incompletas %}
+  <p class="aviso">
+    Configurada pela metade (falta endereço ou token):
+    {{ consolidado.incompletas|join:", " }}.
+  </p>
+{% endif %}
+
+{% if data_invalida %}
+  <p class="aviso">Data inválida: use o formato AAAA-MM-DD. Mostrando a posição de hoje.</p>
+{% endif %}
+
+{% if not consolidado.completo %}
+  <p class="aviso destaque">
+    Este total <strong>não é o patrimônio inteiro</strong>: ele é feito de
+    {{ consolidado.fontes_que_responderam|length }} de
+    {{ consolidado.leituras|length }} fonte{{ consolidado.leituras|length|pluralize }}.
+  </p>
+{% endif %}
+
+<section class="totais">
+  {% for total in consolidado.totais_por_moeda %}
+    <article class="cartao">
+      <h2>{{ total.moeda }}</h2>
+      <p class="valor">{{ total.total|dinheiro:total.moeda }}</p>
+      <p class="rodape">{{ total.linhas }} linha{{ total.linhas|pluralize }}</p>
+    </article>
+  {% empty %}
+    <p>Nada a mostrar.</p>
+  {% endfor %}
+</section>
+
+{# Moedas nunca somadas entre si -- nem aqui, nem em lugar nenhum deste
+   aplicativo. Converter exige taxa datada, e ela ainda não existe. #}
+<p class="nota">
+  Os totais são por moeda, e não somados entre si: converter exige a taxa do dia
+  da foto, com data e fonte. Enquanto ela não existir, dois números certos valem
+  mais que um número redondo e errado.
+</p>
+
+<h2>Por instituição</h2>
+<table class="detalhe">
+  <thead>
+    <tr><th>Instituição</th><th>Moeda</th><th class="num">Total</th><th>De onde</th></tr>
+  </thead>
+  <tbody>
+    {% for bloco in por_instituicao %}
+      <tr>
+        <td>{{ bloco.instituicao }}</td>
+        <td>{{ bloco.moeda }}</td>
+        <td class="num">{{ bloco.total|dinheiro:bloco.moeda }}</td>
+        <td>
+          {% for linha in bloco.linhas %}
+            <span class="linha">{{ linha.descricao }} · {{ linha.valor|dinheiro:linha.moeda }} · {{ linha.fonte }}</span>
+          {% endfor %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4">Nada a mostrar.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

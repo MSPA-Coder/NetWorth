@@ -1,0 +1,26 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}NetWorth{% endblock %}</title>
+  {# Nada embutido: a CSP deste projeto e fechada, e todo estilo e arquivo
+     servido com hash pelo WhiteNoise. #}
+  <link rel="stylesheet" href="{% static 'css/networth.css' %}">
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="{% url 'consolidado:patrimonio' %}">NetWorth</a>
+    {% if user.is_authenticated %}
+      <form class="sair" method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <span class="quem">{{ user.get_username }}</span>
+        <button type="submit">Sair</button>
+      </form>
+    {% endif %}
+  </header>
+  <main>
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>
