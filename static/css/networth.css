@@ -19,6 +19,9 @@
   --sharedauth-text-suave: var(--suave);
   --sharedauth-border: var(--borda);
   --sharedauth-accent: var(--texto);
+  --positivo: #157f3d;
+  --negativo: #b42318;
+  --destaque: #2563eb;
 }
 
 * { box-sizing: border-box; }
@@ -50,6 +53,71 @@ main { padding: 24px; max-width: 1100px; margin: 0 auto; }
 
 h1 { font-size: 1.5rem; margin: 0 0 16px; }
 h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+
+.nw-cabecalho-dashboard,
+.nw-titulo-secao {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.nw-cabecalho-dashboard { margin-bottom: 16px; }
+.nw-cabecalho-dashboard h1, .nw-titulo-secao h2 { margin-bottom: 0; }
+.nw-sobretitulo {
+  margin: 0 0 2px;
+  color: var(--suave);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nw-data-base { margin: 4px 0 0; color: var(--suave); font-size: 0.9rem; }
+.nw-controle-privacidade {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--superficie);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.nw-controle-privacidade input { accent-color: var(--destaque); }
+main:has(#ocultar-valores:checked) .nw-valor-sensivel {
+  color: transparent !important;
+  text-shadow: 0 0 9px color-mix(in srgb, var(--texto) 55%, transparent);
+  user-select: none;
+}
+.nw-rotulo-metrica { margin: 0; color: var(--suave); font-size: 0.9rem; font-weight: 600; }
+.nw-variacao { margin: 5px 0 0; font-size: 0.88rem; font-weight: 600; }
+.nw-variacao.positiva { color: var(--positivo); }
+.nw-variacao.negativa { color: var(--negativo); }
+.nw-link-origem {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--destaque);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nw-link-origem:hover { text-decoration: underline; }
+.nw-posicoes a { color: var(--texto); font-weight: 650; }
+.nw-acoes-origem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+.nw-acoes-origem a {
+  padding: 6px 10px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
 
 .fontes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .fonte {
@@ -132,8 +200,9 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
 .nw-cartao-base {
   border-color: var(--texto);
   border-width: 2px;
+  min-width: min(100%, 340px);
 }
-.nw-cartao-base .valor { font-size: 2.1rem; }
+.nw-cartao-base .valor, .nw-cartao-base .sa-metrica { font-size: 2.1rem; }
 
 /* Navegação entre as duas telas e entre os períodos do histórico. */
 .navegacao { display: flex; gap: 16px; margin-right: auto; margin-left: 24px; }
@@ -161,6 +230,10 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
 .grafico .grade-vertical { stroke-dasharray: 2 4; }
 .grafico .rotulo { fill: var(--suave); font-size: 12px; }
 .grafico .curva { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.grafico .ponto { stroke: var(--superficie); stroke-width: 1.5; }
+.grafico .ponto.curva-patrimonio { fill: var(--curva-patrimonio); }
+.grafico .ponto.curva-investimentos { fill: var(--curva-investimentos); }
+.grafico .ponto:focus { stroke: var(--texto); stroke-width: 3; outline: none; }
 .curva-patrimonio { stroke: var(--curva-patrimonio); }
 .curva-investimentos { stroke: var(--curva-investimentos); }
 .legenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
@@ -195,6 +268,9 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 600px) {
   main { padding: 16px; }
+  .topo { padding: 10px 16px; flex-wrap: wrap; }
+  .nw-cabecalho-dashboard, .nw-titulo-secao { align-items: flex-start; }
+  .nw-cabecalho-dashboard { flex-direction: column; gap: 10px; }
   .navegacao { margin-left: 12px; gap: 12px; }
   .grafico { padding: 6px; }
   table.detalhe th, table.detalhe td { padding: 6px; font-size: 0.85rem; }

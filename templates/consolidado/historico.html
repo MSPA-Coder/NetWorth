@@ -36,6 +36,11 @@
       {% endfor %}
       {% for curva in grafico.curvas %}
         <path class="curva {{ curva.classe }}" d="{{ curva.caminho }}"><title>{{ curva.rotulo }}</title></path>
+        {% for ponto in curva.pontos %}
+          <circle class="ponto {{ curva.classe }}" cx="{{ ponto.x|stringformat:'.1f' }}" cy="{{ ponto.y|stringformat:'.1f' }}" r="3" tabindex="0">
+            <title>{{ curva.rotulo }} em {{ ponto.data|date:"d/m/Y" }}: {{ ponto.valor|dinheiro:moeda_base }}</title>
+          </circle>
+        {% endfor %}
       {% endfor %}
     </svg>
     <figcaption class="legenda">
