@@ -2,8 +2,12 @@
 
 Ele não copia conta, posição nem lançamento: isso é dos outros dois sistemas, e
 uma cópia aqui seria uma segunda verdade sobre o mesmo dinheiro. O que ele
-guarda é o que **só ele** precisa: a taxa de câmbio de cada dia, com data e
-fonte, porque converter é decisão dele e não dos publicadores.
+guarda é o que **só ele** precisa:
+
+- a taxa de câmbio de cada dia, com data e fonte, porque converter é decisão
+  dele e não dos publicadores;
+- a foto diária do patrimônio, em totais e nunca em detalhe, porque desenhar
+  anos de série perguntando uma data de cada vez às fontes seria absurdo.
 """
 
 from __future__ import annotations
@@ -50,3 +54,62 @@ class TaxaDeCambio(models.Model):
 
     def __str__(self) -> str:
         return f"{self.moeda} {self.data}: {self.taxa} ({self.fonte})"
+
+
+class FotoDoPatrimonio(models.Model):
+    """O patrimônio no fim de um dia: completo, ou não existe.
+
+    TRÊS REGRAS
+
+    1. **Só entra foto completa.** Todas as fontes conhecidas responderam, para
+       a data pedida, sem lacuna. Uma foto feita com o Renda Variável fora do ar
+       viraria um degrau permanente no gráfico, com cara de queda real;
+    2. **Guarda totais, não detalhe.** Por fonte, instituição e moeda. O
+       detalhe é sempre buscado ao vivo, no sistema que é dono dele;
+    3. **A foto pode ser refeita.** Ao contrário da taxa de câmbio, ela é um
+       resumo do que as fontes sabem, e as fontes corrigem o passado: um saldo
+       inicial acertado ou um lançamento registrado dias depois mudam o
+       patrimônio de uma data já fotografada. Refazer troca a foto inteira, e
+       só quando a leitura nova também está completa.
+
+    A conversão para moeda base **não** é gravada: ela sai da série de câmbio
+    na hora de mostrar, pela taxa da data da foto.
+    """
+
+    data = models.DateField(unique=True)
+    tirada_em = models.DateTimeField()
+
+    class Meta:
+        db_table = "foto_do_patrimonio"
+        ordering = ["data"]
+
+    def __str__(self) -> str:
+        return f"foto de {self.data}"
+
+
+class ValorDaFoto(models.Model):
+    """Um total dentro de uma foto: quanto uma fonte publicou numa instituição,
+    numa moeda."""
+
+    foto = models.ForeignKey(FotoDoPatrimonio, on_delete=models.CASCADE, related_name="valores")
+    fonte = models.CharField(max_length=10)
+    papel = models.CharField(max_length=20)
+    instituicao = models.CharField(max_length=120)
+    moeda = models.CharField(max_length=3)
+    # Dinheiro: duas casas, como publicado. Os publicadores já arredondam cada
+    # linha, e somar linhas arredondadas mantém as duas casas.
+    total = models.DecimalField(max_digits=20, decimal_places=2)
+    linhas = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = "valor_da_foto"
+        ordering = ["foto", "fonte", "instituicao", "moeda"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["foto", "fonte", "instituicao", "moeda"],
+                name="uq_valor_foto_fonte_instituicao_moeda",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.foto.data} {self.fonte} {self.instituicao} {self.moeda} {self.total}"

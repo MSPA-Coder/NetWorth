@@ -6,14 +6,16 @@
 {% block conteudo %}
 <h1>Patrimônio</h1>
 
-{# O estado das fontes vem ANTES dos números, e não num rodapé: um total
-   incompleto precisa ser lido antes do número, não depois dele. #}
+{% comment %}
+  O estado das fontes vem ANTES dos números, e não num rodapé: um total
+  incompleto precisa ser lido antes do número, não depois dele.
+{% endcomment %}
 <section class="fontes" aria-label="Estado das fontes">
   {% for leitura in consolidado.leituras %}
-    <span class="fonte {% if leitura.respondeu %}fonte-ok{% else %}fonte-falha{% endif %}">
+    <span class="fonte {% if leitura.respondeu and not leitura.lacunas %}fonte-ok{% else %}fonte-falha{% endif %}">
       {{ leitura.fonte.nome }}:
       {% if leitura.respondeu %}
-        respondeu ({{ leitura.data_de_referencia|date:"d/m/Y" }})
+        respondeu ({{ leitura.data_de_referencia|date:"d/m/Y" }}){% if leitura.lacunas %}, mas {{ leitura.lacunas|join:"; " }}{% endif %}
       {% else %}
         {{ leitura.motivo }}
       {% endif %}
@@ -38,13 +40,15 @@
   <p class="aviso destaque">
     Este total <strong>não é o patrimônio inteiro</strong>: ele é feito de
     {{ consolidado.fontes_que_responderam|length }} de
-    {{ consolidado.leituras|length }} fonte{{ consolidado.leituras|length|pluralize }}.
+    {{ consolidado.leituras|length }} fonte{{ consolidado.leituras|length|pluralize }}{% for leitura in consolidado.leituras %}{% if leitura.lacunas %}, e em {{ leitura.fonte.nome }} {{ leitura.lacunas|join:"; " }}{% endif %}{% endfor %}.
   </p>
 {% endif %}
 
-{# O total em moeda base vem primeiro, e nunca sozinho: ele carrega a data e a
-   fonte de cada taxa usada. Um número convertido sem essas duas coisas não é
-   verificável por ninguém. #}
+{% comment %}
+  O total em moeda base vem primeiro, e nunca sozinho: ele carrega a data e a
+  fonte de cada taxa usada. Um número convertido sem essas duas coisas não é
+  verificável por ninguém.
+{% endcomment %}
 {% if conversao.possivel %}
   <section class="totais">
     <article class="cartao cartao-base">

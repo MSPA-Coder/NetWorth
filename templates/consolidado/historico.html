@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load dinheiro %}
+
+{% block titulo %}Histórico — NetWorth{% endblock %}
+
+{% block conteudo %}
+<h1>Histórico</h1>
+
+<nav class="periodos" aria-label="Período">
+  {% for valor, rotulo in periodos %}
+    <a href="?periodo={{ valor }}"{% if valor == periodo %} aria-current="page" class="ativo"{% endif %}>{{ rotulo }}</a>
+  {% endfor %}
+</nav>
+
+{% if not grafico %}
+  <p class="aviso">
+    Ainda não há foto neste período. As fotos são gravadas por
+    <code>manage.py registrar_foto</code>, uma por dia fechado.
+  </p>
+{% else %}
+  {% comment %}
+    O SVG não usa estilo embutido: cores e traços vêm do CSS, pela classe. E
+    toda coordenada passa por `stringformat`: o Django formata número decimal
+    com vírgula em pt-BR, e `x="123,4"` o SVG lê como DUAS coordenadas.
+  {% endcomment %}
+  <figure class="grafico">
+    <svg viewBox="0 0 {{ grafico.largura }} {{ grafico.altura }}" role="img"
+         aria-label="Patrimônio e investimentos em {{ moeda_base }}, de {{ primeira_data|date:'d/m/Y' }} a {{ ultima_data|date:'d/m/Y' }}">
+      {% for marca in grafico.eixo_y %}
+        <line class="grade" x1="{{ grafico.esquerda }}" x2="{{ grafico.direita }}" y1="{{ marca.posicao|stringformat:'.1f' }}" y2="{{ marca.posicao|stringformat:'.1f' }}"></line>
+        <text class="rotulo" x="{{ grafico.esquerda|add:'-8' }}" y="{{ marca.posicao|stringformat:'.1f' }}" text-anchor="end" dominant-baseline="middle">{{ marca.rotulo }}</text>
+      {% endfor %}
+      {% for marca in grafico.eixo_x %}
+        <line class="grade grade-vertical" x1="{{ marca.posicao|stringformat:'.1f' }}" x2="{{ marca.posicao|stringformat:'.1f' }}" y1="{{ grafico.topo }}" y2="{{ grafico.base }}"></line>
+        <text class="rotulo" x="{{ marca.posicao|stringformat:'.1f' }}" y="{{ grafico.base|add:'20' }}" text-anchor="middle">{{ marca.rotulo }}</text>
+      {% endfor %}
+      {% for curva in grafico.curvas %}
+        <path class="curva {{ curva.classe }}" d="{{ curva.caminho }}"><title>{{ curva.rotulo }}</title></path>
+      {% endfor %}
+    </svg>
+    <figcaption class="legenda">
+      {% for curva in grafico.curvas %}
+        <span class="chave {{ curva.classe }}">{{ curva.rotulo }}</span>
+      {% endfor %}
+      <span class="nota-curta">em {{ moeda_base }}, pela taxa do dia de cada foto</span>
+    </figcaption>
+  </figure>
+
+  <p class="nota">
+    O patrimônio começa em {{ inicio_do_patrimonio|date:"d/m/Y" }}, o corte do
+    caixa: antes disso só existe a parte investida, e somá-la a um caixa que
+    não foi registrado desenharia um patrimônio que nunca existiu. Um buraco na
+    linha é um dia sem número honesto.
+  </p>
+  {% if sem_taxa %}
+    <p class="aviso">
+      {{ sem_taxa }} dia{{ sem_taxa|pluralize }} desde o corte do caixa
+      ficou sem total em {{ moeda_base }} por falta de taxa de câmbio válida.
+    </p>
+  {% endif %}
+
+  <h2>Fim de cada mês</h2>
+  {# Cinco colunas de números não cabem em 375 px: aqui a tabela rola, em vez
+     de a página inteira rolar de lado. #}
+  <div class="rolavel">
+  <table class="detalhe">
+    <thead>
+      <tr>
+        <th>Foto</th>
+        <th class="num">Investimentos</th>
+        <th class="num">no mês</th>
+        <th class="num">Patrimônio</th>
+        <th class="num">no mês</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in mensais %}
+        <tr>
+          <td>{{ linha.ponto.data|date:"d/m/Y" }}</td>
+          <td class="num">{% if linha.ponto.investimentos is not None %}{{ linha.ponto.investimentos|dinheiro:moeda_base }}{% else %}—{% endif %}</td>
+          <td class="num">{% if linha.variacao_investimentos is not None %}{{ linha.variacao_investimentos|floatformat:1 }}%{% endif %}</td>
+          <td class="num">{% if linha.ponto.patrimonio is not None %}{{ linha.ponto.patrimonio|dinheiro:moeda_base }}{% else %}—{% endif %}</td>
+          <td class="num">{% if linha.variacao_patrimonio is not None %}{{ linha.variacao_patrimonio|floatformat:1 }}%{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="nota">
+    A variação do mês inclui os aportes e as retiradas: é quanto o número mudou,
+    não quanto a carteira rendeu. A rentabilidade da carteira é do Controle de
+    Renda Variável, que calcula o TWR.
+  </p>
+{% endif %}
+{% endblock %}

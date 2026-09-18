@@ -13,14 +13,23 @@ estava reiniciando, com o número continuando plausível.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
+from consolidado import fotos, grafico
 from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.leitor import consolidar
+
+#: Os recortes da tela de histórico. A chave vai na URL; o valor diz de quando
+#: a curva começa (`None` é a história inteira).
+PERIODOS = {
+    "tudo": ("Tudo", None),
+    "desde-2026": ("Desde 2026", fotos.INICIO_DO_PATRIMONIO),
+    "12-meses": ("12 meses", "12m"),
+}
 
 
 @login_required
@@ -48,5 +57,60 @@ def patrimonio_view(request):
             "referencia": referencia,
             "data_invalida": data_invalida,
             "por_instituicao": consolidado.por_instituicao(),
+        },
+    )
+
+
+@login_required
+def historico_view(request):
+    """As duas curvas, a partir das fotos gravadas. Nenhuma fonte é consultada."""
+    chave = request.GET.get("periodo") or "tudo"
+    if chave not in PERIODOS:
+        chave = "tudo"
+    inicio = PERIODOS[chave][1]
+    if inicio == "12m":
+        inicio = timezone.localdate() - timedelta(days=365)
+
+    pontos = fotos.curvas(desde=inicio)
+    desenho = grafico.montar(
+        pontos,
+        (
+            ("patrimonio", "Patrimônio", "curva-patrimonio"),
+            ("investimentos", "Investimentos", "curva-investimentos"),
+        ),
+    )
+    mensais = grafico.ultimo_de_cada_mes(pontos)
+    linhas = []
+    for indice, ponto in enumerate(mensais):
+        anterior = mensais[indice + 1] if indice + 1 < len(mensais) else None
+        linhas.append(
+            {
+                "ponto": ponto,
+                "variacao_investimentos": grafico.variacao(
+                    ponto.investimentos, anterior.investimentos if anterior else None
+                ),
+                "variacao_patrimonio": grafico.variacao(
+                    ponto.patrimonio, anterior.patrimonio if anterior else None
+                ),
+            }
+        )
+    return render(
+        request,
+        "consolidado/historico.html",
+        {
+            "grafico": desenho,
+            "primeira_data": pontos[0].data if pontos else None,
+            "ultima_data": pontos[-1].data if pontos else None,
+            # Desde o início do caixa, patrimônio vazio só pode ser falta de taxa.
+            "sem_taxa": sum(
+                1
+                for ponto in pontos
+                if ponto.data >= fotos.INICIO_DO_PATRIMONIO and ponto.patrimonio is None
+            ),
+            "mensais": linhas,
+            "moeda_base": MOEDA_BASE,
+            "periodos": [(valor, rotulo) for valor, (rotulo, _inicio) in PERIODOS.items()],
+            "periodo": chave,
+            "inicio_do_patrimonio": fotos.INICIO_DO_PATRIMONIO,
         },
     )

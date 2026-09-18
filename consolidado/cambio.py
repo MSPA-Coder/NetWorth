@@ -22,6 +22,7 @@ AS QUATRO REGRAS
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -85,6 +86,24 @@ class Conversao:
         return "; ".join(partes) or "não há o que converter"
 
 
+def _aplicar(moeda: str, do_dia, referencia: date) -> TaxaAplicada:
+    """Entre as taxas de um mesmo dia, a da fonte preferida."""
+    escolhida = min(
+        do_dia,
+        key=lambda t: (
+            PREFERENCIA_DE_FONTE.index(t.fonte) if t.fonte in PREFERENCIA_DE_FONTE else 99,
+            t.fonte,
+        ),
+    )
+    return TaxaAplicada(
+        moeda=moeda,
+        taxa=escolhida.taxa,
+        data=escolhida.data,
+        fonte=escolhida.fonte,
+        dias_de_defasagem=(referencia - escolhida.data).days,
+    )
+
+
 def taxa_para(moeda: str, referencia: date) -> TaxaAplicada | None:
     """A última taxa conhecida em `referencia` ou antes dela. Nunca depois.
 
@@ -102,30 +121,50 @@ def taxa_para(moeda: str, referencia: date) -> TaxaAplicada | None:
     if not candidatas:
         return None
     dia = candidatas[0].data
-    do_dia = [t for t in candidatas if t.data == dia]
-    escolhida = min(
-        do_dia,
-        key=lambda t: (
-            PREFERENCIA_DE_FONTE.index(t.fonte) if t.fonte in PREFERENCIA_DE_FONTE else 99,
-            t.fonte,
-        ),
-    )
-    return TaxaAplicada(
-        moeda=moeda,
-        taxa=escolhida.taxa,
-        data=escolhida.data,
-        fonte=escolhida.fonte,
-        dias_de_defasagem=(referencia - escolhida.data).days,
-    )
+    return _aplicar(moeda, [t for t in candidatas if t.data == dia], referencia)
 
 
-def converter_totais(totais_por_moeda, referencia: date) -> Conversao:
+class SerieDeTaxas:
+    """As taxas das moedas pedidas, lidas do banco **uma vez**.
+
+    `taxa_para` faz uma consulta por data, o que serve para uma tela com uma
+    data só. Uma curva com anos de fotos faria milhares de consultas por
+    abertura de página. Esta classe responde a mesma pergunta, pelas mesmas
+    regras (`_aplicar`), a partir da série carregada em memória.
+    """
+
+    def __init__(self, moedas) -> None:
+        self._datas: dict[str, list[date]] = {}
+        self._do_dia: dict[tuple[str, date], list[TaxaDeCambio]] = {}
+        pedidas = sorted({moeda for moeda in moedas if moeda != MOEDA_BASE})
+        for taxa in TaxaDeCambio.objects.filter(moeda__in=pedidas).order_by("moeda", "data"):
+            datas = self._datas.setdefault(taxa.moeda, [])
+            if not datas or datas[-1] != taxa.data:
+                datas.append(taxa.data)
+            self._do_dia.setdefault((taxa.moeda, taxa.data), []).append(taxa)
+
+    def para(self, moeda: str, referencia: date) -> TaxaAplicada | None:
+        if moeda == MOEDA_BASE:
+            return None
+        datas = self._datas.get(moeda, [])
+        indice = bisect_right(datas, referencia) - 1
+        if indice < 0:
+            return None
+        return _aplicar(moeda, self._do_dia[(moeda, datas[indice])], referencia)
+
+
+def converter_totais(
+    totais_por_moeda, referencia: date, serie: SerieDeTaxas | None = None
+) -> Conversao:
     """Soma os totais em moeda base, ou explica por que não somou.
 
     Tudo ou nada: se uma das moedas não pode ser convertida, não existe total em
     moeda base. Somar as que dá produziria um patrimônio menor com cara de
     completo -- o mesmo defeito que o estado das fontes existe para impedir.
+
+    `serie`, quando vem, responde as taxas sem ir ao banco. A regra é a mesma.
     """
+    buscar_taxa = serie.para if serie is not None else taxa_para
     total = Decimal("0.00")
     taxas: list[TaxaAplicada] = []
     sem_taxa: list[str] = []
@@ -139,7 +178,7 @@ def converter_totais(totais_por_moeda, referencia: date) -> Conversao:
         if moeda == MOEDA_BASE:
             total += valor
             continue
-        aplicada = taxa_para(moeda, referencia)
+        aplicada = buscar_taxa(moeda, referencia)
         if aplicada is None:
             sem_taxa.append(moeda)
             continue
