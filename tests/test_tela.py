@@ -45,7 +45,7 @@ def logado():
 
 
 def com_consolidado(monkeypatch, consolidado):
-    monkeypatch.setattr(views, "consolidar", lambda *_args, **_kwargs: consolidado)
+    monkeypatch.setattr(views, "consolidar_v2", lambda *_args, **_kwargs: consolidado)
 
 
 def test_sem_sessao_a_tela_nao_abre():
@@ -255,7 +255,7 @@ def test_cartoes_usam_o_css_compartilhado(logado, monkeypatch):
 
     assert "sharedauth-ui." in corpo
     assert 'class="sa-cartao' in corpo
-    assert 'class="sa-metrica"' in corpo
+    assert 'class="sa-metrica ' in corpo or 'class="sa-metrica"' in corpo
 
 
 def test_fonte_configurada_pela_metade_aparece(logado, monkeypatch):
@@ -360,8 +360,9 @@ def test_historico_desenha_as_curvas_e_lista_o_fim_de_cada_mes(logado):
     assert 'class="curva curva-patrimonio"' in corpo
     assert 'class="curva curva-investimentos"' in corpo
     # Janeiro aparece uma vez, pela última foto do mês.
-    assert "31/01/2026" in corrido
-    assert "30/01/2026" not in corrido
+    tabela_mensal = corrido.split("<h2>Fim de cada mês</h2>", 1)[1]
+    assert "31/01/2026" in tabela_mensal
+    assert "30/01/2026" not in tabela_mensal
     assert "R$ 230.000,00" in corrido  # patrimônio de fevereiro
     assert "R$ 220.000,00" in corrido  # patrimônio de janeiro
     # Dezembro de 2025 tem investimentos, mas não patrimônio: o caixa não existia.
@@ -457,3 +458,109 @@ def test_a_linha_sem_link_continua_so_texto(logado, monkeypatch):
     html = logado.get("/patrimonio/").content.decode()
 
     assert '<span class="linha">Conta corrente · ' in html
+
+
+def test_dashboard_reune_periodos_grafico_e_privacidade(logado, monkeypatch):
+    _foto("2026-01-31", "100.00", "50.00")
+    _foto("2026-02-28", "120.00", "55.00")
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("60.00")])]
+        ),
+    )
+
+    corpo = logado.get(
+        "/patrimonio/", {"periodo": "tudo", "data": "2026-03-01"}
+    ).content.decode()
+
+    assert "Dashboard" in corpo
+    assert 'aria-label="Período do dashboard"' in corpo
+    assert "1 mês" in corpo
+    assert "5 anos" in corpo
+    assert "Ocultar valores" in corpo
+    assert "Patrimônio e investimentos" in corpo
+    assert "31/01/2026" in corpo
+    assert "01/03/2026" in corpo
+
+
+def test_dashboard_mostra_variacao_patrimonial_sem_chamar_de_rentabilidade(
+    logado, monkeypatch
+):
+    _foto("2026-01-31", "80.00", "20.00")
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("130.00")])]
+        ),
+    )
+
+    corrido = " ".join(
+        logado.get(
+            "/patrimonio/", {"periodo": "tudo", "data": "2026-02-01"}
+        ).content.decode().split()
+    )
+
+    assert "R$ 30,00" in corrido
+    assert "30,00%" in corrido
+    assert "desde 31/01/2026" in corrido
+    assert "rentabilidade patrimonial" not in corrido.lower()
+
+
+def test_dashboard_periodo_desconhecido_volta_para_um_ano(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[]))
+
+    resposta = logado.get("/patrimonio/", {"periodo": "qualquer"})
+
+    assert resposta.context["periodo"] == "1a"
+
+
+def test_dashboard_consulta_o_mesmo_intervalo_v2_nas_duas_fontes(logado, monkeypatch):
+    vistos = {}
+
+    def consolidar(**parametros):
+        vistos.update(parametros)
+        return leitor.Consolidado(leituras=[])
+
+    monkeypatch.setattr(views, "consolidar_v2", consolidar)
+
+    logado.get("/patrimonio/", {"periodo": "3m", "data": "2026-09-18"})
+
+    assert vistos == {
+        "inicio": date(2026, 6, 18),
+        "data": date(2026, 9, 18),
+        "periodo": "all",
+    }
+
+
+def test_dashboard_exibe_analiticos_publicados_sem_recalcula_los(logado, monkeypatch):
+    posicao = leitor.Linha(
+        fonte=CRV.nome, papel="investimento", titular="Mariano", instituicao="Genial",
+        descricao="WEGE3", moeda="BRL", valor=Decimal("150.00"),
+        quantidade=Decimal("3"), exposicao_bruta=Decimal("150.00"),
+        link="http://crv.teste/positions/1",
+    )
+    consolidado = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(
+                fonte=CRV, estado=leitor.OK, linhas=[posicao],
+                rendas=[{"moeda": "BRL", "total": Decimal("8"), "por_tipo": {"dividendo": Decimal("8")}}],
+                ganhos_realizados=[{"moeda": "BRL", "resultado": Decimal("15"), "transacoes": 2, "instrumento": "acao"}],
+                twr=[{"moeda": "BRL", "metodo": "TWR", "pontos": [{"data": date(2026, 9, 18), "retorno_acumulado": Decimal("0.10")}]}],
+            )
+        ]
+    )
+    com_consolidado(monkeypatch, consolidado)
+
+    corrido = " ".join(
+        logado.get("/patrimonio/", {"periodo": "1m", "data": "2026-09-18"})
+        .content.decode()
+        .split()
+    )
+
+    assert "Desempenho e renda" in corrido
+    assert "10,00%" in corrido
+    assert "Renda · BRL" in corrido
+    assert "Resultado realizado · BRL" in corrido
+    assert "Maiores posições" in corrido
+    assert "WEGE3" in corrido

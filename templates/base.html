@@ -18,7 +18,7 @@
       {% url 'consolidado:patrimonio' as url_patrimonio %}
       {% url 'consolidado:historico' as url_historico %}
       <nav class="navegacao" aria-label="Telas">
-        <a href="{{ url_patrimonio }}"{% if request.path == url_patrimonio %} aria-current="page"{% endif %}>Hoje</a>
+        <a href="{{ url_patrimonio }}"{% if request.path == url_patrimonio %} aria-current="page"{% endif %}>Dashboard</a>
         <a href="{{ url_historico }}"{% if request.path == url_historico %} aria-current="page"{% endif %}>Histórico</a>
       </nav>
       <form class="sair" method="post" action="{% url 'logout' %}">

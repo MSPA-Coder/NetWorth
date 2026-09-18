@@ -20,9 +20,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
-from consolidado import fotos, grafico
+from consolidado import dashboard, fotos, grafico
 from consolidado.cambio import MOEDA_BASE, converter_totais
-from consolidado.leitor import consolidar
+from consolidado.leitor import consolidar_v2
 
 #: Os recortes da tela de histórico. A chave vai na URL; o valor diz de quando
 #: a curva começa (`None` é a história inteira).
@@ -32,8 +32,93 @@ PERIODOS = {
     "12-meses": ("12 meses", "12m"),
 }
 
+PERIODOS_DASHBOARD = {
+    "1m": ("1 mês", "1m"),
+    "3m": ("3 meses", "3m"),
+    "ano": ("Este ano", "ano"),
+    "1a": ("1 ano", "1a"),
+    "5a": ("5 anos", "5a"),
+    "tudo": ("Tudo", None),
+}
+
 ROTULOS_DO_PAPEL = {"caixa": "Caixa", "investimento": "Investimentos"}
 CASAS_DO_PERCENTUAL = Decimal("0.01")
+
+
+def _inicio_do_periodo(chave: str, referencia: date) -> date | None:
+    periodo_analitico = {
+        "1m": "1M",
+        "3m": "3M",
+        "ano": "YTD",
+        "1a": "1Y",
+        "5a": "5Y",
+        "tudo": "Tudo",
+    }[chave]
+    inicio, _fim = dashboard.intervalo_periodo(periodo_analitico, referencia)
+    return inicio
+
+
+def _valor_do_papel(blocos: list[dict], papel: str, referencia: date) -> Decimal | None:
+    bloco = next((item for item in blocos if item["nome"] == papel), None)
+    if bloco is None:
+        return Decimal("0.00")
+    conversao = converter_totais(bloco["totais_por_moeda"], referencia)
+    return conversao.total if conversao.possivel else None
+
+
+def _variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) -> dict | None:
+    if atual is None:
+        return None
+    primeiro = next(
+        (ponto for ponto in pontos if getattr(ponto, atributo) is not None),
+        None,
+    )
+    if primeiro is None:
+        return None
+    anterior = getattr(primeiro, atributo)
+    absoluto = atual - anterior
+    return {
+        "absoluto": absoluto,
+        "percentual": grafico.variacao(atual, anterior),
+        "desde": primeiro.data,
+    }
+
+
+def _incluir_foto_atual(
+    pontos: list[fotos.Ponto],
+    data_da_tela: date,
+    patrimonio: Decimal | None,
+    investimentos: Decimal | None,
+) -> list[fotos.Ponto]:
+    if patrimonio is None and investimentos is None:
+        return pontos
+    atuais = [ponto for ponto in pontos if ponto.data < data_da_tela]
+    atuais.append(
+        fotos.Ponto(
+            data=data_da_tela,
+            investimentos=investimentos,
+            patrimonio=patrimonio,
+        )
+    )
+    return atuais
+
+
+def _desempenhos(consolidado) -> list[dict]:
+    resultado = []
+    for serie in consolidado.twr:
+        pontos = serie.get("pontos") or []
+        ultimo = pontos[-1] if pontos else None
+        retorno = ultimo.get("retorno_acumulado") if ultimo else None
+        resultado.append(
+            {
+                "moeda": serie.get("moeda", ""),
+                "metodo": serie.get("metodo", ""),
+                "ultimo": ultimo,
+                "retorno_percentual": retorno * 100 if retorno is not None else None,
+                "link": serie.get("link", ""),
+            }
+        )
+    return resultado
 
 
 def _cartoes(blocos: list[dict], referencia: date, rotulos: dict[str, str] | None = None) -> list[dict]:
@@ -92,14 +177,51 @@ def patrimonio_view(request):
         except ValueError:
             data_invalida = True
 
-    consolidado = consolidar(referencia)
+    periodo = request.GET.get("periodo") or "1a"
+    if periodo not in PERIODOS_DASHBOARD:
+        periodo = "1a"
+
+    data_da_tela = referencia or timezone.localdate()
+    inicio = _inicio_do_periodo(periodo, data_da_tela)
+    inicio_da_consulta = inicio or fotos.INICIO_DOS_INVESTIMENTOS
+    consolidado = consolidar_v2(
+        inicio=inicio_da_consulta,
+        data=data_da_tela,
+        periodo="all",
+    )
     # A taxa é a do dia da foto, não a de hoje: converter o passado pela taxa de
     # hoje faria o patrimônio de março mudar toda manhã.
     conversao = converter_totais(consolidado.totais_por_moeda, referencia or timezone.localdate())
-    data_da_tela = referencia or timezone.localdate()
     por_sistema = consolidado.por("papel")
     por_instituicao = consolidado.por("instituicao")
     por_mercado = consolidado.por_mercado()
+    por_classe = consolidado.por("classe", "Caixa e não classificados")
+    pontos = [
+        ponto
+        for ponto in fotos.curvas(desde=inicio)
+        if ponto.data <= data_da_tela
+    ]
+    patrimonio_atual = (
+        conversao.total if consolidado.completo and conversao.possivel else None
+    )
+    investimentos_atuais = (
+        _valor_do_papel(por_sistema, "investimento", data_da_tela)
+        if consolidado.completo
+        else None
+    )
+    pontos = _incluir_foto_atual(
+        pontos,
+        data_da_tela,
+        patrimonio_atual,
+        investimentos_atuais,
+    )
+    desenho = grafico.montar(
+        pontos,
+        (
+            ("patrimonio", "Patrimônio", "curva-patrimonio"),
+            ("investimentos", "Investimentos", "curva-investimentos"),
+        ),
+    )
     return render(
         request,
         "consolidado/patrimonio.html",
@@ -110,6 +232,25 @@ def patrimonio_view(request):
             "referencia": referencia,
             "data_invalida": data_invalida,
             "por_instituicao": consolidado.por_instituicao(),
+            "grafico": desenho,
+            "primeira_data": pontos[0].data if pontos else None,
+            "ultima_data": pontos[-1].data if pontos else None,
+            "periodos_dashboard": [
+                (valor, rotulo)
+                for valor, (rotulo, _recorte) in PERIODOS_DASHBOARD.items()
+            ],
+            "periodo": periodo,
+            "top_posicoes": dashboard.top_posicoes(consolidado, limite=10),
+            "fluxos_por_natureza": dashboard.resumo_fluxos_por_natureza(consolidado),
+            "rendas": consolidado.rendas,
+            "ganhos_realizados": consolidado.ganhos_realizados,
+            "desempenhos": _desempenhos(consolidado),
+            "links_de_secao": consolidado.secoes,
+            "qualidade_v2": consolidado.qualidade,
+            "variacao_patrimonio": _variacao(patrimonio_atual, pontos[:-1], "patrimonio"),
+            "variacao_investimentos": _variacao(
+                investimentos_atuais, pontos[:-1], "investimentos"
+            ),
             "cartoes_por_sistema": _cartoes(por_sistema, data_da_tela, ROTULOS_DO_PAPEL),
             "cartoes_por_instituicao": _cartoes(por_instituicao, data_da_tela),
             "composicoes": (
@@ -127,6 +268,7 @@ def patrimonio_view(request):
                         por_instituicao, data_da_tela, conversao.total
                     )),
                     ("Por mercado", _composicao(por_mercado, data_da_tela, conversao.total)),
+                    ("Por classe", _composicao(por_classe, data_da_tela, conversao.total)),
                 ]
                 if conversao.possivel
                 else []

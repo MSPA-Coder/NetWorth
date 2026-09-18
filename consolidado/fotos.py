@@ -38,6 +38,7 @@ from consolidado.models import FotoDoPatrimonio, ValorDaFoto
 #: Primeiro dia em que o caixa existe nos dois sistemas. Antes dele só há a
 #: curva de investimentos.
 INICIO_DO_PATRIMONIO = date(2026, 1, 1)
+INICIO_DOS_INVESTIMENTOS = date(2022, 5, 9)
 
 PAPEL_INVESTIMENTO = "investimento"
 

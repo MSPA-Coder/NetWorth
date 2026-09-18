@@ -42,6 +42,11 @@ def test_dia_sem_numero_interrompe_a_linha():
     assert curva.classe == "curva-investimentos"
     assert curva.caminho.count("M") == 2
     assert "L" not in curva.caminho
+    assert [ponto.data for ponto in curva.pontos] == [
+        date(2026, 1, 1),
+        date(2026, 1, 3),
+    ]
+    assert [ponto.valor for ponto in curva.pontos] == [Decimal("100"), Decimal("120")]
 
 
 def test_curva_sem_nenhum_valor_nao_e_desenhada():

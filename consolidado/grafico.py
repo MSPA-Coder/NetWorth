@@ -28,10 +28,19 @@ MESES = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "
 
 
 @dataclass(frozen=True, slots=True)
+class PontoDaCurva:
+    x: float
+    y: float
+    data: date
+    valor: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class Curva:
     rotulo: str
     classe: str
     caminho: str
+    pontos: tuple[PontoDaCurva, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +141,7 @@ def montar(pontos, series: tuple[tuple[str, str, str], ...]) -> Grafico | None:
     curvas = []
     for atributo, rotulo, classe in series:
         comandos = []
+        pontos_da_curva = []
         caneta_no_papel = False
         for ponto in pontos:
             valor = getattr(ponto, atributo)
@@ -140,9 +150,24 @@ def montar(pontos, series: tuple[tuple[str, str, str], ...]) -> Grafico | None:
                 continue
             letra = "L" if caneta_no_papel else "M"
             comandos.append(f"{letra}{x(ponto.data):.1f} {y(float(valor)):.1f}")
+            pontos_da_curva.append(
+                PontoDaCurva(
+                    x=round(x(ponto.data), 1),
+                    y=round(y(float(valor)), 1),
+                    data=ponto.data,
+                    valor=valor,
+                )
+            )
             caneta_no_papel = True
         if comandos:
-            curvas.append(Curva(rotulo=rotulo, classe=classe, caminho=" ".join(comandos)))
+            curvas.append(
+                Curva(
+                    rotulo=rotulo,
+                    classe=classe,
+                    caminho=" ".join(comandos),
+                    pontos=tuple(pontos_da_curva),
+                )
+            )
 
     longa = (fim - inicio).days > 540
     eixo_x = tuple(
