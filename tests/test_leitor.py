@@ -374,3 +374,75 @@ def test_resposta_grande_demais_e_recusada(monkeypatch):
     monkeypatch.setattr(leitor.urllib.request, "urlopen", urlopen)
 
     assert leitor.buscar(CB).motivo == "resposta grande demais"
+
+
+# --- O link de cada linha ----------------------------------------------------
+
+
+def _conta_com_endereco(endereco) -> dict:
+    corpo = envelope()
+    corpo["contas"][0]["endereco"] = endereco
+    return corpo
+
+
+def test_a_linha_leva_a_tela_de_origem():
+    leitura = leitor.interpretar(CB, _conta_com_endereco("/transactions/?account_id=7&mode=realizado"))
+
+    (linha,) = leitura.linhas
+    assert linha.link == "http://cb.teste/transactions/?account_id=7&mode=realizado"
+
+
+def test_sem_endereco_publicado_a_linha_nao_tem_link():
+    """Posição encerrada vai com `endereco` nulo; publicador antigo nem manda a chave."""
+    (sem_chave,) = leitor.interpretar(CB, envelope()).linhas
+    (nulo,) = leitor.interpretar(CB, _conta_com_endereco(None)).linhas
+
+    assert sem_chave.link == ""
+    assert nulo.link == ""
+
+
+@pytest.mark.parametrize(
+    "endereco",
+    [
+        "https://outro-lugar.teste/x",
+        "//outro-lugar.teste/x",
+        "/\\outro-lugar.teste/x",
+        "javascript:alert(1)",
+        "transactions/",
+        "/com espaco",
+        7,
+        "/" + "a" * 3000,
+    ],
+)
+def test_endereco_que_sairia_da_fonte_e_descartado_sem_derrubar_a_fonte(endereco):
+    """O que vem pela rede é dado: um link para fora dos dois sistemas não entra."""
+    leitura = leitor.interpretar(CB, _conta_com_endereco(endereco))
+
+    assert leitura.respondeu
+    (linha,) = leitura.linhas
+    assert linha.link == ""
+    assert linha.valor == Decimal("104.47")
+
+
+def test_a_posicao_tambem_leva_a_tela_de_origem():
+    corpo = envelope(
+        sistema="controle-renda-variavel",
+        papel="investimento",
+        contas=[],
+        posicoes=[
+            {
+                "id": "controle-renda-variavel:posicao:1",
+                "titular": "mariano",
+                "instituicao": "genial",
+                "instrumento": "WEGE3",
+                "moeda": "BRL",
+                "valor_a_mercado": "15630.00",
+                "endereco": "/?broker=Genial&expanded=1",
+            }
+        ],
+        instituicoes=[{"id": "genial", "nome": "Genial", "tipo": "Corretora"}],
+    )
+
+    (linha,) = leitor.interpretar(CRV, corpo).linhas
+
+    assert linha.link == "http://crv.teste/?broker=Genial&expanded=1"

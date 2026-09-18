@@ -20,8 +20,10 @@ x-app-environment: &app-environment
   # Os tokens das fontes seguem o mesmo contrato dos outros segredos: arquivo
   # montado, nunca variável direta.
   FONTE_CB_URL: ${FONTE_CB_URL:-}
+  FONTE_CB_ENDERECO_PUBLICO: ${FONTE_CB_ENDERECO_PUBLICO:-}
   FONTE_CB_TOKEN_FILE: /run/secrets/fonte_cb_token
   FONTE_CRV_URL: ${FONTE_CRV_URL:-}
+  FONTE_CRV_ENDERECO_PUBLICO: ${FONTE_CRV_ENDERECO_PUBLICO:-}
   FONTE_CRV_TOKEN_FILE: /run/secrets/fonte_crv_token
   REQUIRE_FILE_SECRETS: "true"
   TZ: America/Sao_Paulo

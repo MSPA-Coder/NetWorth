@@ -35,6 +35,7 @@ Configuração mínima (ambiente):
 | `POSTGRES_*` | banco: login, série de câmbio e foto diária |
 | `FONTE_CB_URL` / `FONTE_CB_TOKEN` | Controle Bancário |
 | `FONTE_CRV_URL` / `FONTE_CRV_TOKEN` | Controle de Renda Variável |
+| `FONTE_<APELIDO>_ENDERECO_PUBLICO` | opcional: onde o navegador alcança a fonte, para o link de cada linha, quando é diferente de `FONTE_<APELIDO>_URL` (na máquina local, `localhost` em vez de `host.docker.internal`) |
 
 Uma fonte sem endereço **ou** sem token simplesmente não é consultada, e a tela
 diz que está configurada pela metade. Erro de implantação tem de ser visível.

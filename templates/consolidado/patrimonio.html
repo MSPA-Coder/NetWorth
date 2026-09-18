@@ -91,6 +91,10 @@
 </p>
 
 <h2>Por instituição</h2>
+{% comment %}
+  Cada linha leva à tela do sistema de origem. O detalhe mora lá; aqui só se
+  soma, e uma cópia do extrato neste aplicativo divergiria do original um dia.
+{% endcomment %}
 <table class="detalhe">
   <thead>
     <tr><th>Instituição</th><th>Moeda</th><th class="num">Total</th><th>De onde</th></tr>
@@ -103,7 +107,7 @@
         <td class="num">{{ bloco.total|dinheiro:bloco.moeda }}</td>
         <td>
           {% for linha in bloco.linhas %}
-            <span class="linha">{{ linha.descricao }} · {{ linha.valor|dinheiro:linha.moeda }} · {{ linha.fonte }}</span>
+            <span class="linha">{% if linha.link %}<a href="{{ linha.link }}">{{ linha.descricao }}</a>{% else %}{{ linha.descricao }}{% endif %} · {{ linha.valor|dinheiro:linha.moeda }} · {{ linha.fonte }}</span>
           {% endfor %}
         </td>
       </tr>

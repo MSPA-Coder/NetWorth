@@ -16,7 +16,7 @@ from consolidado import fontes
 @pytest.fixture(autouse=True)
 def ambiente_limpo(monkeypatch):
     for apelido, _nome, _papel in fontes.FONTES_CONHECIDAS:
-        for sufixo in ("URL", "TOKEN", "TOKEN_FILE"):
+        for sufixo in ("URL", "TOKEN", "TOKEN_FILE", "ENDERECO_PUBLICO"):
             monkeypatch.delenv(f"FONTE_{apelido}_{sufixo}", raising=False)
     monkeypatch.delenv("REQUIRE_FILE_SECRETS", raising=False)
 
@@ -87,3 +87,24 @@ def test_a_ordem_das_fontes_e_a_da_lista(monkeypatch):
         monkeypatch.setenv(f"FONTE_{apelido}_TOKEN", "um-token-qualquer")
 
     assert [f.apelido for f in fontes.fontes_configuradas()] == ["CB", "CRV"]
+
+
+def test_o_link_usa_o_endereco_da_fonte_quando_nao_ha_publico(monkeypatch):
+    monkeypatch.setenv("FONTE_CB_URL", "https://cb.teste/")
+    monkeypatch.setenv("FONTE_CB_TOKEN", "um-token-qualquer")
+
+    (fonte,) = fontes.fontes_configuradas()
+
+    assert fonte.link("/transactions/?account_id=7") == "https://cb.teste/transactions/?account_id=7"
+
+
+def test_o_endereco_publico_vale_so_para_o_link(monkeypatch):
+    """Local, o contêiner lê por `host.docker.internal` e o navegador abre `localhost`."""
+    monkeypatch.setenv("FONTE_CB_URL", "http://host.docker.internal:5201")
+    monkeypatch.setenv("FONTE_CB_ENDERECO_PUBLICO", "http://localhost:5201")
+    monkeypatch.setenv("FONTE_CB_TOKEN", "um-token-qualquer")
+
+    (fonte,) = fontes.fontes_configuradas()
+
+    assert fonte.endereco_do_resumo == "http://host.docker.internal:5201/patrimonio/v1/resumo"
+    assert fonte.link("/x") == "http://localhost:5201/x"

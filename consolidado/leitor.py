@@ -22,12 +22,22 @@ E não confia no que chega: o que vem pela rede é dado, não instrução. Todo 
 monetário é convertido para `Decimal` a partir de texto, e uma linha malformada
 derruba a fonte inteira para o estado "respondeu errado" em vez de virar um
 total silenciosamente torto.
+
+O LINK DE CADA LINHA
+
+Cada fonte publica, em `endereco`, o caminho da tela onde a linha se explica.
+O caminho é dela -- este módulo não o deduz do id, que é opaco -- e só é aceito
+relativo à raiz da própria fonte: começa com uma barra, e só uma. Qualquer
+outra coisa (um endereço absoluto, `//outro-lugar`, um `javascript:`) viraria
+um link para fora dos dois sistemas, e é descartada. Um link ruim não muda
+número nenhum, então ele some sozinho, sem derrubar a fonte.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -59,6 +69,8 @@ class Linha:
     moeda: str
     valor: Decimal
     detalhe: str = ""
+    link: str = ""
+    """Endereço da tela de origem, ou vazio quando a fonte não indicou uma."""
 
 
 @dataclass
@@ -173,6 +185,24 @@ def _nomes_por_id(colecao) -> dict[str, str]:
     return nomes
 
 
+CAMINHO_ACEITO = re.compile(r"/(?![/\\])[^\s\\]*")
+TAMANHO_MAXIMO_DO_CAMINHO = 2048
+
+
+def _link(fonte: Fonte, caminho, onde: str) -> str:
+    """O link da linha, se a fonte publicou um caminho aceitável."""
+    if caminho is None or caminho == "":
+        return ""
+    if (
+        not isinstance(caminho, str)
+        or len(caminho) > TAMANHO_MAXIMO_DO_CAMINHO
+        or not CAMINHO_ACEITO.fullmatch(caminho)
+    ):
+        logger.warning("%s: endereço descartado, não é um caminho relativo à fonte", onde)
+        return ""
+    return fonte.link(caminho)
+
+
 def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
     """Transforma o envelope publicado em linhas, ou recusa o envelope inteiro.
 
@@ -207,6 +237,7 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     descricao=_texto(conta, "nome", onde),
                     moeda=_texto(conta, "moeda", onde),
                     valor=_para_decimal(conta.get("saldo"), onde),
+                    link=_link(fonte, conta.get("endereco"), onde),
                 )
             )
         for indice, posicao in enumerate(corpo.get("posicoes") or []):
@@ -223,6 +254,7 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     moeda=_texto(posicao, "moeda", onde),
                     valor=_para_decimal(posicao.get("valor_a_mercado"), onde),
                     detalhe=str(posicao.get("preco_em") or ""),
+                    link=_link(fonte, posicao.get("endereco"), onde),
                 )
             )
         lacunas = _lacunas(corpo.get("omitidas"), fonte.nome)
