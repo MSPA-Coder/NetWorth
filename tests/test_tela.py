@@ -328,3 +328,38 @@ def test_saude_responde_sem_sessao():
 
     assert resposta.status_code == 200
     assert resposta.json() == {"servico": "networth", "status": "ok"}
+
+
+def test_a_linha_com_link_leva_ao_sistema_de_origem(logado, monkeypatch):
+    com_link = leitor.Linha(
+        fonte=CB.nome,
+        papel="caixa",
+        titular="Mariano",
+        instituicao="C6",
+        descricao="Conta corrente",
+        moeda="BRL",
+        valor=Decimal("100.00"),
+        link="http://cb.teste/transactions/?account_id=7&mode=realizado",
+    )
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[com_link])]),
+    )
+
+    html = logado.get("/patrimonio/").content.decode()
+
+    assert (
+        '<a href="http://cb.teste/transactions/?account_id=7&amp;mode=realizado">Conta corrente</a>'
+        in html
+    )
+
+
+def test_a_linha_sem_link_continua_so_texto(logado, monkeypatch):
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()])]),
+    )
+
+    html = logado.get("/patrimonio/").content.decode()
+
+    assert '<span class="linha">Conta corrente · ' in html

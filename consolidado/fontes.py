@@ -14,6 +14,14 @@ O TOKEN É POR FONTE
 Cada sistema tem o seu, com valores independentes. Um vazamento não abre os
 dois, e a rotação de um não derruba o outro. O nome da variável segue o padrão
 `FONTE_<APELIDO>_URL` / `FONTE_<APELIDO>_TOKEN`.
+
+O ENDEREÇO QUE O NAVEGADOR ALCANÇA
+
+O drilldown termina na tela do sistema de origem, e quem abre o link é o
+navegador, não este servidor. Em produção os dois são o mesmo endereço público.
+Na máquina local não são: o contêiner alcança a fonte por
+`host.docker.internal`, que o navegador não resolve. Para esse caso existe
+`FONTE_<APELIDO>_ENDERECO_PUBLICO`, opcional, que vale só para os links.
 """
 
 from __future__ import annotations
@@ -40,10 +48,15 @@ class Fonte:
     papel: str
     url: str
     token: str
+    endereco_publico: str = ""
 
     @property
     def endereco_do_resumo(self) -> str:
         return f"{self.url.rstrip('/')}{CAMINHO_DO_RESUMO}"
+
+    def link(self, caminho: str) -> str:
+        """O endereço, para o navegador, de um caminho publicado pela fonte."""
+        return f"{(self.endereco_publico or self.url).rstrip('/')}{caminho}"
 
 
 def _segredo(nome: str) -> str:
@@ -73,8 +86,18 @@ def fontes_configuradas() -> list[Fonte]:
     for apelido, nome, papel in FONTES_CONHECIDAS:
         url = (os.environ.get(f"FONTE_{apelido}_URL") or "").strip()
         token = _segredo(f"FONTE_{apelido}_TOKEN")
+        publico = (os.environ.get(f"FONTE_{apelido}_ENDERECO_PUBLICO") or "").strip()
         if url and token:
-            configuradas.append(Fonte(apelido=apelido, nome=nome, papel=papel, url=url, token=token))
+            configuradas.append(
+                Fonte(
+                    apelido=apelido,
+                    nome=nome,
+                    papel=papel,
+                    url=url,
+                    token=token,
+                    endereco_publico=publico,
+                )
+            )
     return configuradas
 
 
