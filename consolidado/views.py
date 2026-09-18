@@ -14,6 +14,7 @@ estava reiniciando, com o número continuando plausível.
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
@@ -31,6 +32,54 @@ PERIODOS = {
     "12-meses": ("12 meses", "12m"),
 }
 
+ROTULOS_DO_PAPEL = {"caixa": "Caixa", "investimento": "Investimentos"}
+CASAS_DO_PERCENTUAL = Decimal("0.01")
+
+
+def _cartoes(blocos: list[dict], referencia: date, rotulos: dict[str, str] | None = None) -> list[dict]:
+    """Dá a cada agrupamento seus totais honestos e, quando dá, sua conversão.
+
+    A regra de câmbio é a mesma do cartão principal. Assim, um cartão por
+    instituição não troca dólares por reais sem dizer qual taxa permitiu isso.
+    """
+    cartoes = []
+    for bloco in blocos:
+        nome = rotulos.get(bloco["nome"], bloco["nome"]) if rotulos else bloco["nome"]
+        cartoes.append(
+            {
+                "nome": nome,
+                "totais_por_moeda": bloco["totais_por_moeda"],
+                "conversao": converter_totais(bloco["totais_por_moeda"], referencia),
+            }
+        )
+    return cartoes
+
+
+def _composicao(blocos: list[dict], referencia: date, total: Decimal | None) -> list[dict]:
+    """Fatias em moeda base que fecham exatamente 100%.
+
+    Só é chamada depois que o consolidado inteiro pôde ser convertido. Arredondar
+    cada fatia sem compensação faria barras que somam 99,99% ou 100,01%, uma
+    discrepância pequena que dá a impressão errada de que algo ficou de fora.
+    """
+    if total is None or not total:
+        return []
+    fatias = []
+    for bloco in blocos:
+        conversao = converter_totais(bloco["totais_por_moeda"], referencia)
+        if not conversao.possivel:
+            return []
+        fatias.append({"nome": bloco["nome"], "total": conversao.total})
+    fatias.sort(key=lambda fatia: (-fatia["total"], fatia["nome"]))
+    for fatia in fatias:
+        fatia["percentual"] = (fatia["total"] * 100 / total).quantize(
+            CASAS_DO_PERCENTUAL, rounding=ROUND_HALF_UP
+        )
+    fatias[0]["percentual"] += Decimal("100.00") - sum(
+        fatia["percentual"] for fatia in fatias
+    )
+    return fatias
+
 
 @login_required
 def patrimonio_view(request):
@@ -47,6 +96,10 @@ def patrimonio_view(request):
     # A taxa é a do dia da foto, não a de hoje: converter o passado pela taxa de
     # hoje faria o patrimônio de março mudar toda manhã.
     conversao = converter_totais(consolidado.totais_por_moeda, referencia or timezone.localdate())
+    data_da_tela = referencia or timezone.localdate()
+    por_sistema = consolidado.por("papel")
+    por_instituicao = consolidado.por("instituicao")
+    por_mercado = consolidado.por_mercado()
     return render(
         request,
         "consolidado/patrimonio.html",
@@ -57,6 +110,27 @@ def patrimonio_view(request):
             "referencia": referencia,
             "data_invalida": data_invalida,
             "por_instituicao": consolidado.por_instituicao(),
+            "cartoes_por_sistema": _cartoes(por_sistema, data_da_tela, ROTULOS_DO_PAPEL),
+            "cartoes_por_instituicao": _cartoes(por_instituicao, data_da_tela),
+            "composicoes": (
+                [
+                    ("Por moeda", _composicao(
+                        [
+                            {"nome": total["moeda"], "totais_por_moeda": [total]}
+                            for total in consolidado.totais_por_moeda
+                        ],
+                        data_da_tela,
+                        conversao.total,
+                    )),
+                    ("Por sistema", _composicao(por_sistema, data_da_tela, conversao.total)),
+                    ("Por instituição", _composicao(
+                        por_instituicao, data_da_tela, conversao.total
+                    )),
+                    ("Por mercado", _composicao(por_mercado, data_da_tela, conversao.total)),
+                ]
+                if conversao.possivel
+                else []
+            ),
         },
     )
 

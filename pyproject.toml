@@ -21,7 +21,7 @@ dependencies = [
   # Cabecalhos de seguranca, formatacao pt-BR e leitura de segredo, iguais aos
   # dos irmaos. **Sem o extra `[flask]`**: o nucleo e Python puro, e pedir o
   # extra traria Flask para dentro de uma imagem Django.
-  "sharedauth @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.11.0",
+  "sharedauth @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.12.0",
 ]
 
 [project.optional-dependencies]

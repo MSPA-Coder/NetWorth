@@ -88,6 +88,9 @@ def test_posicao_publicada_tambem_vira_linha():
                 "moeda": "BRL",
                 "valor_a_mercado": "15630.00",
                 "preco_em": "2026-09-16T17:31:02-03:00",
+                "classe": "acao",
+                "mercado": "B3",
+                "quantidade": "300",
             }
         ],
         instituicoes=[{"id": "genial", "nome": "Genial", "tipo": "Corretora"}],
@@ -100,6 +103,20 @@ def test_posicao_publicada_tambem_vira_linha():
     assert linha.valor == Decimal("15630.00")
     assert linha.papel == "investimento"
     assert linha.detalhe.startswith("2026-09-16")
+    assert linha.id_de_origem == "controle-renda-variavel:posicao:1"
+    assert linha.classe == "acao"
+    assert linha.mercado == "B3"
+    assert linha.quantidade == Decimal("300")
+
+
+def test_campos_novos_do_contrato_sao_opcionais_para_publicador_antigo():
+    """A evolução é aditiva: uma fonte em rollout não some da tela."""
+    (linha_publicada,) = leitor.interpretar(CRV, envelope()).linhas
+
+    assert linha_publicada.id_de_origem == "controle-bancario:conta:7"
+    assert linha_publicada.classe == ""
+    assert linha_publicada.mercado == ""
+    assert linha_publicada.quantidade is None
 
 
 def test_valor_como_numero_json_derruba_a_fonte_inteira():

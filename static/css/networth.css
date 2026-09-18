@@ -14,6 +14,11 @@
   --falha: #a8201a;
   --aviso-fundo: #fff4e5;
   --aviso-borda: #f0b429;
+  --sharedauth-surface: var(--superficie);
+  --sharedauth-text: var(--texto);
+  --sharedauth-text-suave: var(--suave);
+  --sharedauth-border: var(--borda);
+  --sharedauth-accent: var(--texto);
 }
 
 * { box-sizing: border-box; }
@@ -67,16 +72,16 @@ h2 { font-size: 1.1rem; margin: 24px 0 8px; }
 .aviso.destaque { font-weight: 600; }
 
 .totais { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
-.cartao {
-  background: var(--superficie);
-  border: 1px solid var(--borda);
-  border-radius: 10px;
-  padding: 16px 20px;
-  min-width: 220px;
-}
-.cartao h2 { margin: 0; font-size: 0.85rem; color: var(--suave); letter-spacing: 0.06em; }
 .valor { font-size: 1.8rem; font-weight: 700; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
 .rodape { margin: 4px 0 0; color: var(--suave); font-size: 0.85rem; }
+
+.nw-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 16px 0; }
+.nw-composicao { list-style: none; padding: 0; margin: 12px 0 0; }
+.nw-composicao li + li { margin-top: 10px; }
+.nw-composicao div { display: flex; justify-content: space-between; gap: 12px; font-size: 0.9rem; }
+.nw-composicao strong { font-variant-numeric: tabular-nums; }
+.modo-denso { margin-top: 28px; }
+.modo-denso summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
 
 .nota { color: var(--suave); font-size: 0.9rem; max-width: 70ch; }
 
@@ -124,11 +129,11 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
   }
 }
 
-.cartao-base {
+.nw-cartao-base {
   border-color: var(--texto);
   border-width: 2px;
 }
-.cartao-base .valor { font-size: 2.1rem; }
+.nw-cartao-base .valor { font-size: 2.1rem; }
 
 /* Navegação entre as duas telas e entre os períodos do histórico. */
 .navegacao { display: flex; gap: 16px; margin-right: auto; margin-left: 24px; }
