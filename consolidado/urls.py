@@ -8,4 +8,5 @@ app_name = "consolidado"
 
 urlpatterns = [
     path("patrimonio/", views.patrimonio_view, name="patrimonio"),
+    path("patrimonio/historico/", views.historico_view, name="historico"),
 ]

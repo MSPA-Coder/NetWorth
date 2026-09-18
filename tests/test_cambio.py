@@ -182,6 +182,37 @@ def test_a_mesma_moeda_no_mesmo_dia_pela_mesma_fonte_nao_duplica():
         taxa("2026-09-16", "5.99")
 
 
+def test_serie_carregada_responde_igual_a_consulta_por_data():
+    """A série existe para o histórico não fazer uma consulta por foto. Ela não
+    pode ter regra própria: para cada data, a resposta é a de `taxa_para`."""
+    taxa("2026-09-10", "5.00")
+    taxa("2026-09-11", "5.10")
+    taxa("2026-09-11", "5.05", fonte="ptax")
+    taxa("2026-09-14", "5.20")
+    taxa("2026-09-01", "1.10", moeda="EUR")
+    serie = cambio.SerieDeTaxas(["USD", "EUR", "BRL"])
+
+    for dia in range(1, 30):
+        referencia = date(2026, 9, dia)
+        for moeda in ("USD", "EUR", "BRL", "GBP"):
+            assert serie.para(moeda, referencia) == cambio.taxa_para(moeda, referencia), (
+                moeda,
+                referencia,
+            )
+
+
+def test_conversao_pela_serie_carregada_segue_as_mesmas_regras():
+    taxa("2026-09-01", "5.00")
+    serie = cambio.SerieDeTaxas(["USD"])
+
+    no_prazo = cambio.converter_totais(totais(USD="10.00"), date(2026, 9, 8), serie)
+    velha = cambio.converter_totais(totais(USD="10.00"), date(2026, 9, 9), serie)
+
+    assert no_prazo.total == Decimal("50.00")
+    assert velha.total is None
+    assert velha.defasadas
+
+
 def test_taxa_negativa_e_recusada_pelo_banco():
     from django.db import IntegrityError, transaction
 

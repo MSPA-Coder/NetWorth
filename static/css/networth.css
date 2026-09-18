@@ -129,3 +129,68 @@ table.detalhe .num { text-align: right; font-variant-numeric: tabular-nums; }
   border-width: 2px;
 }
 .cartao-base .valor { font-size: 2.1rem; }
+
+/* Navegação entre as duas telas e entre os períodos do histórico. */
+.navegacao { display: flex; gap: 16px; margin-right: auto; margin-left: 24px; }
+.navegacao a, .periodos a { color: var(--suave); text-decoration: none; }
+.navegacao a[aria-current="page"], .periodos a.ativo { color: var(--texto); font-weight: 600; }
+.periodos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.periodos a {
+  padding: 4px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--superficie);
+}
+.periodos a.ativo { border-color: var(--texto); }
+
+/* O gráfico do histórico: SVG desenhado no servidor, pintado só por classe. */
+.grafico {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.grafico svg { display: block; width: 100%; height: auto; }
+.grafico .grade { stroke: var(--borda); stroke-width: 1; }
+.grafico .grade-vertical { stroke-dasharray: 2 4; }
+.grafico .rotulo { fill: var(--suave); font-size: 12px; }
+.grafico .curva { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.curva-patrimonio { stroke: var(--curva-patrimonio); }
+.curva-investimentos { stroke: var(--curva-investimentos); }
+.legenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
+.chave::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: currentColor;
+}
+.chave.curva-patrimonio { color: var(--curva-patrimonio); }
+.chave.curva-investimentos { color: var(--curva-investimentos); }
+.nota-curta { color: var(--suave); }
+
+:root {
+  --curva-patrimonio: #1f5fbf;
+  --curva-investimentos: #c2410c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --curva-patrimonio: #7aa7ff;
+    --curva-investimentos: #fb923c;
+  }
+}
+
+/* Tabela larga em tela estreita: rola ela, não a página. */
+.rolavel { overflow-x: auto; }
+.rolavel table.detalhe { min-width: 520px; }
+
+@media (max-width: 600px) {
+  main { padding: 16px; }
+  .navegacao { margin-left: 12px; gap: 12px; }
+  .grafico { padding: 6px; }
+  table.detalhe th, table.detalhe td { padding: 6px; font-size: 0.85rem; }
+}

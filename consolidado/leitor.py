@@ -70,6 +70,14 @@ class Leitura:
     motivo: str = ""
     data_de_referencia: date | None = None
     linhas: list[Linha] = field(default_factory=list)
+    lacunas: list[str] = field(default_factory=list)
+    """O que a fonte respondeu que deixou de fora por não conseguir avaliar.
+
+    A fonte respondeu, e o que veio está certo -- mas não é tudo. Uma posição
+    sem cotação que some do total faz o patrimônio encolher com cara de
+    completo, então a lacuna torna o consolidado incompleto, como uma fonte
+    fora do ar.
+    """
 
     @property
     def respondeu(self) -> bool:
@@ -98,11 +106,12 @@ class Consolidado:
 
     @property
     def completo(self) -> bool:
-        """Todas as fontes conhecidas responderam, e nenhuma está pela metade."""
+        """Todas as fontes conhecidas responderam, por inteiro, e nenhuma está
+        configurada pela metade."""
         return (
             bool(self.leituras)
             and not self.incompletas
-            and all(leitura.respondeu for leitura in self.leituras)
+            and all(leitura.respondeu and not leitura.lacunas for leitura in self.leituras)
         )
 
     @property
@@ -216,10 +225,38 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     detalhe=str(posicao.get("preco_em") or ""),
                 )
             )
+        lacunas = _lacunas(corpo.get("omitidas"), fonte.nome)
     except ValueError as erro:
         return Leitura(fonte=fonte, estado=FALHOU, motivo=str(erro))
 
-    return Leitura(fonte=fonte, estado=OK, data_de_referencia=referencia, linhas=linhas)
+    return Leitura(
+        fonte=fonte, estado=OK, data_de_referencia=referencia, linhas=linhas, lacunas=lacunas
+    )
+
+
+def _lacunas(omitidas, onde: str) -> list[str]:
+    """O que a fonte deixou de fora sem ter como avaliar.
+
+    O envelope conta três omissões, e só uma é lacuna. Carteira simulada não é
+    patrimônio, e opção fica de fora por decisão até ser publicada com o mesmo
+    cuidado das ações: as duas ficam de fora em toda data, então não abrem um
+    buraco na série. Posição **sem cotação** é outra coisa: ela vale dinheiro, e
+    o total sem ela é menor do que o patrimônio.
+    """
+    if omitidas is None:
+        return []
+    if not isinstance(omitidas, dict):
+        raise ValueError(f"{onde}: 'omitidas' tem de ser um objeto")
+    sem_cotacao = omitidas.get("sem_cotacao", 0)
+    if isinstance(sem_cotacao, bool) or not isinstance(sem_cotacao, int) or sem_cotacao < 0:
+        raise ValueError(f"{onde}: 'omitidas.sem_cotacao' tem de ser um inteiro")
+    if not sem_cotacao:
+        return []
+    return [
+        f"{sem_cotacao} posição sem cotação ficou de fora"
+        if sem_cotacao == 1
+        else f"{sem_cotacao} posições sem cotação ficaram de fora"
+    ]
 
 
 def buscar(fonte: Fonte, referencia: date | None = None) -> Leitura:
@@ -258,7 +295,24 @@ def buscar(fonte: Fonte, referencia: date | None = None) -> Leitura:
         return Leitura(fonte=fonte, estado=FALHOU, motivo="resposta não é JSON")
     if not isinstance(corpo, dict):
         return Leitura(fonte=fonte, estado=FALHOU, motivo="resposta não é um objeto JSON")
-    return interpretar(fonte, corpo)
+    leitura = interpretar(fonte, corpo)
+    if (
+        referencia is not None
+        and leitura.respondeu
+        and leitura.data_de_referencia != referencia
+    ):
+        # Uma fonte que ignora `?data=` responde o patrimônio de hoje para uma
+        # pergunta sobre março, e o número passa por histórico. É a forma mais
+        # silenciosa de inventar o passado, então a leitura inteira é recusada.
+        return Leitura(
+            fonte=fonte,
+            estado=FALHOU,
+            motivo=(
+                f"a fonte respondeu a data {leitura.data_de_referencia:%d/%m/%Y} "
+                f"para a pergunta sobre {referencia:%d/%m/%Y}"
+            ),
+        )
+    return leitura
 
 
 def consolidar(referencia: date | None = None) -> Consolidado:

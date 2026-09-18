@@ -63,6 +63,46 @@ Vale rodar diariamente. Sem coleta por mais de uma semana, o total em moeda base
 deixa de aparecer -- taxa velha demais não é taxa, é chute. No VPS quem roda é
 o `atualizar-cambio.timer` do repositório `manutencao`.
 
+Para desenhar a curva de investimentos desde 2022 a série precisa alcançar
+aquele período, e por padrão ela começa no corte do caixa (31/12/2025):
+
+```bash
+docker compose --env-file .env.docker -f compose.yaml run --rm web python manage.py atualizar_cambio --desde 2022-04-29
+```
+
+## O histórico, e a foto de cada dia
+
+A tela **Histórico** desenha duas curvas: investimentos desde a primeira
+posição (maio de 2022) e patrimônio -- caixa mais investimentos -- desde
+01/01/2026, que é o corte do caixa. Antes dele o Controle Bancário responde com
+zero contas, e desenhar aquele zero como patrimônio mostraria só a parte
+investida com nome de total.
+
+A curva sai de uma **foto por dia**, gravada por um comando. Sem as fotos,
+desenhar anos de série exigiria perguntar uma data de cada vez às fontes a cada
+abertura de tela:
+
+```bash
+docker compose --env-file .env.docker -f compose.yaml run --rm web python manage.py registrar_foto
+```
+
+Sem argumento ele **refaz os últimos sete dias fechados** -- uma despesa de
+ontem pode ser lançada amanhã, e a foto de ontem precisa enxergá-la. Hoje nunca
+é fotografado: o dia não fechou. E **só foto completa é gravada**: se uma fonte
+não respondeu, ou deixou de fora uma posição sem cotação, aquele dia fica sem
+foto e o comando termina com erro, para o timer alertar. Uma foto feita com
+uma fonte fora do ar viraria um degrau permanente no gráfico.
+
+| Para quê | Comando |
+|---|---|
+| a história inteira, uma vez | `registrar_foto --desde 2022-05-09` |
+| um dia só | `registrar_foto --data 2026-09-16` |
+| refazer depois de corrigir dado nas fontes | `registrar_foto --desde 2025-12-31 --refazer` |
+
+Sem `--refazer`, a data que já tem foto é pulada -- então repetir a carga só
+preenche o que faltou. No VPS quem roda é o `registrar-foto.timer` do
+repositório `manutencao`, às 07:40, depois da coleta de câmbio.
+
 ## Produção (VPS1)
 
 `https://networth-mspa.duckdns.org`, com o mesmo arranjo dos irmãos: o Nginx
@@ -91,6 +131,10 @@ com `~/deploy.sh networth`.
    `docker compose --env-file .env.vps -f compose.yaml exec web python manage.py createsuperuser`.
 7. Preencher a série de câmbio uma vez com `atualizar_cambio`; dali em diante
    o timer cuida dela.
+8. Preencher o histórico uma vez com `registrar_foto --desde 2022-05-09`; dali
+   em diante o timer cuida dele. A carga são milhares de leituras das duas
+   fontes e leva alguns minutos; repetir o comando preenche o que tiver
+   faltado.
 
 **Trocar um token** é uma operação dos dois lados ao mesmo tempo. Se só o
 publicador mudar, a fonte passa a responder 401. A tela diz qual fonte falhou

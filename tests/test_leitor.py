@@ -169,6 +169,43 @@ def test_completo_so_quando_todas_responderam():
     assert consolidado_com(boa, outra).completo is True
 
 
+def test_posicao_sem_cotacao_torna_o_consolidado_incompleto():
+    """A fonte respondeu, mas deixou de fora algo que vale dinheiro: o total é
+    menor que o patrimônio, e isso tem de ser dito como numa fonte fora do ar."""
+    boa = leitor.interpretar(CB, envelope())
+    furada = leitor.interpretar(
+        CRV,
+        envelope(
+            sistema="controle-renda-variavel",
+            omitidas={"simuladas": 10, "opcoes": 5, "sem_cotacao": 2},
+        ),
+    )
+
+    assert furada.respondeu
+    assert furada.lacunas == ["2 posições sem cotação ficaram de fora"]
+    assert consolidado_com(boa, furada).completo is False
+
+
+def test_simuladas_e_opcoes_nao_sao_lacuna():
+    """As duas ficam de fora por decisão, e em toda data: não abrem buraco."""
+    leitura = leitor.interpretar(
+        CRV,
+        envelope(
+            sistema="controle-renda-variavel",
+            omitidas={"simuladas": 10, "opcoes": 5, "sem_cotacao": 0},
+        ),
+    )
+
+    assert leitura.lacunas == []
+
+
+def test_omitidas_malformada_derruba_a_fonte():
+    leitura = leitor.interpretar(CRV, envelope(omitidas={"sem_cotacao": "2"}))
+
+    assert leitura.estado == leitor.FALHOU
+    assert "sem_cotacao" in leitura.motivo
+
+
 def test_fonte_configurada_pela_metade_torna_o_consolidado_incompleto():
     boa = leitor.interpretar(CB, envelope())
 
@@ -255,13 +292,40 @@ def test_data_pedida_viaja_na_consulta(monkeypatch):
 
     def urlopen(pedido, timeout=None):
         vistos.append(pedido.full_url)
+        corpo = envelope(data_de_referencia="2026-06-30")
+        return RespostaFalsa(json.dumps(corpo).encode("utf-8"))
+
+    monkeypatch.setattr(leitor.urllib.request, "urlopen", urlopen)
+
+    leitura = leitor.buscar(CB, date(2026, 6, 30))
+
+    assert vistos == ["http://cb.teste/patrimonio/v1/resumo?data=2026-06-30"]
+    assert leitura.respondeu
+
+
+def test_fonte_que_responde_outra_data_e_recusada(monkeypatch):
+    """Uma fonte que ignora `?data=` devolve o patrimônio de hoje para uma
+    pergunta sobre junho, e o número passa por histórico."""
+
+    def urlopen(pedido, timeout=None):
         return RespostaFalsa(json.dumps(envelope()).encode("utf-8"))
 
     monkeypatch.setattr(leitor.urllib.request, "urlopen", urlopen)
 
-    leitor.buscar(CB, date(2026, 6, 30))
+    leitura = leitor.buscar(CB, date(2026, 6, 30))
 
-    assert vistos == ["http://cb.teste/patrimonio/v1/resumo?data=2026-06-30"]
+    assert leitura.estado == leitor.FALHOU
+    assert "16/09/2026" in leitura.motivo
+    assert leitura.linhas == []
+
+
+def test_sem_data_pedida_a_data_da_fonte_vale(monkeypatch):
+    def urlopen(pedido, timeout=None):
+        return RespostaFalsa(json.dumps(envelope()).encode("utf-8"))
+
+    monkeypatch.setattr(leitor.urllib.request, "urlopen", urlopen)
+
+    assert leitor.buscar(CB).respondeu
 
 
 @pytest.mark.parametrize(

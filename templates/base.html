@@ -4,14 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}NetWorth{% endblock %}</title>
-  {# Nada embutido: a CSP deste projeto e fechada, e todo estilo e arquivo
-     servido com hash pelo WhiteNoise. #}
+  {% comment %}
+    Nada embutido: a CSP deste projeto e fechada, e todo estilo e arquivo
+    servido com hash pelo WhiteNoise.
+  {% endcomment %}
   <link rel="stylesheet" href="{% static 'css/networth.css' %}">
 </head>
 <body>
   <header class="topo">
     <a class="marca" href="{% url 'consolidado:patrimonio' %}">NetWorth</a>
     {% if user.is_authenticated %}
+      {% url 'consolidado:patrimonio' as url_patrimonio %}
+      {% url 'consolidado:historico' as url_historico %}
+      <nav class="navegacao" aria-label="Telas">
+        <a href="{{ url_patrimonio }}"{% if request.path == url_patrimonio %} aria-current="page"{% endif %}>Hoje</a>
+        <a href="{{ url_historico }}"{% if request.path == url_historico %} aria-current="page"{% endif %}>Histórico</a>
+      </nav>
       <form class="sair" method="post" action="{% url 'logout' %}">
         {% csrf_token %}
         <span class="quem">{{ user.get_username }}</span>

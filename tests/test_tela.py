@@ -197,6 +197,132 @@ def test_a_tela_traz_os_cabecalhos_defensivos(logado, monkeypatch):
     assert resposta["X-Frame-Options"] == "DENY"
 
 
+def test_lacuna_de_uma_fonte_aparece_no_estado_e_no_aviso(logado, monkeypatch):
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()]),
+                leitor.Leitura(
+                    fonte=CRV,
+                    estado=leitor.OK,
+                    linhas=[linha("50.00")],
+                    lacunas=["1 posição sem cotação ficou de fora"],
+                ),
+            ]
+        ),
+    )
+
+    corrido = " ".join(logado.get("/patrimonio/").content.decode().split())
+
+    assert "não é o patrimônio inteiro" in corrido
+    assert "1 posição sem cotação ficou de fora" in corrido
+
+
+# --- O histórico ---------------------------------------------------------------
+
+
+def _foto(dia: str, investido: str, caixa: str = "0.00"):
+    from django.utils import timezone
+
+    from consolidado.models import FotoDoPatrimonio, ValorDaFoto
+
+    foto = FotoDoPatrimonio.objects.create(data=date.fromisoformat(dia), tirada_em=timezone.now())
+    ValorDaFoto.objects.create(
+        foto=foto, fonte="CRV", papel="investimento", instituicao="Genial",
+        moeda="BRL", total=Decimal(investido), linhas=1,
+    )
+    ValorDaFoto.objects.create(
+        foto=foto, fonte="CB", papel="caixa", instituicao="C6",
+        moeda="BRL", total=Decimal(caixa), linhas=1,
+    )
+
+
+def test_historico_exige_sessao():
+    resposta = Client().get("/patrimonio/historico/")
+
+    assert resposta.status_code == 302
+    assert "/login" in resposta["Location"]
+
+
+def test_historico_sem_foto_explica_como_elas_nascem(logado):
+    corpo = logado.get("/patrimonio/historico/").content.decode()
+
+    assert "Ainda não há foto" in corpo
+    assert "registrar_foto" in corpo
+    assert "<svg" not in corpo
+
+
+def test_historico_desenha_as_curvas_e_lista_o_fim_de_cada_mes(logado):
+    _foto("2025-12-31", "150000.00")
+    _foto("2026-01-30", "160000.00", "50000.00")
+    _foto("2026-01-31", "165000.00", "55000.00")
+    _foto("2026-02-27", "170000.00", "60000.00")
+
+    corpo = logado.get("/patrimonio/historico/").content.decode()
+    corrido = " ".join(corpo.split())
+
+    assert "<svg" in corpo
+    assert 'class="curva curva-patrimonio"' in corpo
+    assert 'class="curva curva-investimentos"' in corpo
+    # Janeiro aparece uma vez, pela última foto do mês.
+    assert "31/01/2026" in corrido
+    assert "30/01/2026" not in corrido
+    assert "R$ 230.000,00" in corrido  # patrimônio de fevereiro
+    assert "R$ 220.000,00" in corrido  # patrimônio de janeiro
+    # Dezembro de 2025 tem investimentos, mas não patrimônio: o caixa não existia.
+    assert "R$ 150.000,00" in corrido
+
+
+def test_historico_nao_tem_script_nem_estilo_embutido(logado):
+    """A CSP é fechada: um `style=` ou um `<script>` seriam bloqueados."""
+    _foto("2026-01-31", "1.00", "1.00")
+    _foto("2026-02-27", "2.00", "2.00")
+
+    corpo = logado.get("/patrimonio/historico/").content.decode()
+
+    assert "<script" not in corpo
+    assert "style=" not in corpo
+
+
+def test_coordenadas_do_grafico_usam_ponto_decimal(logado):
+    """Em pt-BR o Django escreve 123,4 -- e `x="123,4"` o SVG lê como duas
+    coordenadas: o primeiro caractere do rótulo vai para 123, o segundo para 4.
+    Os rótulos saíram picados assim na primeira versão."""
+    import re
+
+    _foto("2025-12-31", "150000.00")
+    _foto("2026-02-27", "170000.00", "60000.00")
+
+    corpo = logado.get("/patrimonio/historico/").content.decode()
+
+    assert re.search(r'\s(?:x|y|x1|x2|y1|y2)="[^"]*,', corpo) is None
+    assert re.search(r'\sd="[^"]*,', corpo) is None
+
+
+@pytest.mark.parametrize("caminho", ["/patrimonio/", "/patrimonio/historico/"])
+def test_comentario_de_template_nao_vaza_para_a_pagina(logado, monkeypatch, caminho):
+    """`{# #}` do Django vale para UMA linha. Em várias linhas ele vira texto, e
+    o topo da página mostrava o comentário do `base.html`."""
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[]))
+
+    corpo = logado.get(caminho).content.decode()
+
+    assert "{#" not in corpo
+    assert "#}" not in corpo
+
+
+def test_periodo_desconhecido_vira_tudo(logado):
+    _foto("2025-06-30", "1.00")
+    _foto("2026-06-30", "2.00", "1.00")
+
+    corpo = logado.get("/patrimonio/historico/", {"periodo": "qualquer"}).content.decode()
+    so_2026 = logado.get("/patrimonio/historico/", {"periodo": "desde-2026"}).content.decode()
+
+    assert "30/06/2025" in corpo
+    assert "30/06/2025" not in so_2026
+
+
 def test_saude_responde_sem_sessao():
     resposta = Client().get("/health/")
 
