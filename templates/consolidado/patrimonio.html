@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load dinheiro %}
+{% load l10n %}
 
 {% block titulo %}Patrimônio — NetWorth{% endblock %}
 
@@ -51,7 +52,7 @@
 {% endcomment %}
 {% if conversao.possivel %}
   <section class="totais">
-    <article class="cartao cartao-base">
+    <article class="sa-cartao nw-cartao-base">
       <h2>Total em {{ moeda_base }}</h2>
       <p class="valor">{{ conversao.total|dinheiro:moeda_base }}</p>
       <p class="rodape">
@@ -73,7 +74,7 @@
 
 <section class="totais">
   {% for total in consolidado.totais_por_moeda %}
-    <article class="cartao">
+    <article class="sa-cartao">
       <h2>{{ total.moeda }}</h2>
       <p class="valor">{{ total.total|dinheiro:total.moeda }}</p>
       <p class="rodape">{{ total.linhas }} linha{{ total.linhas|pluralize }}</p>
@@ -90,30 +91,88 @@
   e errado é pior que dois números certos.
 </p>
 
-<h2>Por instituição</h2>
+<h2>Onde está o patrimônio</h2>
+<section class="nw-grade" aria-label="Cartões por sistema">
+  {% for cartao in cartoes_por_sistema %}
+    <article class="sa-cartao">
+      <h3>{{ cartao.nome }}</h3>
+      {% if cartao.conversao.possivel %}
+        <p class="sa-metrica">{{ cartao.conversao.total|dinheiro:moeda_base }}</p>
+        <p class="rodape">Total em {{ moeda_base }}{% if cartao.conversao.taxas %}; taxa da data acima{% endif %}</p>
+      {% else %}
+        {% for total in cartao.totais_por_moeda %}
+          <p class="sa-metrica">{{ total.total|dinheiro:total.moeda }}</p>
+        {% endfor %}
+        <p class="rodape">Sem total em {{ moeda_base }}: {{ cartao.conversao.motivo }}.</p>
+      {% endif %}
+    </article>
+  {% endfor %}
+</section>
+
+<section class="nw-grade" aria-label="Cartões por instituição">
+  {% for cartao in cartoes_por_instituicao %}
+    <article class="sa-cartao">
+      <h3>{{ cartao.nome }}</h3>
+      {% if cartao.conversao.possivel %}
+        <p class="sa-metrica">{{ cartao.conversao.total|dinheiro:moeda_base }}</p>
+        <p class="rodape">Total em {{ moeda_base }}{% if cartao.conversao.taxas %}; taxa da data acima{% endif %}</p>
+      {% else %}
+        {% for total in cartao.totais_por_moeda %}
+          <p class="sa-metrica">{{ total.total|dinheiro:total.moeda }}</p>
+        {% endfor %}
+        <p class="rodape">Sem total em {{ moeda_base }}: {{ cartao.conversao.motivo }}.</p>
+      {% endif %}
+    </article>
+  {% endfor %}
+</section>
+
+{% if composicoes %}
+  <h2>Composição</h2>
+  <section class="nw-grade" aria-label="Composição do patrimônio">
+    {% for titulo, fatias in composicoes %}
+      <article class="sa-cartao">
+        <h3>{{ titulo }}</h3>
+        <ul class="nw-composicao">
+          {% for fatia in fatias %}
+            <li>
+              <div><span>{{ fatia.nome }}</span><strong>{{ fatia.percentual|floatformat:1 }}%</strong></div>
+              <progress class="sa-barra" max="100" value="{{ fatia.percentual|unlocalize }}">{{ fatia.percentual|floatformat:1 }}%</progress>
+            </li>
+          {% endfor %}
+        </ul>
+      </article>
+    {% endfor %}
+  </section>
+{% endif %}
+
+<details class="modo-denso">
+  <summary>Ver tabela detalhada por instituição</summary>
 {% comment %}
   Cada linha leva à tela do sistema de origem. O detalhe mora lá; aqui só se
   soma, e uma cópia do extrato neste aplicativo divergiria do original um dia.
 {% endcomment %}
-<table class="detalhe">
-  <thead>
-    <tr><th>Instituição</th><th>Moeda</th><th class="num">Total</th><th>De onde</th></tr>
-  </thead>
-  <tbody>
-    {% for bloco in por_instituicao %}
-      <tr>
-        <td>{{ bloco.instituicao }}</td>
-        <td>{{ bloco.moeda }}</td>
-        <td class="num">{{ bloco.total|dinheiro:bloco.moeda }}</td>
-        <td>
-          {% for linha in bloco.linhas %}
-            <span class="linha">{% if linha.link %}<a href="{{ linha.link }}">{{ linha.descricao }}</a>{% else %}{{ linha.descricao }}{% endif %} · {{ linha.valor|dinheiro:linha.moeda }} · {{ linha.fonte }}</span>
-          {% endfor %}
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="4">Nada a mostrar.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <div class="rolavel">
+    <table class="detalhe">
+      <thead>
+        <tr><th>Instituição</th><th>Moeda</th><th class="num">Total</th><th>De onde</th></tr>
+      </thead>
+      <tbody>
+        {% for bloco in por_instituicao %}
+          <tr>
+            <td>{{ bloco.instituicao }}</td>
+            <td>{{ bloco.moeda }}</td>
+            <td class="num">{{ bloco.total|dinheiro:bloco.moeda }}</td>
+            <td>
+              {% for linha in bloco.linhas %}
+                <span class="linha">{% if linha.link %}<a href="{{ linha.link }}">{{ linha.descricao }}</a>{% else %}{{ linha.descricao }}{% endif %} · {{ linha.valor|dinheiro:linha.moeda }} · {{ linha.fonte }}</span>
+              {% endfor %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Nada a mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
 {% endblock %}

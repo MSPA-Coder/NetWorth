@@ -68,8 +68,12 @@ class Linha:
     descricao: str
     moeda: str
     valor: Decimal
+    id_de_origem: str = ""
     detalhe: str = ""
     link: str = ""
+    classe: str = ""
+    mercado: str = ""
+    quantidade: Decimal | None = None
     """Endereço da tela de origem, ou vazio quando a fonte não indicou uma."""
 
 
@@ -155,6 +159,38 @@ class Consolidado:
             bloco["linhas"].append(linha)
         return [acumulado[chave] for chave in sorted(acumulado)]
 
+    def por(self, atributo: str, rotulo_vazio: str = "Não informado") -> list[dict]:
+        """Agrupa linhas para os cartões, sem transformar moedas em uma só.
+
+        A conversão continua com quem chama. Agrupar primeiro e converter
+        depois evita que um cartão em reais pareça conter um valor em dólar
+        que ainda não pode ser convertido.
+        """
+        acumulado: dict[str, dict] = {}
+        for linha in self.linhas:
+            valor = getattr(linha, atributo) or rotulo_vazio
+            bloco = acumulado.setdefault(valor, {"nome": valor, "linhas": []})
+            bloco["linhas"].append(linha)
+        for bloco in acumulado.values():
+            bloco["totais_por_moeda"] = _totais_por_moeda(bloco["linhas"])
+        return [acumulado[chave] for chave in sorted(acumulado)]
+
+    def por_mercado(self) -> list[dict]:
+        """Agrupa B3, EUA e caixa sem inventar mercado para uma posição.
+
+        O caixa não é posição, mas é uma fatia útil da composição. Já uma
+        posição antiga sem `mercado` fica explicitamente não informada, para
+        não ser classificada pelo consolidado.
+        """
+        acumulado: dict[str, dict] = {}
+        for linha in self.linhas:
+            mercado = linha.mercado or ("Caixa" if linha.papel == "caixa" else "Não informado")
+            bloco = acumulado.setdefault(mercado, {"nome": mercado, "linhas": []})
+            bloco["linhas"].append(linha)
+        for bloco in acumulado.values():
+            bloco["totais_por_moeda"] = _totais_por_moeda(bloco["linhas"])
+        return [acumulado[chave] for chave in sorted(acumulado)]
+
 
 def _para_decimal(bruto, onde: str) -> Decimal:
     if not isinstance(bruto, str):
@@ -172,6 +208,35 @@ def _texto(dados: dict, chave: str, onde: str) -> str:
     if not isinstance(valor, str) or not valor.strip():
         raise ValueError(f"{onde}: falta '{chave}'")
     return valor.strip()
+
+
+def _texto_opcional(dados: dict, chave: str, onde: str) -> str:
+    """Um texto opcional, ainda assim validado quando o publicador o envia."""
+    valor = dados.get(chave)
+    if valor is None or valor == "":
+        return ""
+    if not isinstance(valor, str):
+        raise ValueError(f"{onde}: '{chave}' tem de ser texto")
+    return valor.strip()
+
+
+def _decimal_opcional(dados: dict, chave: str, onde: str) -> Decimal | None:
+    valor = dados.get(chave)
+    if valor is None or valor == "":
+        return None
+    return _para_decimal(valor, f"{onde}.{chave}")
+
+
+def _totais_por_moeda(linhas: list[Linha]) -> list[dict]:
+    """Totais que ainda preservam a moeda, para qualquer grupo da tela."""
+    acumulado: dict[str, dict] = {}
+    for linha in linhas:
+        bloco = acumulado.setdefault(
+            linha.moeda, {"moeda": linha.moeda, "total": Decimal("0.00"), "linhas": 0}
+        )
+        bloco["total"] += linha.valor
+        bloco["linhas"] += 1
+    return [acumulado[moeda] for moeda in sorted(acumulado)]
 
 
 def _nomes_por_id(colecao) -> dict[str, str]:
@@ -237,6 +302,7 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     descricao=_texto(conta, "nome", onde),
                     moeda=_texto(conta, "moeda", onde),
                     valor=_para_decimal(conta.get("saldo"), onde),
+                    id_de_origem=_texto_opcional(conta, "id", onde),
                     link=_link(fonte, conta.get("endereco"), onde),
                 )
             )
@@ -253,8 +319,12 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     descricao=_texto(posicao, "instrumento", onde),
                     moeda=_texto(posicao, "moeda", onde),
                     valor=_para_decimal(posicao.get("valor_a_mercado"), onde),
+                    id_de_origem=_texto_opcional(posicao, "id", onde),
                     detalhe=str(posicao.get("preco_em") or ""),
                     link=_link(fonte, posicao.get("endereco"), onde),
+                    classe=_texto_opcional(posicao, "classe", onde),
+                    mercado=_texto_opcional(posicao, "mercado", onde),
+                    quantidade=_decimal_opcional(posicao, "quantidade", onde),
                 )
             )
         lacunas = _lacunas(corpo.get("omitidas"), fonte.nome)

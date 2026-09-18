@@ -20,6 +20,20 @@ duas e soma **dentro de cada moeda**.
   números certos;
 - **ele não escreve nos outros sistemas**, e não conhece o banco de nenhum deles.
 
+## Leitura por cartões e composição
+
+A tela de patrimônio também mostra cartões por sistema e por instituição. Cada
+cartão mostra o total em moeda base somente quando as moedas daquele grupo têm
+taxa válida para a data consultada; sem isso, mantém os totais separados por
+moeda. A tabela detalhada por instituição continua disponível como modo
+alternativo.
+
+Quando a conversão do consolidado inteiro é possível, a tela exibe a composição
+por moeda, sistema, instituição e mercado. As fatias fecham 100%; se faltar
+taxa para qualquer moeda, a composição não é exibida, pois um percentual parcial
+pareceria completo. Os componentes visuais de cartão, métrica e barra vêm do
+SharedAuth `v0.12.0` e recebem apenas os tokens de tema do NetWorth.
+
 ## Rodar local
 
 ```bash

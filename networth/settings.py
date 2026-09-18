@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 
 from sharedauth.secrets import resolver_segredo
+from sharedauth.ui import CAMINHO_ESTATICO
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -110,7 +111,7 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [BASE_DIR / "static", CAMINHO_ESTATICO]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},

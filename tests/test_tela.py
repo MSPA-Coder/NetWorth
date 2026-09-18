@@ -164,6 +164,100 @@ def test_sem_taxa_nao_aparece_total_em_moeda_base(logado, monkeypatch):
     assert "US$ 100,00" in corrido
 
 
+def test_composicao_so_aparece_quando_o_total_inteiro_pode_ser_convertido(logado, monkeypatch):
+    """Uma barra sem a moeda que ficou de fora é só outro total enganoso."""
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(
+                    fonte=CB, estado=leitor.OK, linhas=[linha("100.00", moeda="BRL")]
+                ),
+                leitor.Leitura(
+                    fonte=CRV,
+                    estado=leitor.OK,
+                    linhas=[
+                        leitor.Linha(
+                            fonte=CRV.nome,
+                            papel="investimento",
+                            titular="Mariano",
+                            instituicao="Avenue",
+                            descricao="AAPL",
+                            moeda="USD",
+                            valor=Decimal("20.00"),
+                            mercado="EUA",
+                        )
+                    ],
+                ),
+            ]
+        ),
+    )
+
+    resposta = logado.get("/patrimonio/", {"data": "2026-09-16"})
+
+    assert resposta.context["composicoes"] == []
+    assert "Composição" not in resposta.content.decode()
+    assert "US$ 20,00" in resposta.content.decode()
+
+
+def test_composicoes_fecham_cem_por_cento_com_a_conversao_completa(logado, monkeypatch):
+    from consolidado.models import TaxaDeCambio
+
+    TaxaDeCambio.objects.create(
+        moeda="USD", data=date(2026, 9, 16), taxa=Decimal("5.00"), fonte="yahoo"
+    )
+    # Uma posição em dólar dá a mesma metade do total; assim a composição
+    # também confirma os agrupamentos por sistema, instituição e mercado.
+    consolidado = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("100.00")]),
+            leitor.Leitura(
+                fonte=CRV,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(
+                        fonte=CRV.nome,
+                        papel="investimento",
+                        titular="Mariano",
+                        instituicao="Avenue",
+                        descricao="AAPL",
+                        moeda="USD",
+                        valor=Decimal("20.00"),
+                        mercado="EUA",
+                    )
+                ],
+            ),
+        ]
+    )
+    com_consolidado(monkeypatch, consolidado)
+
+    resposta = logado.get("/patrimonio/", {"data": "2026-09-16"})
+    composicoes = resposta.context["composicoes"]
+
+    assert "Composição" in resposta.content.decode()
+    assert "Por mercado" in resposta.content.decode()
+    assert all(sum(fatia["percentual"] for fatia in fatias) == Decimal("100.00") for _, fatias in composicoes)
+
+
+def test_cartoes_e_composicao_nao_exigem_script_nem_estilo_embutido(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()])]))
+
+    corpo = logado.get("/patrimonio/").content.decode()
+
+    assert "<script" not in corpo
+    assert "style=" not in corpo
+
+
+def test_cartoes_usam_o_css_compartilhado(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()])]))
+
+    corpo = logado.get("/patrimonio/").content.decode()
+
+    assert "sharedauth-ui." in corpo
+    assert 'class="sa-cartao' in corpo
+    assert 'class="sa-metrica"' in corpo
+
+
 def test_fonte_configurada_pela_metade_aparece(logado, monkeypatch):
     com_consolidado(
         monkeypatch,
