@@ -244,7 +244,8 @@ def test_cartoes_e_composicao_nao_exigem_script_nem_estilo_embutido(logado, monk
 
     corpo = logado.get("/patrimonio/").content.decode()
 
-    assert "<script" not in corpo
+    assert '<script src="/static/js/networth-navigation.' in corpo
+    assert ' defer></script>' in corpo
     assert "style=" not in corpo
 
 
@@ -370,13 +371,15 @@ def test_historico_desenha_as_curvas_e_lista_o_fim_de_cada_mes(logado):
 
 
 def test_historico_nao_tem_script_nem_estilo_embutido(logado):
-    """A CSP é fechada: um `style=` ou um `<script>` seriam bloqueados."""
+    """A CSP é fechada: comportamento fica em arquivo externo, não inline."""
     _foto("2026-01-31", "1.00", "1.00")
     _foto("2026-02-27", "2.00", "2.00")
 
     corpo = logado.get("/patrimonio/historico/").content.decode()
 
-    assert "<script" not in corpo
+    assert '<script src="/static/js/networth-navigation.' in corpo
+    assert ' defer></script>' in corpo
+    assert "<script>" not in corpo
     assert "style=" not in corpo
 
 
@@ -479,6 +482,8 @@ def test_dashboard_reune_periodos_grafico_e_privacidade(logado, monkeypatch):
     assert "1 mês" in corpo
     assert "5 anos" in corpo
     assert "Ocultar valores" in corpo
+    assert "Contas e instituições" in corpo
+    assert "Alocação por classe" in corpo
     assert "Patrimônio e investimentos" in corpo
     assert "31/01/2026" in corpo
     assert "01/03/2026" in corpo
@@ -564,3 +569,216 @@ def test_dashboard_exibe_analiticos_publicados_sem_recalcula_los(logado, monkeyp
     assert "Resultado realizado · BRL" in corrido
     assert "Maiores posições" in corrido
     assert "WEGE3" in corrido
+
+
+def test_contas_comecam_recolhidas_e_exibem_a_arvore_de_drilldown(logado, monkeypatch):
+    posicao = leitor.Linha(
+        fonte=CRV.nome,
+        papel="investimento",
+        titular="Mariano",
+        instituicao="Genial",
+        descricao="WEGE3",
+        moeda="BRL",
+        valor=Decimal("150.00"),
+        id_de_origem="crv-pos-1",
+        link="http://crv.teste/positions/1",
+    )
+    caixa = linha("100.00")
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[caixa]),
+                leitor.Leitura(fonte=CRV, estado=leitor.OK, linhas=[posicao]),
+            ]
+        ),
+    )
+
+    resposta = logado.get("/patrimonio/", {"visao": "investimentos", "periodo": "1m"})
+    grupos = resposta.context["cartoes_de_contas"]
+    corpo = resposta.content.decode()
+
+    assert {grupo["nome"] for grupo in grupos} == {"Mariano", "Renda variável"}
+    assert 'aria-expanded="false"' in corpo
+    assert "Contas" in corpo
+    assert "grupo=" in corpo
+    assert "wf-account-child" not in corpo
+
+
+def test_clicar_no_grupo_expande_contas_sem_nova_fonte(logado, monkeypatch):
+    posicao = leitor.Linha(
+        fonte=CRV.nome,
+        papel="investimento",
+        titular="Mariano",
+        instituicao="Genial",
+        descricao="WEGE3",
+        moeda="BRL",
+        valor=Decimal("150.00"),
+        id_de_origem="crv-pos-1",
+    )
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CRV, estado=leitor.OK, linhas=[posicao])]))
+
+    inicial = logado.get("/patrimonio/")
+    grupo = inicial.context["cartoes_de_contas"][0]
+    expandida = logado.get("/patrimonio/", {"grupo": grupo["id"], "periodo": "3m", "visao": "investimentos"})
+    corpo = expandida.content.decode()
+
+    assert expandida.context["grupo_aberto"] == grupo["id"]
+    assert 'aria-expanded="true"' in corpo
+    assert "Genial" in corpo
+    assert "wf-account-child" in corpo
+    assert "wf-account-detail" not in corpo  # a posição só aparece no terceiro nível
+    assert "periodo=3m" in corpo
+
+
+def test_clicar_na_conta_abre_o_detalhe_da_mesma_arvore(logado, monkeypatch):
+    posicao = leitor.Linha(
+        fonte=CRV.nome,
+        papel="investimento",
+        titular="Mariano",
+        instituicao="Genial",
+        descricao="WEGE3",
+        moeda="BRL",
+        valor=Decimal("150.00"),
+        id_de_origem="crv-pos-1",
+        link="http://crv.teste/positions/1",
+    )
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CRV, estado=leitor.OK, linhas=[posicao])]))
+
+    inicial = logado.get("/patrimonio/")
+    grupo = inicial.context["cartoes_de_contas"][0]
+    conta = grupo["contas"][0]
+    detalhe = logado.get("/patrimonio/", {"grupo": grupo["id"], "conta": conta["id"]})
+    corpo = detalhe.content.decode()
+
+    assert detalhe.context["conta_aberta"] == conta["id"]
+    assert detalhe.context["detalhe_conta"]["nome"] == "Genial"
+    assert 'aria-current="true"' in corpo
+    assert "Detalhamento da conta" in corpo
+    assert "WEGE3" in corpo
+    assert "http://crv.teste/positions/1" in corpo
+
+
+def test_id_de_drilldown_invalido_nao_expande_nada(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()])]))
+
+    resposta = logado.get("/patrimonio/", {"grupo": "grupo-inexistente", "conta": "conta-inexistente"})
+
+    assert resposta.context["grupo_aberto"] == ""
+    assert resposta.context["conta_aberta"] == ""
+    assert 'aria-expanded="true"' not in resposta.content.decode()
+
+
+def test_insights_reproduz_composicao_com_filtros_e_linhas_de_origem(logado, monkeypatch):
+    posicao = leitor.Linha(
+        fonte=CRV.nome,
+        papel="investimento",
+        titular="Mariano",
+        instituicao="Genial",
+        descricao="WEGE3",
+        moeda="BRL",
+        valor=Decimal("150.00"),
+        classe="acao",
+        mercado="B3",
+        link="http://crv.teste/positions/1",
+    )
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("50.00")]),
+                leitor.Leitura(fonte=CRV, estado=leitor.OK, linhas=[posicao]),
+            ]
+        ),
+    )
+
+    resposta = logado.get(
+        "/patrimonio/",
+        {"visao": "insights", "periodo": "1a", "data": "2026-09-18"},
+    )
+    assert resposta.status_code == 200
+    corpo = " ".join(resposta.content.decode().split())
+    assert "Portfolio Insights" in corpo
+    assert "Composição e exposição" in corpo
+    assert "Classe de ativo" in corpo
+    assert "Setor" in corpo
+    assert "Não classificado" in corpo
+    assert "WEGE3" in corpo
+    assert "http://crv.teste/positions/1" in corpo
+    assert 'name="busca"' in corpo
+    assert 'name="ordenar"' in corpo
+
+    itens = resposta.context["insights"]["itens"]
+    acao = next(item for item in itens if item["nome"] == "acao")
+    filtrado = logado.get(
+        "/patrimonio/",
+        {
+            "visao": "insights",
+            "dimensao": "instituicao",
+            "filtro_dimensao": "classe",
+            "filtro": acao["id"],
+        },
+    )
+    assert filtrado.status_code == 200
+    assert "Filtro ativo:" in " ".join(filtrado.content.decode().split())
+    assert filtrado.context["insights"]["filtro_nome"] == "acao"
+
+
+def test_insights_nao_duplica_a_arvore_de_contas_ou_o_resumo_patrimonial(logado, monkeypatch):
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("75.00")])]
+        ),
+    )
+
+    corpo = " ".join(logado.get("/patrimonio/", {"visao": "insights"}).content.decode().split())
+
+    assert "Portfolio Insights" in corpo
+    assert 'aria-label="Contas e instituições"' not in corpo
+    assert "Patrimônio total em BRL" not in corpo
+    assert "Onde está o patrimônio" not in corpo
+
+
+def test_navegacao_global_preserva_periodo_e_data_sem_carregar_drilldown(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[]))
+
+    corpo = logado.get(
+        "/patrimonio/",
+        {"visao": "patrimonio", "periodo": "3m", "data": "2026-09-18", "grupo": "grupo-teste"},
+    ).content.decode()
+
+    assert "?visao=investimentos&amp;periodo=3m&amp;data=2026-09-18" in corpo
+    assert "?visao=insights&amp;periodo=3m&amp;data=2026-09-18" in corpo
+    assert "grupo-teste" not in corpo.split("tabs-principais", 1)[1].split("</nav>", 1)[0]
+
+
+def test_gastos_nao_exibe_cartoes_de_patrimonio(logado, monkeypatch):
+    com_consolidado(monkeypatch, leitor.Consolidado(leituras=[leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha()])]))
+
+    corpo = " ".join(logado.get("/patrimonio/", {"visao": "gastos"}).content.decode().split())
+
+    assert "Gastos e movimentações" in corpo
+    assert "Onde está o patrimônio" not in corpo
+    assert 'aria-label="Contas e instituições"' not in corpo
+
+
+def test_insights_sinaliza_fontes_parciais_sem_apagar_as_linhas_disponiveis(logado, monkeypatch):
+    com_consolidado(
+        monkeypatch,
+        leitor.Consolidado(
+            leituras=[
+                leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[linha("75.00")]),
+                leitor.Leitura(fonte=CRV, estado=leitor.NAO_RESPONDEU, motivo="timeout"),
+            ]
+        ),
+    )
+
+    resposta = logado.get("/patrimonio/", {"visao": "insights"})
+    corpo = " ".join(resposta.content.decode().split())
+
+    assert resposta.status_code == 200
+    assert "A composição está parcial" in corpo
+    assert "1 de 2 fontes responderam" in corpo
+    assert "timeout" in corpo
+    assert "C6" in corpo

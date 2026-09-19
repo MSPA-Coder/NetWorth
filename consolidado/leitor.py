@@ -80,6 +80,11 @@ class Linha:
     link: str = ""
     classe: str = ""
     mercado: str = ""
+    # Classificações opcionais. O CB/CRV atuais ainda não as publicam, mas
+    # aceitar os campos no contrato evita acoplar a tela a uma taxonomia
+    # inventada pelo NetWorth quando uma fonte passar a fornecê-los.
+    setor: str = ""
+    regiao: str = ""
     quantidade: Decimal | None = None
     # v2 enrichment.  These are optional because publishers are deployed
     # independently and an old response must remain useful during rollout.
@@ -554,6 +559,8 @@ def _linha_v2(
         link=_link(fonte, item.get("endereco", item.get("link")), onde),
         classe=_texto_opcional(item, "classe", onde),
         mercado=_texto_opcional(item, "mercado", onde),
+        setor=_texto_opcional(item, "setor", onde) or _texto_opcional(item, "sector", onde),
+        regiao=_texto_opcional(item, "regiao", onde) or _texto_opcional(item, "região", onde) or _texto_opcional(item, "region", onde),
         quantidade=quantidade,
         natureza=_texto_opcional(item, "natureza", onde),
         categoria=_texto_opcional(item, "categoria", onde),

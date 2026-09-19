@@ -2,13 +2,13 @@
 {% load dinheiro %}
 {% load l10n %}
 
-{% block titulo %}Dashboard — NetWorth{% endblock %}
+{% block titulo %}{% if visao == 'investimentos' %}Investimentos{% elif visao == 'gastos' %}Gastos{% elif visao == 'insights' %}Insights{% else %}Patrimônio líquido{% endif %} — NetWorth{% endblock %}
 
 {% block conteudo %}
 <header class="nw-cabecalho-dashboard">
   <div>
-    <p class="nw-sobretitulo">Visão consolidada</p>
-    <h1>Dashboard</h1>
+    <p class="nw-sobretitulo">Dashboard · visão consolidada</p>
+    <h1>{% if visao == 'investimentos' %}Investimentos{% elif visao == 'gastos' %}Gastos{% elif visao == 'insights' %}Insights{% else %}Patrimônio líquido{% endif %}</h1>
     <p class="nw-data-base">Posição em {% if referencia %}{{ referencia|date:"d/m/Y" }}{% else %}hoje{% endif %}</p>
   </div>
   <label class="nw-controle-privacidade" for="ocultar-valores">
@@ -19,9 +19,25 @@
 
 <nav class="periodos" aria-label="Período do dashboard">
   {% for valor, rotulo in periodos_dashboard %}
-    <a href="?periodo={{ valor }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}"{% if valor == periodo %} aria-current="page" class="ativo"{% endif %}>{{ rotulo }}</a>
+    <a href="?periodo={{ valor }}&amp;visao={{ visao }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}{% if grupo_aberto %}&amp;grupo={{ grupo_aberto }}{% endif %}{% if conta_aberta %}&amp;conta={{ conta_aberta }}{% endif %}"{% if valor == periodo %} aria-current="page" class="ativo"{% endif %}>{{ rotulo }}</a>
   {% endfor %}
 </nav>
+
+<section class="nw-view-intro" aria-label="Visão selecionada">
+  {% if visao == 'investimentos' %}
+    <div><span class="nw-view-kicker">Carteira</span><h2>Invista com clareza</h2><p>Posições, alocação e evolução dos investimentos no período selecionado.</p></div>
+    <a href="#evolucao-titulo">Ver evolução <span aria-hidden="true">→</span></a>
+  {% elif visao == 'gastos' %}
+    <div><span class="nw-view-kicker">Fluxo de caixa</span><h2>Gastos e movimentações</h2><p>Acompanhe entradas, saídas e transferências reportadas pelas fontes conectadas.</p></div>
+    <a href="#fluxos-periodo">Ver fluxos <span aria-hidden="true">→</span></a>
+  {% elif visao == 'insights' %}
+    <div><span class="nw-view-kicker">Portfolio Insights</span><h2>Entenda sua composição</h2><p>Explore classe, mercado, moeda e concentração a partir dos dados publicados pelo CB e pelo CRV.</p></div>
+    <a href="#insights-conteudo">Ver composição <span aria-hidden="true">→</span></a>
+  {% else %}
+    <div><span class="nw-view-kicker">Visão geral</span><h2>Patrimônio líquido</h2><p>Seu patrimônio consolidado, atualizado pelas fontes conectadas.</p></div>
+    <a href="#detalhamento">Ver detalhamento <span aria-hidden="true">→</span></a>
+  {% endif %}
+</section>
 
 <div class="nw-dashboard">
 
@@ -63,12 +79,13 @@
   </p>
 {% endif %}
 
+{% if visao == 'investimentos' or visao == 'patrimonio' %}
 {% comment %}
   O total em moeda base vem primeiro, e nunca sozinho: ele carrega a data e a
   fonte de cada taxa usada. Um número convertido sem essas duas coisas não é
   verificável por ninguém.
 {% endcomment %}
-{% if conversao.possivel %}
+{% if conversao.possivel and visao != 'gastos' %}
   <section class="totais nw-resumo-principal" aria-label="Resumo patrimonial">
     <article class="sa-cartao nw-cartao-base">
       <p class="nw-rotulo-metrica">Patrimônio total em {{ moeda_base }}</p>
@@ -100,7 +117,7 @@
 {% endif %}
 
 <section class="totais">
-  {% for total in consolidado.totais_por_moeda %}
+{% for total in consolidado.totais_por_moeda %}
     <article class="sa-cartao">
       <h2>{{ total.moeda }}</h2>
       <p class="valor nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</p>
@@ -108,9 +125,324 @@
     </article>
   {% empty %}
     <p>Nada a mostrar.</p>
-  {% endfor %}
+{% endfor %}
 </section>
+{% endif %}
 
+{% if visao == 'insights' and insights %}
+<section id="insights-conteudo" class="wf-insights" aria-labelledby="insights-titulo">
+  <div class="wf-panel-heading">
+    <div>
+      <p class="nw-sobretitulo">Portfolio Insights</p>
+      <h2 id="insights-titulo">Composição e exposição</h2>
+    </div>
+    <span class="wf-muted">{{ insights.linhas }} linha{{ insights.linhas|pluralize }} no escopo</span>
+  </div>
+
+  {% if not insights.cobertura_completa %}
+    <p class="aviso destaque">A composição está parcial: {{ insights.fontes_que_responderam }} de {{ insights.fontes_esperadas }} fontes responderam{% if insights.motivo_fontes %} ({{ insights.motivo_fontes }}){% endif %}. Os percentuais não representam necessariamente o patrimônio inteiro.</p>
+  {% endif %}
+  {% if insights.motivo_classificacao %}
+    <p class="aviso">{{ insights.motivo_classificacao }}</p>
+  {% endif %}
+  {% if insights.filtro_nome %}
+    <p class="wf-filter-chip">Filtro ativo: <strong>{{ insights.filtro_nome }}</strong> <a href="{{ insights.limpar_url }}">limpar</a></p>
+  {% endif %}
+
+  <nav class="wf-insights-dimensions" aria-label="Dimensão dos Insights">
+    {% for item in insights.dimensoes %}<a href="{{ item.url }}"{% if item.ativa %} aria-current="page" class="ativo"{% endif %}>{{ item.nome }}</a>{% endfor %}
+  </nav>
+
+  <form class="wf-insights-toolbar" method="get" action="{% url 'consolidado:patrimonio' %}">
+    <input type="hidden" name="visao" value="insights">
+    <input type="hidden" name="periodo" value="{{ periodo }}">
+    {% if referencia %}<input type="hidden" name="data" value="{{ referencia|date:'Y-m-d' }}">{% endif %}
+    <input type="hidden" name="dimensao" value="{{ insights.dimensao }}">
+    {% if insights.filtro_dimensao %}<input type="hidden" name="filtro_dimensao" value="{{ insights.filtro_dimensao }}"><input type="hidden" name="filtro" value="{{ insights.filtro }}">{% endif %}
+    <label>Buscar <input type="search" name="busca" value="{{ insights.busca }}" placeholder="instituição, posição ou moeda"></label>
+    <label>Ordenar <select name="ordenar">{% for opcao in insights.ordenacoes %}<option value="{{ opcao.chave }}"{% if opcao.chave == insights.ordenar %} selected{% endif %}>{{ opcao.nome }}</option>{% endfor %}</select></label>
+    <label>Direção <select name="direcao"><option value="desc"{% if insights.direcao == 'desc' %} selected{% endif %}>Maior primeiro</option><option value="asc"{% if insights.direcao == 'asc' %} selected{% endif %}>Menor primeiro</option></select></label>
+    <button type="submit">Aplicar</button>
+    <a href="{{ insights.limpar_url }}">Limpar</a>
+  </form>
+
+  <div class="wf-insights-summary" aria-label="Resumo do escopo">
+    <article class="wf-stat-card">
+      <p class="nw-sobretitulo">Escopo atual · {{ moeda_base }}</p>
+      {% if insights.total.possivel %}
+        <p class="wf-stat-value nw-valor-sensivel">{{ insights.total.total|dinheiro:moeda_base }}</p>
+        <p class="wf-stat-delta">conversão válida na data da foto</p>
+      {% else %}
+        <p class="wf-stat-value">—</p>
+        <p class="wf-stat-delta">{% for total in consolidado.totais_por_moeda %}{{ total.total|dinheiro:total.moeda }}{% if not forloop.last %} · {% endif %}{% empty %}sem dados{% endfor %}</p>
+      {% endif %}
+    </article>
+    <article class="wf-stat-card">
+      <p class="nw-sobretitulo">Dimensão analisada</p>
+      <p class="wf-stat-value">{{ insights.dimensao_nome }}</p>
+      <p class="wf-stat-delta">{{ insights.itens|length }} grupo{{ insights.itens|length|pluralize }}</p>
+    </article>
+    <article class="wf-stat-card">
+      <p class="nw-sobretitulo">Classificação</p>
+      <p class="wf-stat-value">{% if insights.tem_classificacao %}Parcial{% else %}Completa{% endif %}</p>
+      <p class="wf-stat-delta">{{ insights.nao_classificadas }} linha{{ insights.nao_classificadas|pluralize }} sem {{ insights.dimensao_nome|lower }}</p>
+    </article>
+  </div>
+
+  <div class="wf-insights-grid">
+    <article class="wf-panel" aria-labelledby="insights-lista-titulo">
+      <div class="wf-panel-heading"><div><p class="nw-sobretitulo">Distribuição</p><h3 id="insights-lista-titulo">Por {{ insights.dimensao_nome|lower }}</h3></div><span class="wf-muted">Clique para filtrar</span></div>
+      {% if insights.itens %}
+        <ul class="wf-insight-list">
+          {% for item in insights.itens %}
+            <li class="{% if item.selecionado %}is-selected{% endif %}">
+              <a href="{{ item.url }}">
+                <span class="wf-insight-label"><strong>{{ item.nome }}</strong><small>{{ item.linhas }} linha{{ item.linhas|pluralize }}{% if item.instituicoes %} · {{ item.instituicoes|join:', ' }}{% endif %}</small></span>
+                <span class="wf-insight-value">
+                  {% if item.conversao.possivel %}<strong class="nw-valor-sensivel">{{ item.conversao.total|dinheiro:moeda_base }}</strong>{% else %}{% for total in item.totais_por_moeda %}<strong class="nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</strong>{% if not forloop.last %}<br>{% endif %}{% endfor %}{% endif %}
+                  <small>{% if item.percentual is not None %}{{ item.percentual|floatformat:1 }}%{% else %}{% for parcial in item.percentuais_por_moeda %}{% if parcial.percentual is not None %}{{ parcial.moeda }} {{ parcial.percentual|floatformat:1 }}%{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}{% endif %}</small>
+                </span>
+                <span class="wf-account-chevron" aria-hidden="true">›</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="wf-muted">Nenhum dado publicado para este escopo.</p>{% endif %}
+    </article>
+
+    <article class="wf-panel" aria-labelledby="insights-detalhes-titulo">
+      <div class="wf-panel-heading"><div><p class="nw-sobretitulo">Linhas de origem</p><h3 id="insights-detalhes-titulo">Detalhamento</h3></div><span class="wf-muted">somente leitura</span></div>
+      {% if insights.detalhe_linhas %}
+        <div class="rolavel"><table class="detalhe wf-insight-detail-table"><thead><tr><th>Origem</th><th>Classificação</th><th class="num">Valor</th></tr></thead><tbody>
+          {% for linha in insights.detalhe_linhas %}<tr><td><strong>{{ linha.nome }}</strong><span class="linha">{{ linha.instituicao }} · {{ linha.fonte }}{% if linha.link %} · <a href="{{ linha.link }}">Abrir origem</a>{% endif %}</span></td><td>{{ linha.classe }} · {{ linha.mercado }}</td><td class="num nw-valor-sensivel">{{ linha.valor|dinheiro:linha.moeda }}</td></tr>{% endfor %}
+        </tbody></table></div>
+      {% else %}<p class="wf-muted">Nenhuma linha disponível para detalhar.</p>{% endif %}
+    </article>
+  </div>
+  <p class="nota">Setor e região só deixam de aparecer como “Não classificado” quando CB ou CRV publicarem esses atributos. O NetWorth não os deduz de ticker, instituição ou mercado.</p>
+</section>
+{% endif %}
+
+{% if visao == 'gastos' %}
+  <section class="wf-expenses-summary" aria-label="Resumo de gastos">
+    {% for resumo in resumo_gastos %}
+      <article class="wf-stat-card">
+        <p class="nw-sobretitulo">{{ resumo.moeda }} · período selecionado</p>
+        <p class="wf-stat-value nw-valor-sensivel">{{ resumo.gastos|dinheiro:resumo.moeda }}</p>
+        <p class="wf-stat-delta negativa nw-valor-sensivel">Saídas</p>
+      </article>
+      <article class="wf-stat-card">
+        <p class="nw-sobretitulo">Receitas · {{ resumo.moeda }}</p>
+        <p class="wf-stat-value positiva nw-valor-sensivel">{{ resumo.receitas|dinheiro:resumo.moeda }}</p>
+        <p class="wf-stat-delta positiva nw-valor-sensivel">Entradas</p>
+      </article>
+      <article class="wf-stat-card">
+        <p class="nw-sobretitulo">Líquido · {{ resumo.moeda }}</p>
+        <p class="wf-stat-value {% if resumo.liquido < 0 %}negativa{% else %}positiva{% endif %} nw-valor-sensivel">{{ resumo.liquido|dinheiro:resumo.moeda }}</p>
+        <p class="wf-stat-delta">{{ resumo.linhas }} lançamentos</p>
+      </article>
+    {% empty %}
+      <article class="wf-stat-card wf-empty-card"><p>Sem fluxos de gastos publicados no período.</p></article>
+    {% endfor %}
+  </section>
+  <section class="wf-panel wf-expenses-chart" aria-labelledby="gastos-periodo-titulo">
+    <div class="wf-panel-heading"><div><p class="nw-sobretitulo">Movimentação</p><h2 id="gastos-periodo-titulo">Gastos no período</h2></div><span class="wf-muted">agregado pelas fontes</span></div>
+    <div class="wf-flow-bars">
+      {% for fluxo in fluxos_por_natureza %}
+        <div class="wf-flow-row">
+          <div class="wf-flow-label"><span>{% if fluxo.natureza == 'gerencial' %}Gerencial{% elif fluxo.natureza == 'transferencia' %}Transferências{% elif fluxo.natureza == 'movimentacao' %}Movimentações{% else %}Ajustes{% endif %} · {{ fluxo.moeda }}</span><strong class="nw-valor-sensivel">{{ fluxo.saidas|dinheiro:fluxo.moeda }}</strong></div>
+          <progress class="wf-flow-progress" max="100" value="{% if fluxo.entradas %}{{ fluxo.saidas|floatformat:0 }}{% else %}0{% endif %}">Saídas</progress>
+          <p class="wf-flow-detail">Entradas <span class="nw-valor-sensivel">{{ fluxo.entradas|dinheiro:fluxo.moeda }}</span> · Líquido <span class="nw-valor-sensivel">{{ fluxo.liquido|dinheiro:fluxo.moeda }}</span></p>
+        </div>
+      {% empty %}<p class="wf-muted">Nenhum fluxo disponível para desenhar.</p>{% endfor %}
+    </div>
+  </section>
+  <section class="wf-two-columns">
+    <article class="wf-panel"><div class="wf-panel-heading"><div><p class="nw-sobretitulo">Evolução</p><h2>Ritmo mensal</h2></div><span class="wf-muted">{{ moeda_base }}</span></div>
+      <ul class="wf-month-list">
+        {% for mes in ritmo_mensal|slice:":6" %}<li><span>{{ mes.data|date:"M/Y" }}</span><strong class="nw-valor-sensivel">{{ mes.liquido|dinheiro:mes.moeda }}</strong></li>{% empty %}<li class="wf-muted">Sem histórico de fluxos.</li>{% endfor %}
+      </ul>
+    </article>
+    <article class="wf-panel"><div class="wf-panel-heading"><div><p class="nw-sobretitulo">Limitação dos dados</p><h2>Detalhe das categorias</h2></div></div><p class="wf-muted">As fontes publicam fluxos agregados por natureza. Categorias individuais só aparecem quando forem fornecidas pela fonte, sem inferência do NetWorth.</p></article>
+  </section>
+{% endif %}
+
+{% if visao == 'investimentos' or visao == 'patrimonio' %}
+{% if cartoes_de_contas %}
+<section class="wf-accounts-drilldown" aria-labelledby="contas-titulo" aria-label="Contas e instituições">
+  <div class="wf-accounts-heading">
+    <div>
+      <p class="nw-sobretitulo">Carteira</p>
+      <h2 id="contas-titulo">Contas</h2>
+    </div>
+    <span class="wf-muted">Clique para detalhar</span>
+  </div>
+
+  <div class="wf-account-tree">
+    {% for grupo in cartoes_de_contas %}
+      {% if grupo.solitario %}
+        {% with conta=grupo.contas.0 %}
+          <article class="wf-account-group wf-account-single{% if conta_aberta == conta.id %} is-open{% endif %}">
+            <a class="wf-account-group-toggle" href="{{ conta.url }}" aria-expanded="{% if conta_aberta == conta.id %}true{% else %}false{% endif %}" aria-controls="conta-{{ conta.id }}">
+              <span class="wf-account-copy"><strong>{{ conta.nome }}</strong><small>{{ conta.moeda }}</small></span>
+              <span class="wf-account-metrics">
+                {% if conta.conversao.possivel %}<strong class="nw-valor-sensivel">{{ conta.conversao.total|dinheiro:moeda_base }}</strong>{% else %}{% for total in conta.totais_por_moeda %}<strong class="nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</strong>{% endfor %}{% endif %}
+                {% if conta.variacao_absoluta is not None or conta.variacao_percentual is not None %}<small class="{% if conta.variacao_absoluta < 0 %}negativa{% else %}positiva{% endif %}"><span class="nw-valor-sensivel">{{ conta.variacao_absoluta|dinheiro:conta.moeda }}</span>{% if conta.variacao_percentual is not None %} <span class="wf-metric-separator">|</span> <span class="nw-valor-sensivel">{{ conta.variacao_percentual|floatformat:2 }}%</span>{% endif %}</small>{% endif %}
+              </span>
+              <span class="wf-account-chevron" aria-hidden="true">›</span>
+            </a>
+            {% if conta_aberta == conta.id and detalhe_conta %}
+              <section id="conta-{{ conta.id }}" class="wf-account-detail" aria-label="Detalhamento de {{ conta.nome }}">
+                <div class="wf-account-detail-heading"><div><p class="nw-sobretitulo">Detalhamento da conta</p><h3>{{ detalhe_conta.nome }}</h3></div><span class="wf-muted">{{ detalhe_conta.moeda }}</span></div>
+                <ul class="wf-account-detail-list">
+                  {% for item in detalhe_conta.linhas %}<li><span>{{ item.nome|default:item.descricao }}{% if item.link %} <a class="wf-inline-source" href="{{ item.link }}">Origem</a>{% endif %}</span><strong class="nw-valor-sensivel">{{ item.valor|dinheiro:item.moeda }}</strong></li>{% endfor %}
+                </ul>
+                {% if detalhe_conta.url_origem %}<a class="nw-link-origem" href="{{ detalhe_conta.url_origem }}">Abrir detalhes completos na origem</a>{% else %}<p class="wf-muted">Detalhe completo disponível no sistema de origem quando a fonte publicar um link.</p>{% endif %}
+              </section>
+            {% endif %}
+          </article>
+        {% endwith %}
+      {% elif grupo_aberto == grupo.id %}
+        {% with grupo_esta_aberto=True %}
+          <article class="wf-account-group is-open">
+            <a class="wf-account-group-toggle" href="{{ grupo.url }}" aria-expanded="true" aria-controls="contas-grupo-{{ grupo.id }}">
+              <span class="wf-account-copy">
+                <strong>{{ grupo.nome }}</strong>
+                <small>{{ grupo.quantidade }} conta{{ grupo.quantidade|pluralize }}</small>
+              </span>
+              <span class="wf-account-metrics">
+                {% if grupo.conversao.possivel %}<strong class="nw-valor-sensivel">{{ grupo.conversao.total|dinheiro:moeda_base }}</strong>{% else %}{% for total in grupo.totais_por_moeda %}<strong class="nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</strong>{% if not forloop.last %}<span class="wf-metric-separator"> · </span>{% endif %}{% endfor %}{% endif %}
+                {% if grupo.variacao_absoluta is not None or grupo.variacao_percentual is not None %}
+                  <small class="{% if grupo.variacao_absoluta < 0 %}negativa{% else %}positiva{% endif %}"><span class="nw-valor-sensivel">{{ grupo.variacao_absoluta|dinheiro:grupo.moeda }}</span>{% if grupo.variacao_percentual is not None %} <span class="wf-metric-separator">|</span> <span class="nw-valor-sensivel">{{ grupo.variacao_percentual|floatformat:2 }}%</span>{% endif %}</small>
+                {% endif %}
+              </span>
+              <span class="wf-account-chevron" aria-hidden="true">⌃</span>
+            </a>
+            <div class="wf-account-children" id="contas-grupo-{{ grupo.id }}">
+              {% for conta in grupo.contas %}
+                <a class="wf-account-child{% if conta_aberta == conta.id %} is-open{% endif %}" href="{{ conta.url }}"{% if conta_aberta == conta.id %} aria-current="true"{% endif %}>
+                  <span class="wf-account-copy">
+                    <strong>{{ conta.nome }}</strong>
+                    <small>{{ conta.moeda|default:grupo.moeda }}</small>
+                  </span>
+                  <span class="wf-account-metrics">
+                    {% if conta.conversao.possivel %}<strong class="nw-valor-sensivel">{{ conta.conversao.total|dinheiro:moeda_base }}</strong>{% else %}{% for total in conta.totais_por_moeda %}<strong class="nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</strong>{% if not forloop.last %}<span class="wf-metric-separator"> · </span>{% endif %}{% endfor %}{% endif %}
+                    {% if conta.variacao_absoluta is not None or conta.variacao_percentual is not None %}
+                      <small class="{% if conta.variacao_absoluta < 0 %}negativa{% else %}positiva{% endif %}"><span class="nw-valor-sensivel">{{ conta.variacao_absoluta|dinheiro:conta.moeda }}</span>{% if conta.variacao_percentual is not None %} <span class="wf-metric-separator">|</span> <span class="nw-valor-sensivel">{{ conta.variacao_percentual|floatformat:2 }}%</span>{% endif %}</small>
+                    {% endif %}
+                  </span>
+                  <span class="wf-account-chevron" aria-hidden="true">›</span>
+                </a>
+                {% if conta_aberta == conta.id %}
+                  {% if detalhe_conta %}
+                    <section class="wf-account-detail" aria-label="Detalhamento de {{ conta.nome }}">
+                      <div class="wf-account-detail-heading">
+                        <div><p class="nw-sobretitulo">Detalhamento da conta</p><h3>{{ detalhe_conta.titulo|default:conta.nome }}</h3></div>
+                        {% if detalhe_conta.moeda %}<span class="wf-muted">{{ detalhe_conta.moeda }}</span>{% endif %}
+                      </div>
+                      {% if detalhe_conta.itens %}
+                        <ul class="wf-account-detail-list">
+                          {% for item in detalhe_conta.itens %}
+                             <li><span>{{ item.nome|default:item.descricao }}{% if item.quantidade %}<small class="wf-muted"> · {{ item.quantidade|floatformat:4 }} unidades</small>{% endif %}{% if item.link %} <a class="wf-inline-source" href="{{ item.link }}">Origem</a>{% endif %}</span><strong class="nw-valor-sensivel">{{ item.valor|dinheiro:item.moeda }}</strong></li>
+                          {% endfor %}
+                        </ul>
+                      {% elif detalhe_conta.linhas %}
+                        <ul class="wf-account-detail-list">
+                          {% for item in detalhe_conta.linhas %}
+                             <li><span>{{ item.nome|default:item.descricao }}{% if item.quantidade %}<small class="wf-muted"> · {{ item.quantidade|floatformat:4 }} unidades</small>{% endif %}{% if item.link %} <a class="wf-inline-source" href="{{ item.link }}">Origem</a>{% endif %}</span><strong class="nw-valor-sensivel">{{ item.valor|dinheiro:item.moeda }}</strong></li>
+                          {% endfor %}
+                        </ul>
+                      {% else %}
+                        <p class="wf-muted">{{ detalhe_conta.mensagem|default:"Detalhamento disponível na fonte de origem." }}</p>
+                      {% endif %}
+                       {% if detalhe_conta.url_origem %}<a class="nw-link-origem" href="{{ detalhe_conta.url_origem }}">Abrir detalhes completos na origem</a>{% else %}<p class="wf-muted">Detalhe completo disponível no sistema de origem quando a fonte publicar um link.</p>{% endif %}
+                    </section>
+                  {% else %}
+                    <p class="wf-account-detail wf-muted">Detalhamento indisponível para esta conta.</p>
+                  {% endif %}
+                {% endif %}
+              {% empty %}
+                <p class="wf-account-detail wf-muted">Nenhuma conta neste agrupamento.</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% endwith %}
+      {% else %}
+        <article class="wf-account-group">
+          <a class="wf-account-group-toggle" href="{{ grupo.url }}" aria-expanded="false" aria-controls="contas-grupo-{{ grupo.id }}">
+            <span class="wf-account-copy">
+              <strong>{{ grupo.nome }}</strong>
+              <small>{{ grupo.quantidade }} conta{{ grupo.quantidade|pluralize }}</small>
+            </span>
+              <span class="wf-account-metrics">
+              {% if grupo.conversao.possivel %}<strong class="nw-valor-sensivel">{{ grupo.conversao.total|dinheiro:moeda_base }}</strong>{% else %}{% for total in grupo.totais_por_moeda %}<strong class="nw-valor-sensivel">{{ total.total|dinheiro:total.moeda }}</strong>{% if not forloop.last %}<span class="wf-metric-separator"> · </span>{% endif %}{% endfor %}{% endif %}
+              {% if grupo.variacao_absoluta is not None or grupo.variacao_percentual is not None %}<small class="{% if grupo.variacao_absoluta < 0 %}negativa{% else %}positiva{% endif %}"><span class="nw-valor-sensivel">{{ grupo.variacao_absoluta|dinheiro:grupo.moeda }}</span>{% if grupo.variacao_percentual is not None %} <span class="wf-metric-separator">|</span> <span class="nw-valor-sensivel">{{ grupo.variacao_percentual|floatformat:2 }}%</span>{% endif %}</small>{% endif %}
+            </span>
+            <span class="wf-account-chevron" aria-hidden="true">⌄</span>
+          </a>
+        </article>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endif %}
+
+{% if visao == 'investimentos' or visao == 'patrimonio' %}
+<section class="nw-wealthfolio-grid" aria-label="Resumo da carteira">
+  <article class="sa-cartao nw-panel nw-allocation-summary">
+    <div class="nw-panel-head">
+      <div>
+        <p class="nw-sobretitulo">Alocação</p>
+        <h2>Alocação por classe</h2>
+      </div>
+      <span class="nw-panel-meta">{{ moeda_base }}</span>
+    </div>
+    {% if composicao_destaque %}
+      <ul class="nw-allocation-list">
+        {% for fatia in composicao_destaque %}
+          <li>
+            <div><span>{{ fatia.nome }}</span><strong>{{ fatia.percentual|floatformat:1 }}%</strong></div>
+            <progress class="sa-barra" max="100" value="{{ fatia.percentual|unlocalize }}">{{ fatia.percentual|floatformat:1 }}%</progress>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="rodape">Alocação indisponível até que todas as moedas tenham taxa válida.</p>
+    {% endif %}
+  </article>
+</section>
+{% endif %}
+
+{% if top_posicoes and visao == 'investimentos' %}
+  <section class="sa-cartao nw-panel nw-holdings-summary" aria-labelledby="top-holdings-titulo">
+    <div class="nw-panel-head">
+      <div>
+        <p class="nw-sobretitulo">Carteira</p>
+        <h2 id="top-holdings-titulo">Maiores posições</h2>
+      </div>
+      <span class="nw-panel-meta">por exposição</span>
+    </div>
+    <div class="rolavel">
+      <table class="detalhe nw-posicoes">
+        <thead><tr><th>Ativo</th><th>Instituições</th><th class="num">Quantidade</th><th class="num">Valor</th><th class="num">Peso</th></tr></thead>
+        <tbody>
+          {% for posicao in top_posicoes %}
+            <tr>
+              <td>{% if posicao.link %}<a href="{{ posicao.link }}">{{ posicao.descricao }}</a>{% else %}{{ posicao.descricao }}{% endif %}</td>
+              <td>{{ posicao.instituicoes|join:", " }}</td>
+              <td class="num nw-valor-sensivel">{{ posicao.quantidade|floatformat:4 }}</td>
+              <td class="num nw-valor-sensivel">{{ posicao.valor|dinheiro:posicao.moeda }}</td>
+              <td class="num">{{ posicao.percentual|floatformat:1 }}%</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+{% if visao == 'investimentos' or visao == 'patrimonio' %}
 <section aria-labelledby="evolucao-titulo">
   <div class="nw-titulo-secao">
     <div>
@@ -151,8 +483,29 @@
     <p class="aviso">Ainda não há histórico suficiente neste período.</p>
   {% endif %}
 </section>
+{% endif %}
 
-{% if desempenhos or rendas or ganhos_realizados %}
+{% if visao == 'patrimonio' %}
+  <section class="wf-two-columns wf-net-worth-detail" aria-label="Detalhamento do patrimônio líquido">
+    <article class="wf-panel">
+      <div class="wf-panel-heading"><div><p class="nw-sobretitulo">Detalhamento</p><h2>Ativos</h2></div><span class="wf-muted">variação no período</span></div>
+      {% if detalhamento_patrimonio %}
+        <div class="wf-net-worth-bar"><span></span></div>
+        <ul class="wf-detail-list">
+          {% for item in detalhamento_patrimonio %}<li><span><i class="wf-dot {% if item.nome == 'Caixa' %}caixa{% endif %}"></i>{{ item.nome }}</span><strong class="nw-valor-sensivel">{{ item.valor|dinheiro:moeda_base }}</strong><em>{{ item.percentual|floatformat:1 }}%</em></li>{% endfor %}
+          <li class="wf-detail-total"><span>= Patrimônio líquido</span><strong class="nw-valor-sensivel">{{ conversao.total|dinheiro:moeda_base }}</strong><em>100%</em></li>
+        </ul>
+      {% else %}<p class="wf-muted">Detalhamento indisponível enquanto uma fonte ou taxa estiver incompleta.</p>{% endif %}
+    </article>
+    <article class="wf-panel">
+      <div class="wf-panel-heading"><div><p class="nw-sobretitulo">Variação</p><h2>Ritmo mensal</h2></div><span class="wf-muted">período selecionado</span></div>
+      {% if variacao_patrimonio %}<p class="wf-rhythm-value {% if variacao_patrimonio.absoluto < 0 %}negativa{% else %}positiva{% endif %} nw-valor-sensivel">{{ variacao_patrimonio.absoluto|dinheiro:moeda_base }}</p><p class="wf-muted">{{ variacao_patrimonio.percentual|floatformat:1 }}% desde {{ variacao_patrimonio.desde|date:"d/m/Y" }}</p>{% else %}<p class="wf-muted">Sem histórico suficiente para calcular o ritmo.</p>{% endif %}
+      <ul class="wf-factor-list"><li><span>Patrimônio acumulado</span><strong class="nw-valor-sensivel">{{ conversao.total|dinheiro:moeda_base }}</strong></li><li><span>Aportes e retiradas</span><strong>—</strong></li><li><span>Rentabilidade publicada</span><strong>{% if desempenhos %}{{ desempenhos.0.retorno_percentual|floatformat:1 }}%{% else %}—{% endif %}</strong></li></ul>
+    </article>
+  </section>
+{% endif %}
+
+{% if visao == 'investimentos' and desempenhos or visao == 'investimentos' and rendas or visao == 'investimentos' and ganhos_realizados %}
   <h2>Desempenho e renda</h2>
   <section class="nw-grade" aria-label="Desempenho e renda do período">
     {% for desempenho in desempenhos %}
@@ -188,7 +541,8 @@
   </section>
 {% endif %}
 
-{% if fluxos_por_natureza %}
+{% if fluxos_por_natureza and visao == 'patrimonio' %}
+  <span id="fluxos-periodo" class="nw-anchor" aria-hidden="true"></span>
   <h2>Fluxos do período</h2>
   <section class="nw-grade" aria-label="Fluxos bancários agregados do período">
     {% for fluxo in fluxos_por_natureza %}
@@ -205,32 +559,6 @@
   <p class="nota">Fluxo mostra dinheiro que entrou, saiu ou mudou de forma. Não é rentabilidade.</p>
 {% endif %}
 
-{% if top_posicoes %}
-  <div class="nw-titulo-secao">
-    <div>
-      <p class="nw-sobretitulo">Carteira</p>
-      <h2>Maiores posições</h2>
-    </div>
-    <span class="rodape">participação na exposição bruta da mesma moeda</span>
-  </div>
-  <div class="rolavel">
-    <table class="detalhe nw-posicoes">
-      <thead><tr><th>Ativo</th><th>Instituições</th><th class="num">Quantidade</th><th class="num">Valor</th><th class="num">Participação</th></tr></thead>
-      <tbody>
-        {% for posicao in top_posicoes %}
-          <tr>
-            <td>{% if posicao.link %}<a href="{{ posicao.link }}">{{ posicao.descricao }}</a>{% else %}{{ posicao.descricao }}{% endif %}</td>
-            <td>{{ posicao.instituicoes|join:", " }}</td>
-            <td class="num nw-valor-sensivel">{{ posicao.quantidade|floatformat:4 }}</td>
-            <td class="num nw-valor-sensivel">{{ posicao.valor|dinheiro:posicao.moeda }}</td>
-            <td class="num">{{ posicao.percentual|floatformat:1 }}%</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endif %}
-
 {% if links_de_secao %}
   <section class="nw-acoes-origem" aria-label="Detalhamento nos sistemas de origem">
     {% for secao in links_de_secao %}{% if secao.link %}<a href="{{ secao.link }}">{{ secao.nome|capfirst }}</a>{% endif %}{% endfor %}
@@ -244,6 +572,7 @@
   e errado é pior que dois números certos.
 </p>
 
+{% if visao == 'investimentos' or visao == 'patrimonio' %}
 <h2>Onde está o patrimônio</h2>
 <section class="nw-grade" aria-label="Cartões por sistema">
   {% for cartao in cartoes_por_sistema %}
@@ -298,7 +627,7 @@
   </section>
 {% endif %}
 
-<details class="modo-denso">
+<details id="detalhamento" class="modo-denso">
   <summary>Ver tabela detalhada por instituição</summary>
 {% comment %}
   Cada linha leva à tela do sistema de origem. O detalhe mora lá; aqui só se
@@ -328,5 +657,6 @@
     </table>
   </div>
 </details>
+{% endif %}
 </div>
 {% endblock %}
