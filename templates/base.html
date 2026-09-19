@@ -10,22 +10,44 @@
   {% endcomment %}
   <link rel="stylesheet" href="{% static 'sharedauth-ui.css' %}">
   <link rel="stylesheet" href="{% static 'css/networth.css' %}">
+  <script src="{% static 'js/networth-navigation.js' %}" defer></script>
 </head>
 <body>
+  {% if user.is_authenticated %}
+    <aside class="wf-sidebar" aria-label="Navegação principal">
+      <a class="wf-sidebar-brand" href="{% url 'consolidado:patrimonio' %}" aria-label="Início">N</a>
+      <nav class="wf-sidebar-nav" aria-label="Atalhos">
+        <a href="{% url 'consolidado:patrimonio' %}?visao=investimentos&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}" aria-label="Investimentos"{% if request.GET.visao != 'patrimonio' and request.GET.visao != 'gastos' and request.GET.visao != 'insights' and request.resolver_match.url_name != 'historico' %} aria-current="page"{% endif %}>⌁</a>
+        <a href="{% url 'consolidado:patrimonio' %}?visao=patrimonio&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}" aria-label="Patrimônio líquido"{% if request.GET.visao == 'patrimonio' %} aria-current="page"{% endif %}>▣</a>
+        <a href="{% url 'consolidado:patrimonio' %}?visao=gastos&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}" aria-label="Gastos"{% if request.GET.visao == 'gastos' %} aria-current="page"{% endif %}>▤</a>
+        <a href="{% url 'consolidado:patrimonio' %}?visao=insights&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}" aria-label="Insights"{% if request.GET.visao == 'insights' %} aria-current="page"{% endif %}>✦</a>
+        <a href="{% url 'consolidado:historico' %}" aria-label="Histórico"{% if request.resolver_match.url_name == 'historico' %} aria-current="page"{% endif %}>↗</a>
+      </nav>
+      <div class="wf-sidebar-bottom"><span aria-hidden="true">⚙</span><span aria-hidden="true">◌</span></div>
+    </aside>
+  {% endif %}
   <header class="topo">
-    <a class="marca" href="{% url 'consolidado:patrimonio' %}">NetWorth</a>
+    <a class="marca" href="{% url 'consolidado:patrimonio' %}" aria-label="NetWorth, início">
+      <span class="marca-simbolo" aria-hidden="true">N</span>
+      <span>NetWorth</span>
+    </a>
     {% if user.is_authenticated %}
       {% url 'consolidado:patrimonio' as url_patrimonio %}
       {% url 'consolidado:historico' as url_historico %}
-      <nav class="navegacao" aria-label="Telas">
-        <a href="{{ url_patrimonio }}"{% if request.path == url_patrimonio %} aria-current="page"{% endif %}>Dashboard</a>
-        <a href="{{ url_historico }}"{% if request.path == url_historico %} aria-current="page"{% endif %}>Histórico</a>
+      <nav class="navegacao tabs-principais" aria-label="Visões financeiras">
+        <a href="{{ url_patrimonio }}?visao=investimentos&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}"{% if request.GET.visao != 'patrimonio' and request.GET.visao != 'gastos' and request.GET.visao != 'insights' and request.resolver_match.url_name != 'historico' %} aria-current="page"{% endif %}>Investimentos</a>
+        <a href="{{ url_patrimonio }}?visao=patrimonio&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}"{% if request.GET.visao == 'patrimonio' %} aria-current="page"{% endif %}>Patrimônio líquido</a>
+        <a href="{{ url_patrimonio }}?visao=gastos&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}"{% if request.GET.visao == 'gastos' %} aria-current="page"{% endif %}>Gastos</a>
+        <a href="{{ url_patrimonio }}?visao=insights&amp;periodo={{ periodo|default:'1a' }}{% if referencia %}&amp;data={{ referencia|date:'Y-m-d' }}{% endif %}"{% if request.GET.visao == 'insights' %} aria-current="page"{% endif %}>Insights</a>
       </nav>
-      <form class="sair" method="post" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <span class="quem">{{ user.get_username }}</span>
-        <button type="submit">Sair</button>
-      </form>
+      <div class="topo-acoes">
+        <a class="historico-link" href="{{ url_historico }}"{% if request.resolver_match.url_name == 'historico' %} aria-current="page"{% endif %}>Histórico</a>
+        <form class="sair" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <span class="quem">{{ user.get_username }}</span>
+          <button type="submit">Sair</button>
+        </form>
+      </div>
     {% endif %}
   </header>
   <main>

@@ -34,6 +34,19 @@ taxa para qualquer moeda, a composição não é exibida, pois um percentual par
 pareceria completo. Os componentes visuais de cartão, métrica e barra vêm do
 SharedAuth `v0.12.0` e recebem apenas os tokens de tema do NetWorth.
 
+## Insights
+
+A aba **Insights** (`/patrimonio/?visao=insights`) é uma camada de leitura sobre
+as mesmas linhas publicadas pelo Controle Bancário e pelo Controle de Renda
+Variável. Ela permite alternar entre classe de ativo, setor, região, mercado,
+moeda, instituição, titular, fonte e posição/conta; cada item é filtrável e
+abre as linhas de origem sem criar uma cópia local.
+
+Setor e região só são classificados quando uma fonte os publicar. Nos contratos
+atuais eles aparecem como **Não classificado**. O NetWorth não infere uma região
+a partir do mercado nem uma categoria a partir do ticker. O filtro e a ordenação
+ficam na URL, e a página preserva a regra de não somar moedas sem taxa válida.
+
 ## Rodar local
 
 ```bash
