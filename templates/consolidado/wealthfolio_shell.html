@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+  Shell visual baseado no Wealthfolio 3.8.0 sob AGPL-3.0, adaptado para os
+  contratos somente leitura do NetWorth. A marca e os assets oficiais do
+  Wealthfolio não são usados; consulte LICENSE e NOTICE.md.
+
+  The shell deliberately knows nothing about accounts, positions or money.
+  ``wf_shell`` is a view-model supplied by the route adapter:
+
+    active_route: dashboard|insights|holdings|activities|goals|assistant|settings
+    home_url, dashboard_url, insights_url, holdings_url, activities_url,
+    goals_url, assistant_url, settings_url, page_title, page_subtitle,
+    user_label, hide_values (optional boolean)
+
+  Navigation URLs are data so the shell can be mounted under a prefix without
+  changing this template. The fallback paths mirror Wealthfolio's canonical
+  routes and are useful for static/template previews.
+{% endcomment %}
+
+{% block conteudo %}
+  <link rel="stylesheet" href="{% static 'css/wealthfolio-shell-v2.css' %}">
+  <script src="{% static 'js/wealthfolio-shell-v2.js' %}" defer></script>
+
+  <div class="wf2-shell" data-wf2-shell data-active-route="{{ wf_shell.active_route|default:'dashboard' }}">
+    {% include "consolidado/wealthfolio_components/sidebar.html" %}
+    <div class="wf2-shell__workspace">
+      {% include "consolidado/wealthfolio_components/topbar.html" %}
+      <main class="wf2-shell__main" id="main-content" tabindex="-1">
+        {% block wf2_content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+{% endblock %}

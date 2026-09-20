@@ -22,7 +22,7 @@ def health_check(_request):
 
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="consolidado:patrimonio", permanent=False)),
+    path("", RedirectView.as_view(pattern_name="consolidado:dashboard", permanent=False)),
     path("health/", health_check, name="health_check"),
     # Sem barra também: os irmãos Flask servem `/health`, e um vigia externo que
     # não segue redirecionamento marcaria este serviço como fora do ar.

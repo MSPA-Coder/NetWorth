@@ -1,0 +1,29 @@
+<section class="wf2-hero wf2-hero--net-worth">
+  <div class="wf2-hero__summary">
+    <h1 class="wf2-hero-value wf2-sensitive">{{ wf_dashboard.net_worth.hero_value|default:'—' }}</h1>
+    <p class="wf2-hero__delta{% if wf_dashboard.net_worth.delta.positive %} is-positive{% endif %}">{% if wf_dashboard.net_worth.delta.absolute %}<span class="wf2-sensitive">{{ wf_dashboard.net_worth.delta.absolute }}</span>{% endif %}{% if wf_dashboard.net_worth.delta.percent %}<span>{{ wf_dashboard.net_worth.delta.percent }}</span>{% endif %}<small>{{ wf_dashboard.net_worth.delta.period|default:wf_dashboard.period_label }}</small></p>
+  </div>
+  {% include "consolidado/wealthfolio_components/chart_panel.html" with chart=wf_dashboard.net_worth.chart %}
+  {% include "consolidado/wealthfolio_components/dashboard_periods.html" %}
+</section>
+
+<div class="wf2-dashboard-grid wf2-dashboard-grid--net-worth">
+  <section aria-labelledby="wf2-detail-heading">
+    <header class="wf2-section-heading"><h2 id="wf2-detail-heading">Detalhamento</h2><span>Variação em {{ wf_dashboard.net_worth.delta.period|default:wf_dashboard.period_label }}</span></header>
+    <div class="wf2-detail-card">
+      <div class="wf2-detail-card__title"><strong>⌄ Ativos</strong><b class="wf2-sensitive">{{ wf_dashboard.net_worth.hero_value|default:'—' }}</b></div>
+      <div class="wf2-detail-bar" aria-hidden="true">{% for row in wf_dashboard.net_worth.details %}<i data-wf2-flex-percent="{{ row.percent_number|default:0 }}"></i>{% endfor %}</div>
+      <div class="wf2-detail-card__columns" aria-hidden="true"><span>Categoria</span><span>%</span><span>Valor</span><span>Δ</span></div>
+      {% for row in wf_dashboard.net_worth.details %}<div class="wf2-detail-row{% if row.total %} is-total{% endif %}"><span><i aria-hidden="true"></i>{{ row.label }}</span><span>{{ row.percent|default:'—' }}</span><b class="wf2-sensitive">{{ row.value|default:'—' }}</b><span class="{% if row.positive %}is-positive{% endif %}">{{ row.delta|default:'—' }}</span></div>{% empty %}<p class="wf2-list__empty">Nenhum ativo publicado.</p>{% endfor %}
+    </div>
+  </section>
+  <section aria-labelledby="wf2-pace-heading">
+    <header class="wf2-section-heading"><h2 id="wf2-pace-heading">Ritmo mensal</h2><span>{{ wf_dashboard.period_label }}</span></header>
+    <div class="wf2-pace-card">
+      {% if wf_dashboard.net_worth.monthly_pace.available %}
+        <strong class="wf2-sensitive{% if wf_dashboard.net_worth.monthly_pace.positive %} is-positive{% endif %}">{{ wf_dashboard.net_worth.monthly_pace.value }}</strong><small>/mês</small><p>{{ wf_dashboard.net_worth.monthly_pace.detail }}</p>
+        <h3>Fatores da variação</h3>{% for item in wf_dashboard.net_worth.monthly_pace.factors %}<div class="wf2-pace-factor"><span>{{ item.label }}</span><b class="wf2-sensitive{% if item.positive %} is-positive{% endif %}">{{ item.value }}</b><i data-wf2-width-percent="{{ item.percent_number|default:0 }}"></i><small>{{ item.detail }}</small></div>{% endfor %}
+      {% else %}<div class="wf2-inline-empty"><strong>Ritmo indisponível</strong><span>{{ wf_dashboard.net_worth.monthly_pace.reason|default:'Ainda não há histórico suficiente.' }}</span></div>{% endif %}
+    </div>
+  </section>
+</div>

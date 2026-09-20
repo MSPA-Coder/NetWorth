@@ -1,0 +1,7 @@
+<nav class="wf2-periods" aria-label="Período">
+  {% for item in wf_dashboard.periods %}
+    <a href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+  {% empty %}
+    <span class="wf2-muted">{{ wf_dashboard.period_label|default:'Período selecionado' }}</span>
+  {% endfor %}
+</nav>

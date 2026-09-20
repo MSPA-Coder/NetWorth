@@ -13,6 +13,7 @@ estava reiniciando, com o número continuando plausível.
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from hashlib import sha256
@@ -36,8 +37,11 @@ PERIODOS = {
 }
 
 PERIODOS_DASHBOARD = {
+    "1d": ("1 dia", "1d"),
+    "1s": ("1 semana", "1s"),
     "1m": ("1 mês", "1m"),
     "3m": ("3 meses", "3m"),
+    "6m": ("6 meses", "6m"),
     "ano": ("Este ano", "ano"),
     "1a": ("1 ano", "1a"),
     "5a": ("5 anos", "5a"),
@@ -49,9 +53,20 @@ CASAS_DO_PERCENTUAL = Decimal("0.01")
 
 
 def _inicio_do_periodo(chave: str, referencia: date) -> date | None:
+    if chave == "este_mes":
+        return referencia.replace(day=1)
+    if chave == "mes_passado":
+        # A superfície Wealthfolio normaliza a referência para o último dia
+        # do mês anterior antes de chegar aqui.
+        return referencia.replace(day=1)
+    if chave == "1d":
+        return referencia - timedelta(days=1)
+    if chave == "1s":
+        return referencia - timedelta(days=7)
     periodo_analitico = {
         "1m": "1M",
         "3m": "3M",
+        "6m": "6M",
         "ano": "YTD",
         "1a": "1Y",
         "5a": "5Y",
@@ -118,6 +133,18 @@ def _desempenhos(consolidado) -> list[dict]:
                 "metodo": serie.get("metodo", ""),
                 "ultimo": ultimo,
                 "retorno_percentual": retorno * 100 if retorno is not None else None,
+                "serie_json": json.dumps(
+                    [
+                        {
+                            "data": ponto["data"].isoformat(),
+                            "valor": format(ponto["retorno_acumulado"], "f"),
+                        }
+                        for ponto in pontos
+                        if ponto.get("data") is not None
+                        and ponto.get("retorno_acumulado") is not None
+                    ],
+                    ensure_ascii=False,
+                ),
                 "link": serie.get("link", ""),
             }
         )

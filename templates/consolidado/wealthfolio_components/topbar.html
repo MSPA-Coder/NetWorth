@@ -1,0 +1,36 @@
+<header class="wf2-topbar">
+  <button class="wf2-topbar__menu" type="button" aria-label="Abrir navegação" aria-expanded="false" data-wf2-menu>
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  {% if wf_shell.show_heading %}
+    <div class="wf2-topbar__heading">
+      {% if wf_shell.page_kicker %}<p class="wf2-topbar__eyebrow">{{ wf_shell.page_kicker }}</p>{% endif %}
+      <h1>{{ wf_shell.page_title|default:'NetWorth' }}</h1>
+      {% if wf_shell.page_subtitle %}<p>{{ wf_shell.page_subtitle }}</p>{% endif %}
+    </div>
+  {% endif %}
+  {% if wf_shell.active_route|default:'dashboard' == 'dashboard' %}
+    {% include "consolidado/wealthfolio_components/dashboard_tabs.html" %}
+  {% elif wf_shell.active_route == 'insights' %}
+    {% include "consolidado/wealthfolio_components/insights_topbar.html" %}
+  {% endif %}
+  <div class="wf2-topbar__actions">
+    {% if wf_shell.partial %}
+      <details class="wf2-source-status">
+        <summary aria-label="Dados parcialmente disponíveis" title="Dados parcialmente disponíveis">
+          <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M12 3l9 17H3zM12 9v5M12 17v1"/></svg>
+        </summary>
+        <div role="status"><strong>Dados parciais</strong><span>{{ wf_shell.partial_message|default:'Uma ou mais fontes não responderam. Os valores disponíveis continuam identificados.' }}</span>{% if wf_shell.sources_expected %}<small>{{ wf_shell.sources_responded }}/{{ wf_shell.sources_expected }} fontes</small>{% endif %}</div>
+      </details>
+    {% endif %}
+    <label class="wf2-privacy" title="Ocultar valores">
+      <input type="checkbox" data-wf2-privacy{% if wf_shell.hide_values %} checked{% endif %}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M3 12s3.2-6 9-6 9 6 9 6-3.2 6-9 6-9-6-9-6zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+      <span>{{ wf_shell.privacy_label|default:'Ocultar valores' }}</span>
+    </label>
+    <details class="wf2-more">
+      <summary aria-label="Mais opções" title="Mais opções"><span aria-hidden="true">⋮</span></summary>
+      <div>{% if wf_shell.user_label %}<span class="wf2-user">{{ wf_shell.user_label }}</span>{% endif %}<a href="{{ wf_shell.settings_url|default:'/settings/' }}">Configurações</a><form method="post" action="{{ wf_shell.logout_url|default:'/logout' }}">{% csrf_token %}<button type="submit">Sair</button></form></div>
+    </details>
+  </div>
+</header>

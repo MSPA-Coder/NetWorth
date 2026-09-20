@@ -1,0 +1,45 @@
+<section class="wf2-hero wf2-hero--investments">
+  <div class="wf2-hero__summary">
+    <h1 class="wf2-hero-value wf2-sensitive">{{ wf_dashboard.investments.hero_value|default:'—' }}</h1>
+    <p class="wf2-hero__delta{% if wf_dashboard.investments.delta.positive %} is-positive{% endif %}">
+      {% if wf_dashboard.investments.delta.absolute %}<span class="wf2-sensitive">{{ wf_dashboard.investments.delta.absolute }}</span>{% endif %}
+      {% if wf_dashboard.investments.delta.percent %}<span>{{ wf_dashboard.investments.delta.percent }}</span>{% endif %}
+      <small>{{ wf_dashboard.investments.delta.period|default:wf_dashboard.period_label }}</small>
+    </p>
+  </div>
+  {% include "consolidado/wealthfolio_components/chart_panel.html" with chart=wf_dashboard.investments.chart %}
+  {% include "consolidado/wealthfolio_components/dashboard_periods.html" %}
+</section>
+
+<div class="wf2-dashboard-grid wf2-dashboard-grid--investments">
+  <section aria-labelledby="wf2-accounts-heading">
+    <header class="wf2-section-heading"><h2 id="wf2-accounts-heading">Contas</h2>{% if wf_dashboard.investments.accounts_url %}<a href="{{ wf_dashboard.investments.accounts_url }}">Ver tudo <span aria-hidden="true">›</span></a>{% endif %}</header>
+    <ul class="wf2-account-list">
+      {% for account in wf_dashboard.investments.accounts %}
+        <li class="wf2-account-group{% if account.expanded %} is-expanded{% endif %}">
+          <a class="wf2-account-group-toggle" href="{{ account.url }}" aria-expanded="{% if account.expanded %}true{% else %}false{% endif %}" aria-controls="wf2-account-{{ forloop.counter }}" data-wf2-account-toggle>
+            <span><strong>{{ account.name }}</strong><small>{{ account.detail }}</small></span>
+            <span class="wf2-row-value"><b class="wf2-sensitive">{{ account.value|default:'—' }}</b>{% if account.delta %}<small class="{% if account.positive %}is-positive{% endif %}">{{ account.delta }}</small>{% endif %}</span>
+            <span class="wf2-account-group-toggle__icon" aria-hidden="true">⌄</span>
+          </a>
+          {% if account.expanded and account.children %}
+            <ul id="wf2-account-{{ forloop.counter }}" class="wf2-account-children" aria-label="Contas em {{ account.name }}">
+              {% for child in account.children %}
+                <li><a href="{{ child.url }}"><span><strong>{{ child.name }}</strong><small>{{ child.detail }}</small></span><b class="wf2-sensitive">{{ child.value|default:'—' }}</b><span aria-hidden="true">›</span></a></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% empty %}<li class="wf2-list__empty">Nenhuma conta publicada.</li>{% endfor %}
+    </ul>
+  </section>
+  <section aria-labelledby="wf2-holdings-heading">
+    <header class="wf2-section-heading"><h2 id="wf2-holdings-heading">Posições</h2>{% if wf_dashboard.investments.holdings_url %}<a href="{{ wf_dashboard.investments.holdings_url }}">Ver tudo <span aria-hidden="true">›</span></a>{% endif %}</header>
+    <ul class="wf2-position-list">
+      {% for holding in wf_dashboard.investments.holdings %}
+        <li><a href="{{ holding.url|default:'#' }}"><span class="wf2-position-badge">{{ holding.badge|default:'•' }}</span><span><strong>{{ holding.name }}</strong><small>{{ holding.detail }}</small></span><span class="wf2-row-value"><b class="wf2-sensitive">{{ holding.value|default:'—' }}</b>{% if holding.delta or holding.percent %}<small class="{% if holding.positive %}is-positive{% endif %}">{{ holding.delta }}{% if holding.percent %} · {{ holding.percent }}{% endif %}</small>{% endif %}</span></a></li>
+      {% empty %}<li class="wf2-list__empty">Nenhuma posição publicada.</li>{% endfor %}
+      {% if wf_dashboard.investments.remaining_count %}<li class="wf2-position-list__more"><a href="{{ wf_dashboard.investments.holdings_url }}"><span class="wf2-position-badge">+</span><span><strong>+{{ wf_dashboard.investments.remaining_count }} posições</strong><small>Ver carteira completa</small></span><span aria-hidden="true">›</span></a></li>{% endif %}
+    </ul>
+  </section>
+</div>

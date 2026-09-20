@@ -22,7 +22,7 @@ ZERO = Decimal("0")
 # publishers.  ``tudo`` has no lower bound and therefore never causes a
 # caller to manufacture hundreds of point requests; a single range request is
 # all the reader needs.
-PERIODOS = ("1M", "3M", "YTD", "1Y", "5Y", "Tudo")
+PERIODOS = ("1M", "3M", "6M", "YTD", "1Y", "5Y", "Tudo")
 
 
 def intervalo_periodo(periodo: str, ate: date) -> tuple[date | None, date]:
@@ -32,7 +32,7 @@ def intervalo_periodo(periodo: str, ate: date) -> tuple[date | None, date]:
         return None, ate
     if chave == "YTD":
         return date(ate.year, 1, 1), ate
-    meses = {"1M": 1, "3M": 3, "1Y": 12, "5Y": 60}
+    meses = {"1M": 1, "3M": 3, "6M": 6, "1Y": 12, "5Y": 60}
     if chave not in meses:
         raise ValueError(f"período desconhecido: {periodo!r}")
     total = ate.year * 12 + ate.month - 1 - meses[chave]
@@ -149,6 +149,10 @@ def top_posicoes(
                 "valor": ZERO,
                 "exposicao_bruta": ZERO,
                 "quantidade": ZERO,
+                "ganho_nao_realizado": ZERO,
+                "ganho_informado": False,
+                "custo": ZERO,
+                "custo_informado": False,
                 "instituicoes": set(),
                 "links": set(),
                 "linhas": 0,
@@ -164,6 +168,14 @@ def top_posicoes(
         quantidade = _decimal(_campo(linha, "quantidade"), None)
         if quantidade is not None:
             grupo["quantidade"] += quantidade
+        ganho = _decimal(_campo(linha, "ganho_nao_realizado"), None)
+        if ganho is not None:
+            grupo["ganho_nao_realizado"] += ganho
+            grupo["ganho_informado"] = True
+        custo = _decimal(_campo(linha, "custo"), None)
+        if custo is not None:
+            grupo["custo"] += custo
+            grupo["custo_informado"] = True
         instituicao = str(_campo(linha, "instituicao", padrao="") or "")
         if instituicao:
             grupo["instituicoes"].add(instituicao)
@@ -185,6 +197,10 @@ def top_posicoes(
     resultado = []
     for grupo in ordenados:
         total = totais_brutos[grupo["moeda"]]
+        ganho = grupo.pop("ganho_nao_realizado")
+        ganho_informado = grupo.pop("ganho_informado")
+        custo = grupo.pop("custo")
+        custo_informado = grupo.pop("custo_informado")
         resultado.append(
             {
                 **grupo,
@@ -192,6 +208,12 @@ def top_posicoes(
                 "links": sorted(grupo["links"]),
                 "link": next(iter(grupo["links"])) if len(grupo["links"]) == 1 else "",
                 "percentual": grupo["exposicao_bruta"] / total * 100 if total else None,
+                "ganho_nao_realizado": ganho if ganho_informado else None,
+                "retorno_percentual": (
+                    ganho / abs(custo) * 100
+                    if ganho_informado and custo_informado and custo
+                    else None
+                ),
             }
         )
     return resultado

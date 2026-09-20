@@ -1,0 +1,17 @@
+{% comment %}
+  Holdings contract: wf_page.toolbar {url, search, period, periods, filters};
+  wf_page.rows [{url, name, ticker, institution, currency, quantity, value,
+  weight, detail}]. Values are preformatted strings.
+{% endcomment %}
+<section class="wf2p-panel">
+  <form class="wf2p-toolbar" method="get" action="{{ wf_page.toolbar.url|default:'' }}">
+    {% if wf_page.toolbar.periods %}<label>Período<select name="periodo">{% for option in wf_page.toolbar.periods %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endif %}
+    {% if wf_page.toolbar.filters %}{% for filter in wf_page.toolbar.filters %}<label>{{ filter.label }}<select name="{{ filter.name }}">{% for option in filter.options %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endfor %}{% endif %}
+    <label class="wf2p-search">Buscar<input type="search" name="busca" value="{{ wf_page.toolbar.search|default:'' }}" placeholder="posição ou instituição"></label>
+    <button class="wf2p-button wf2p-button--primary" type="submit">Aplicar</button>
+  </form>
+</section>
+<section class="wf2p-table-panel" aria-labelledby="wf2p-holdings-title">
+  <h3 id="wf2p-holdings-title" class="wf2p-sr-only">Posições publicadas</h3>
+  <div class="wf2p-table-scroll"><table class="wf2p-table"><thead><tr><th>Posição</th><th>Instituição</th><th>Moeda</th><th class="num">Quantidade</th><th class="num">Valor</th><th class="num">Peso</th></tr></thead><tbody>{% for row in wf_page.rows %}<tr><td><a class="wf2p-row-link" href="{{ row.url }}"><strong>{{ row.name|default:row.ticker }}</strong>{% if row.detail %}<small>{{ row.detail }}</small>{% endif %}</a></td><td>{{ row.institution|default:'—' }}</td><td>{{ row.currency|default:'—' }}</td><td class="num">{{ row.quantity|default:'—' }}</td><td class="num wf2p-sensitive">{{ row.value|default:'—' }}</td><td class="num">{{ row.weight|default:'—' }}</td></tr>{% empty %}<tr><td colspan="6" class="wf2p-empty-row">Nenhuma posição publicada para esta consulta.</td></tr>{% endfor %}</tbody></table></div>
+</section>

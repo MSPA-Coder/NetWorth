@@ -3,8 +3,8 @@
 Responde **"quanto eu tenho"**, somando o caixa do [Controle Bancário] com os
 investimentos do [Controle de Renda Variável].
 
-Ele é só de leitura. Não cadastra conta, posição, lançamento nem categoria, e
-não recalcula nada: saldo é do Controle Bancário, valor a mercado é do Controle
+Ele é só de leitura **sobre as fontes**. Não cadastra conta, posição, lançamento
+nem categoria nos sistemas de origem, e não recalcula nada: saldo é do Controle Bancário, valor a mercado é do Controle
 de Renda Variável. Cada um deles publica uma foto do que sabe, numa rota
 autenticada por token (`GET /patrimonio/v1/resumo`), e este aplicativo lê as
 duas e soma **dentro de cada moeda**.
@@ -46,6 +46,35 @@ Setor e região só são classificados quando uma fonte os publicar. Nos contrat
 atuais eles aparecem como **Não classificado**. O NetWorth não infere uma região
 a partir do mercado nem uma categoria a partir do ticker. O filtro e a ordenação
 ficam na URL, e a página preserva a regra de não somar moedas sem taxa válida.
+
+## Superfície compatível com o Wealthfolio
+
+Além da tela legada `/patrimonio/`, o NetWorth oferece uma superfície de
+consulta com a organização visual do Wealthfolio: `/dashboard/` (Investimentos,
+Patrimônio líquido e Gastos), `/insights/` (Resumo, Desempenho e Rendimentos),
+`/holdings/`, `/accounts/`, `/activities/`, `/spending/insights/`,
+`/spending/budget/` e `/goals/`. Os links e filtros são GET reproduzíveis e os
+endpoints JSON ficam em `/api/wealthfolio/`.
+
+Nesta fase o Wealthfolio é somente o **shell de consulta**. Contas, posições,
+lançamentos, categorias e séries continuam pertencendo ao Controle Bancário e
+ao Controle de Renda Variável e não são copiados para tabelas operacionais do
+NetWorth. Metas, orçamentos, alocação-alvo, eventos, Assistente e Configurações
+aparecem como indisponíveis enquanto a capacidade correspondente não tiver sido
+migrada deliberadamente. As rotas da interface não aceitam gravações locais.
+
+### Licença, identidade e atribuição
+
+O usuário decidiu explicitamente adotar componentes do Wealthfolio sob a
+licença AGPL-3.0. O baseline auditado é o Wealthfolio 3.8.0, revisão
+`8f6f9898d30e84d7215e01d3d06cd65e02c9ab1b`. A decisão exige preservar a
+licença, a atribuição e o código-fonte correspondente nas distribuições.
+
+O projeto continua sendo o **NetWorth**, com nome e identidade próprios. Ele
+não usa logos, ícones de marca ou outros assets de branding do Wealthfolio como
+identidade do produto e não é afiliado, patrocinado ou endossado pelo
+Wealthfolio. Consulte [NOTICE.md](NOTICE.md) para a atribuição curta, o
+inventário geral das alterações e a referência do código-fonte correspondente.
 
 ## Rodar local
 

@@ -1,0 +1,7 @@
+{% if wf_dashboard.state == 'loading' %}
+  <section class="wf2-state wf2-state--loading" role="status" aria-live="polite"><span class="wf2-spinner" aria-hidden="true"></span><strong>{{ wf_dashboard.loading_label|default:'Carregando dados financeiros' }}</strong></section>
+{% elif wf_dashboard.state == 'error' %}
+  <section class="wf2-state wf2-state--error" role="alert"><strong>{{ wf_dashboard.error_title|default:'Dados financeiros indisponíveis' }}</strong><p>{{ wf_dashboard.meta.error|default:'Os sistemas de origem não retornaram uma fotografia utilizável.' }}</p>{% if wf_dashboard.retry_url %}<a class="wf2-button wf2-button--primary" href="{{ wf_dashboard.retry_url }}">{{ wf_dashboard.retry_label|default:'Tentar novamente' }}</a>{% endif %}</section>
+{% elif wf_dashboard.state == 'empty' %}
+  <section class="wf2-state wf2-state--empty" role="status"><strong>{{ wf_dashboard.empty_title|default:'Ainda não há dados para esta visão' }}</strong><p>{{ wf_dashboard.empty_message|default:'Os sistemas conectados ainda não publicaram dados para o período selecionado.' }}</p></section>
+{% endif %}

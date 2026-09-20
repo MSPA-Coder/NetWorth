@@ -1,0 +1,33 @@
+{% extends "consolidado/wealthfolio_shell.html" %}
+{% load static %}
+
+{% comment %}
+  Dashboard v2 is intentionally a presentation-only route.
+
+  Required view-model (all fields optional while the adapter is being built):
+    wf_shell: shell navigation fields documented in wealthfolio_shell.html
+    wf_dashboard: state/meta, tab, tabs, periods, as_of_label and one of
+      investments/net_worth/spending, each containing preformatted fields.
+
+  Compatibility fallbacks only select the active tab. They do not aggregate,
+  convert or infer financial data. The adapter owns those decisions.
+{% endcomment %}
+
+{% block titulo %}{{ wf_shell.page_title|default:'Dashboard' }} — NetWorth{% endblock %}
+
+{% block wf2_content %}
+  <div class="wf2-dashboard" data-wf2-dashboard>
+    {% include "consolidado/wealthfolio_components/dashboard_state.html" %}
+    {% if wf_dashboard.state != 'loading' and wf_dashboard.state != 'error' and wf_dashboard.state != 'empty' %}
+      {% with selected_tab=wf_dashboard.tab|default:dashboard_tab|default:'investments' %}
+        {% if selected_tab == 'net-worth' %}
+          {% include "consolidado/wealthfolio_components/dashboard_net_worth.html" %}
+        {% elif selected_tab == 'spending' %}
+          {% include "consolidado/wealthfolio_components/dashboard_spending.html" %}
+        {% else %}
+          {% include "consolidado/wealthfolio_components/dashboard_investments.html" %}
+        {% endif %}
+      {% endwith %}
+    {% endif %}
+  </div>
+{% endblock %}

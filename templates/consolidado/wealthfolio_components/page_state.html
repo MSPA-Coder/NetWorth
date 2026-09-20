@@ -1,0 +1,8 @@
+{% comment %}
+  Page state contract: wf_page.state = ready|loading|empty|error and
+  wf_page.meta.complete, warning, sources_responded, sources_expected.
+{% endcomment %}
+{% if wf_page.state == 'loading' %}<section class="wf2p-state wf2p-state--loading" role="status" aria-live="polite"><span class="wf2p-spinner" aria-hidden="true"></span><strong>{{ wf_page.loading_label|default:'Carregando dados' }}</strong></section>{% endif %}
+{% if wf_page.state == 'error' %}<section class="wf2p-state wf2p-state--error" role="alert"><strong>{{ wf_page.error_title|default:'Dados indisponíveis' }}</strong><p>{{ wf_page.error_message|default:'A fonte não retornou uma fotografia utilizável.' }}</p>{% if wf_page.retry_url %}<a class="wf2p-button wf2p-button--primary" href="{{ wf_page.retry_url }}">Tentar novamente</a>{% endif %}</section>{% endif %}
+{% if wf_page.state == 'empty' %}<section class="wf2p-state wf2p-state--empty" role="status"><strong>{{ wf_page.empty_title|default:'Nenhum dado publicado' }}</strong><p>{{ wf_page.empty_message|default:'A fonte ainda não publicou dados para esta consulta.' }}</p></section>{% endif %}
+{% if wf_page.meta and not wf_page.meta.complete %}<aside class="wf2p-warning" role="status"><strong>Dados parciais</strong><span>{{ wf_page.meta.warning|default:'Uma ou mais fontes não responderam; o resultado pode não representar o patrimônio completo.' }}</span>{% if wf_page.meta.sources_expected %}<small>{{ wf_page.meta.sources_responded|default:'0' }}/{{ wf_page.meta.sources_expected }} fontes</small>{% endif %}</aside>{% endif %}

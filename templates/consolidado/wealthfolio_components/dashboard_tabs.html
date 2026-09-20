@@ -1,0 +1,16 @@
+{% comment %}
+  Dashboard tab contract: wf_dashboard.tabs is an iterable of objects with
+  ``key``, ``label``, ``url`` and optional ``active``. The fallback list keeps
+  the canonical Wealthfolio tab names visible during adapter migration.
+{% endcomment %}
+<nav class="wf2-dashboard-tabs" aria-label="Dashboard views" role="tablist">
+  {% if wf_dashboard.tabs %}
+    {% for item in wf_dashboard.tabs %}
+      <a class="wf2-dashboard-tabs__link{% if item.active %} is-active{% endif %}" href="{{ item.url }}" role="tab"{% if item.active %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ item.label }}</a>
+    {% endfor %}
+  {% else %}
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab|default:'investments' == 'investments' %} is-active{% endif %}" href="?tab=investments" role="tab">↗ Investimentos</a>
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'net-worth' %} is-active{% endif %}" href="?tab=net-worth" role="tab">▣ Patrimônio líquido</a>
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'spending' %} is-active{% endif %}" href="?tab=spending" role="tab">♨ Gastos</a>
+  {% endif %}
+</nav>

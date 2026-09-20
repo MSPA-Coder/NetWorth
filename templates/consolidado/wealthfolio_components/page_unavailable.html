@@ -1,0 +1,5 @@
+{% comment %}
+  Used for Budget, Goals, Assistant and Settings until their source-owned
+  capabilities are defined. No local form or write affordance is rendered.
+{% endcomment %}
+<section class="wf2p-unavailable" role="status"><div class="wf2p-unavailable__icon" aria-hidden="true">—</div><p class="wf2p-kicker">{{ wf_page.kicker|default:'NetWorth' }}</p><h3>{{ wf_page.unavailable_title|default:wf_page.title|default:'Funcionalidade' }}</h3><p>{{ wf_page.unavailable_message|default:'Ainda não disponível nesta fase' }}</p><small>Esta área será conectada quando o sistema de origem publicar os dados e capacidades correspondentes.</small>{% if wf_page.back_url %}<a class="wf2p-button" href="{{ wf_page.back_url }}">Voltar</a>{% endif %}</section>

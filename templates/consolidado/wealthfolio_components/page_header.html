@@ -1,0 +1,16 @@
+{% comment %}
+  Header contract: wf_page.kicker, title, subtitle, as_of_label,
+  breadcrumbs [{label, url}], actions [{label, url}].
+{% endcomment %}
+<header class="wf2p-header">
+  <div class="wf2p-header__copy">
+    {% if wf_page.breadcrumbs %}<nav class="wf2p-breadcrumbs" aria-label="Navegação estrutural">{% for crumb in wf_page.breadcrumbs %}{% if crumb.url %}<a href="{{ crumb.url }}">{{ crumb.label }}</a>{% else %}<span aria-current="page">{{ crumb.label }}</span>{% endif %}{% if not forloop.last %}<span aria-hidden="true">/</span>{% endif %}{% endfor %}</nav>{% endif %}
+    <p class="wf2p-kicker">{{ wf_page.kicker|default:'NetWorth' }}</p>
+    <h2>{{ wf_page.title|default:'Consulta' }}</h2>
+    {% if wf_page.subtitle %}<p class="wf2p-subtitle">{{ wf_page.subtitle }}</p>{% endif %}
+    {% if wf_page.as_of_label %}<p class="wf2p-as-of">{{ wf_page.as_of_label }}</p>{% endif %}
+  </div>
+  <nav class="wf2p-actions" aria-label="Ações da página">
+    {% for action in wf_page.actions %}<a class="wf2p-button{% if action.primary %} wf2p-button--primary{% endif %}" href="{{ action.url }}">{{ action.label }}</a>{% empty %}<a class="wf2p-button" href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}">Dashboard</a>{% endfor %}
+  </nav>
+</header>

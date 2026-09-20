@@ -1,0 +1,16 @@
+{% comment %}
+  ``metrics`` is an iterable of {label, value, detail, tone, sensitive}.
+  Values are preformatted by the adapter; this component never sums or
+  converts money.
+{% endcomment %}
+<div class="wf2-metric-grid" aria-label="Portfolio summary">
+  {% for metric in metrics %}
+    <article class="wf2-metric{% if metric.tone %} wf2-metric--{{ metric.tone }}{% endif %}">
+      <p>{{ metric.label }}</p>
+      <strong class="{% if metric.sensitive|default:True %}wf2-sensitive{% endif %}">{{ metric.value|default:'—' }}</strong>
+      {% if metric.detail %}<small>{{ metric.detail }}</small>{% endif %}
+    </article>
+  {% empty %}
+    <article class="wf2-metric wf2-metric--empty"><p>No summary metrics available.</p></article>
+  {% endfor %}
+</div>

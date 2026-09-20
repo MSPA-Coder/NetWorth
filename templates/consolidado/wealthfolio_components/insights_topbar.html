@@ -1,0 +1,15 @@
+<nav class="wf2-dashboard-tabs" aria-label="Seções de análises">
+  <a class="wf2-dashboard-tabs__link{% if insights_tab == 'summary' or not insights_tab %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=summary&amp;periodo={{ periodo|default:'1a' }}">Resumo</a>
+  <a class="wf2-dashboard-tabs__link{% if insights_tab == 'performance' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=performance&amp;periodo={{ periodo|default:'1a' }}">Desempenho</a>
+  <a class="wf2-dashboard-tabs__link{% if insights_tab == 'income' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=income&amp;periodo={{ periodo|default:'1a' }}">Rendimentos</a>
+</nav>
+<form class="wf2-insights-account" method="get" action="{% url 'consolidado:insights' %}">
+  <input type="hidden" name="tab" value="{{ insights_tab|default:'summary' }}">
+  <input type="hidden" name="periodo" value="{{ periodo|default:'1a' }}">
+  <label for="wf2-insights-account">Conta</label>
+  <select id="wf2-insights-account" name="grupo">
+    <option value="">Todas as contas</option>
+    {% for grupo in arvore_drilldown %}<option value="{{ grupo.id }}"{% if grupo.id == grupo_selecionado %} selected{% endif %}>{{ grupo.nome }}</option>{% endfor %}
+  </select>
+  <button type="submit">Aplicar</button>
+</form>
