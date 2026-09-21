@@ -43,8 +43,8 @@ Resultado desta execução:
 
 A execução integrada da suíte completa (`quality` sem selecionar um arquivo)
 passou após a integração dos adapters, transport, atividades v3, contratos
-analíticos e templates:
-**212 testes passaram**. O comando também executa Ruff, verificações de dependências e
+analíticos, templates e o drill-down de contas:
+**213 testes passaram**. O comando também executa Ruff, verificações de dependências e
 `collectstatic` dentro da imagem de qualidade.
 
 ## O que a matriz garante
@@ -90,6 +90,13 @@ somente leitura. O deploy público foi validado com NetWorth, CB e CRV em
 `/health` (HTTP 200), rotas autenticadas redirecionando anonimamente para
 login (HTTP 302) e os endpoints v3 publicados respondendo internamente com
 Bearer (CB metadata/activities; CRV metadata/income/performance/events).
+
+O usuário de teste `app` foi criado no banco remoto com a credencial de teste
+autorizada. A sessão autenticada pública foi validada em Dashboard, Insights,
+Contas e nos drill-downs `/accounts/Esposita/` e
+`/accounts/Mercado%20Pago/?account=Conta%2001`. O detalhe agora resolve grupos,
+instituições e o rótulo da conta publicada; a regressão foi coberta por teste
+automatizado.
 
 Uma rota só deve ser marcada como concluída depois dos gates automáticos e da
 evidência visual/interativa correspondente. `HTTP 200` sozinho não é critério
