@@ -287,7 +287,14 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
     summary = vm.insights_summary
     raw = context.get("insights") or {}
 
+    raw_items_by_key = {
+        item.get("id"): item
+        for item in raw.get("itens") or ()
+        if item.get("id")
+    }
+
     def breakdown(item: Any) -> dict[str, Any]:
+        published = raw_items_by_key.get(getattr(item, "key", ""), {})
         return {
             "key": item.key,
             "name": item.label,
@@ -295,6 +302,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "percent": _percent_label(item.percent),
             "percent_number": item.percent,
             "classified": item.classified,
+            "url": published.get("url") or "#",
         }
 
     dimensions = []
@@ -495,6 +503,7 @@ def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> 
         "goals_url": reverse("consolidado:goals"),
         "assistant_url": reverse("consolidado:assistant"),
         "settings_url": reverse("consolidado:settings"),
+        "connect_url": _query_url("consolidado:settings", secao="conexoes"),
         "logout_url": reverse("logout"),
         "user_label": vm.shell.user_label,
         "partial": not coverage.complete,
@@ -510,6 +519,7 @@ def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> 
             "goals": "Metas",
             "assistant": "Assistente",
             "settings": "Configurações",
+            "connect": "Conexões",
         },
     }
 

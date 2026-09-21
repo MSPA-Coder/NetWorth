@@ -61,7 +61,7 @@
     // period/date/search filters should not disappear on a drill-down.
     var preservedQuery = new Set([
       "periodo", "data", "busca", "dimensao", "ordenar", "direcao",
-      "conta", "categoria", "natureza", "status", "stage", "pagina",
+      "grupo", "conta", "categoria", "natureza", "status", "stage", "pagina",
     ]);
     var currentUrl = new URL(window.location.href);
     shell.querySelectorAll("[data-wf2-preserve-query]").forEach(function (link) {

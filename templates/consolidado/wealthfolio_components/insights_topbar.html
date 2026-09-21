@@ -1,15 +1,22 @@
 <nav class="wf2-dashboard-tabs" aria-label="Seções de análises">
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'summary' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=summary&amp;periodo={{ wf_insights.period|default:'1a' }}">Resumo</a>
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'performance' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=performance&amp;periodo={{ wf_insights.period|default:'1a' }}">Desempenho</a>
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'income' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=income&amp;periodo={{ wf_insights.period|default:'1a' }}">Rendimentos</a>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'summary' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=summary&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Resumo</span>
+  </a>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'performance' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=performance&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 17l5-5 4 3 7-8"/><path d="M16 7h4v4"/></svg><span>Desempenho</span>
+  </a>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'income' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=income&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M7 13h10M8 9h8M9 17h6"/><path d="M8 5h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Rendimentos</span>
+  </a>
 </nav>
-<form class="wf2-insights-account" method="get" action="{% url 'consolidado:insights' %}">
+<form class="wf2-insights-account" method="get" action="{% url 'consolidado:insights' %}" data-wf2-insights-filter>
   <input type="hidden" name="tab" value="{{ wf_insights.tab|default:'summary' }}">
   <input type="hidden" name="periodo" value="{{ wf_insights.period|default:'1a' }}">
-  <label for="wf2-insights-account">Conta</label>
-  <select id="wf2-insights-account" name="grupo">
+  <label class="wf2-insights-account__label" for="wf2-insights-account">Conta</label>
+  <span class="wf2-insights-account__icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 8h18v11H3zM5 8V5h14v3M7 12h4"/></svg></span>
+  <select id="wf2-insights-account" name="grupo" aria-label="Conta" data-wf2-insights-account>
     <option value="">Todas as contas</option>
     {% for grupo in wf_insights.account_options %}<option value="{{ grupo.id }}">{{ grupo.name }}</option>{% endfor %}
   </select>
-  <button type="submit">Aplicar</button>
+  <button class="wf2-insights-account__submit" type="submit">Aplicar</button>
 </form>

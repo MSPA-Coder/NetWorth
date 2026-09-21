@@ -3,11 +3,20 @@
   wf_page.rows [{url, name, ticker, institution, currency, quantity, value,
   weight, detail}]. Values are preformatted strings.
 {% endcomment %}
+<nav class="wf2p-segmented" aria-label="Tipo de carteira">
+  <a class="is-active" href="{{ wf_page.toolbar.url|default:'' }}" data-wf2-preserve-query>Investimentos</a>
+  <a href="{{ wf_page.toolbar.url|default:'' }}?tipo=ativos" data-wf2-preserve-query>Ativos</a>
+  <a href="{{ wf_page.toolbar.url|default:'' }}?tipo=passivos" data-wf2-preserve-query>Passivos</a>
+</nav>
 <section class="wf2p-panel wf2p-toolbar-panel">
   <form class="wf2p-toolbar" method="get" data-wf2-query-form action="{{ wf_page.toolbar.url|default:'' }}">
     {% if wf_page.toolbar.periods %}<label>Período<select name="periodo">{% for option in wf_page.toolbar.periods %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endif %}
     {% if wf_page.toolbar.filters %}{% for filter in wf_page.toolbar.filters %}<label>{{ filter.label }}<select name="{{ filter.name }}">{% for option in filter.options %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endfor %}{% endif %}
     <label class="wf2p-search">Buscar<input type="search" name="busca" value="{{ wf_page.toolbar.search|default:'' }}" placeholder="posição ou instituição"></label>
+    <label class="wf2p-toolbar-check"><input type="checkbox" name="aberta" value="1" checked> Abertas</label>
+    <label class="wf2p-toolbar-check"><input type="checkbox" name="fechada" value="1"> Fechadas</label>
+    <button class="wf2p-button" type="button" aria-label="Mais filtros">Filtros</button>
+    <button class="wf2p-button" type="button" aria-label="Selecionar colunas">Colunas</button>
     <button class="wf2p-button wf2p-button--primary" type="submit">Aplicar</button>
   </form>
 </section>

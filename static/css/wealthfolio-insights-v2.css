@@ -46,3 +46,202 @@
   margin: 0 0 0 auto;
 }
 .wf-insights-v2__income-history{display:grid;gap:.7rem;width:100%}.wf-insights-v2__income-history-row{display:grid;grid-template-columns:4.2rem minmax(0,1fr) auto;align-items:center;gap:.65rem;color:var(--w2-muted);font-size:.7rem}.wf-insights-v2__income-history-row i{display:block;width:var(--wf-income-width,0%);min-width:2px;height:8px;border-radius:99px;background:var(--w2-accent)}.wf-insights-v2__income-history-row strong{color:var(--w2-ink);font-size:.7rem;white-space:nowrap}
+
+/* Insights parity layer: Wealthfolio keeps the analysis switcher and account
+   picker in one compact title bar, then presents the summary as a small set
+   of grouped cards. These rules stay scoped to the Insights route. */
+.wf2-topbar > .wf2-dashboard-tabs {
+  min-height: 40px;
+  padding: 4px;
+  border-radius: 20px;
+}
+.wf2-topbar > .wf2-dashboard-tabs .wf2-dashboard-tabs__link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+}
+.wf2-topbar > .wf2-dashboard-tabs .wf2-dashboard-tabs__link svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+.wf2-topbar > .wf2-insights-account {
+  width: min(220px, 32vw);
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--wf2-border);
+  border-radius: 9px;
+  background: var(--wf2-surface);
+}
+.wf2-insights-account__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.wf2-insights-account__icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  color: var(--wf2-muted);
+}
+.wf2-insights-account__icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+.wf2-topbar > .wf2-insights-account select {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 4px 20px 4px 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: var(--wf2-surface);
+  color: var(--wf2-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.wf2-insights-account__submit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.wf-insights-v2__value-strip {
+  grid-template-columns: minmax(0, 2.25fr) minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
+  gap: 0;
+  min-height: 111px;
+  overflow: hidden;
+  border: 1px solid var(--w2-line);
+  border-radius: 10px;
+  background: var(--w2-surface);
+}
+.wf-insights-v2__value-strip article {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-left: 1px solid var(--w2-line);
+  border-radius: 0;
+  background: transparent;
+}
+.wf-insights-v2__value-strip article:first-child { border-left: 0; }
+.wf-insights-v2__value-strip span {
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.wf-insights-v2__value-strip strong {
+  margin: 5px 0 2px;
+  font-size: 1.12rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.wf-insights-v2__value-strip article:first-child strong { font-size: 1.38rem; }
+.wf-insights-v2__value-strip small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-insights-v2__semicircles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  min-height: 224px;
+}
+.wf-insights-v2__semicircles article {
+  min-height: 224px;
+  padding: 17px 16px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 107%, transparent 0 70px, #e8ecdc 71px 74px, transparent 75px),
+    var(--w2-surface);
+}
+.wf-insights-v2__semicircles h2 {
+  color: var(--w2-muted);
+  font-size: .72rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.wf-insights-v2__semicircles strong {
+  margin-top: 77px;
+  font-size: 1rem;
+}
+.wf-insights-v2__semicircles small { font-size: .7rem; }
+
+.wf-insights-v2__summary-grid {
+  grid-template-columns: minmax(0, 3.15fr) minmax(276px, 1fr);
+  align-items: stretch;
+}
+.wf-insights-v2__summary-grid > .wf-insights-v2__panel {
+  min-height: 350px;
+}
+.wf-insights-v2__summary-grid > .wf-insights-v2__panel:first-child {
+  min-height: 390px;
+}
+.wf-insights-v2__treemap {
+  min-height: 270px;
+  grid-auto-rows: minmax(62px, 1fr);
+}
+.wf-insights-v2__dimensions {
+  gap: .25rem;
+  padding: .35rem;
+  border-bottom: 1px solid var(--w2-line);
+  background: #f4f3eb;
+}
+.wf-insights-v2__dimensions a {
+  border-radius: 8px;
+}
+.wf-insights-v2__dimensions a[aria-current=page] {
+  box-shadow: 0 1px 3px #302f2518;
+}
+.wf-insights-v2__breakdown { padding-top: 1rem; }
+.wf-insights-v2__table-wrap { border: 1px solid var(--w2-line); border-radius: 8px; }
+
+@media (max-width: 900px) {
+  .wf-insights-v2__value-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wf-insights-v2__summary-grid,
+  .wf-insights-v2__income-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .wf2-topbar > .wf2-insights-account {
+    width: auto;
+    margin: 0;
+    padding: 0 2px 4px 39px;
+    border: 0;
+    background: transparent;
+  }
+  .wf2-topbar > .wf2-insights-account select {
+    height: 30px;
+    padding: 4px 9px;
+    border: 1px solid var(--wf2-border);
+    border-radius: 8px;
+    background: var(--wf2-surface);
+  }
+  .wf2-insights-account__icon { display: none; }
+}

@@ -19,7 +19,7 @@
   --wf2-shadow: 0 1px 3px #302f2510;
   /* Wealthfolio's desktop rail is intentionally narrow; the workspace starts
      close to the viewport edge and the data surface gets the breathing room. */
-  --wf2-sidebar-width: 56px;
+  --wf2-sidebar-width: 70px;
 }
 
 body:has(.wf2-shell) { background: var(--wf2-bg); color: var(--wf2-ink); }
@@ -42,7 +42,7 @@ body:has(.wf2-shell) > main { max-width: none; margin: 0; padding: 0; }
 .wf2-sidebar__link.is-active { background: hsl(51 13% 84%); color: #34352f; }
 
 .wf2-shell__workspace { min-height: 100vh; margin-left: var(--wf2-sidebar-width); }
-.wf2-topbar { position: relative; z-index: 20; display: flex; min-height: 50px; align-items: center; gap: 20px; padding: 4px 9px; }
+.wf2-topbar { position: relative; z-index: 20; display: flex; min-height: 50px; align-items: center; gap: 20px; padding: 4px 16px; }
 .wf2-topbar__menu { display: none; }
 .wf2-topbar__heading h1 { margin: 0; font-size: 18px; }
 .wf2-topbar__heading p { margin: 2px 0 0; color: var(--wf2-muted); font-size: 11px; }
@@ -69,7 +69,7 @@ body:has(.wf2-shell) > main { max-width: none; margin: 0; padding: 0; }
 .wf2-more button { width: 100%; cursor: pointer; }
 .wf2-user { color: var(--wf2-muted) !important; border-bottom: 1px solid var(--wf2-border) !important; }
 
-body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-width: none; margin: 0; padding: 0 9px 48px; }
+body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-width: none; margin: 0; padding: 0 0 48px; }
 .wf2-dashboard { display: block; }
 .wf2-shell__workspace:has(.wf2-hero--investments), .wf2-shell__workspace:has(.wf2-spending-hero) { background: linear-gradient(180deg, var(--wf2-bg) 0 48%, hsl(79 31% 90%) 100%); }
 .wf2-shell__workspace:has(.wf2-hero--net-worth) { background: linear-gradient(180deg, var(--wf2-bg) 0 48%, hsl(42 85% 91%) 100%); }

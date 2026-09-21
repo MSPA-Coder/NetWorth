@@ -1,0 +1,134 @@
+/* Dashboard-only parity layer. Keep the shared shell stylesheet untouched. */
+.wf2-shell:has(.wf2-dashboard) .wf2-topbar {
+  padding-inline: 16px 24px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-tabs {
+  padding: 4px;
+  border-radius: 20px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-tabs__link {
+  min-height: 32px;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-hero {
+  min-height: 430px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-hero__summary {
+  top: 37px;
+  left: 46px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-hero-value {
+  font-size: clamp(28px, 2.2vw, 35px);
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-hero__delta {
+  gap: 25px;
+  margin-top: 7px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-chart-panel,
+.wf2-shell:has(.wf2-dashboard) .wf2-chart {
+  height: 390px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-periods {
+  margin-top: 0;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid {
+  gap: 80px;
+  padding: 17px 40px 0;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--investments,
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--net-worth,
+.wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--spending {
+  grid-template-columns: minmax(0, 2.22fr) minmax(300px, 1fr);
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-section-heading {
+  min-height: 31px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-section-heading h2 {
+  font-size: 13px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-account-list {
+  gap: 13px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-account-list li > a {
+  min-height: 80px;
+  padding: 13px 17px;
+  border-radius: 14px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-account-list strong {
+  font-size: 14px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-account-list small {
+  font-size: 11px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-position-list {
+  border-radius: 14px;
+}
+
+.wf2-shell:has(.wf2-dashboard) .wf2-position-list a {
+  min-height: 62px;
+  padding-inline: 16px;
+}
+
+@media (max-width: 980px) {
+  .wf2-shell:has(.wf2-dashboard) .wf2-topbar {
+    padding-inline: 12px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid {
+    gap: 24px;
+    padding-inline: 24px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-hero__summary {
+    left: 24px;
+  }
+}
+
+@media (max-width: 680px) {
+  .wf2-shell:has(.wf2-dashboard) .wf2-topbar {
+    padding-inline: 9px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-tabs__link {
+    min-height: 29px;
+    padding-inline: 9px;
+    font-size: 10px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-hero {
+    min-height: 335px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-hero__summary {
+    top: 10px;
+    left: 10px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-chart-panel,
+  .wf2-shell:has(.wf2-dashboard) .wf2-chart {
+    height: 295px;
+  }
+
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid {
+    gap: 20px;
+    padding-inline: 12px;
+  }
+}

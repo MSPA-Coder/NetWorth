@@ -51,4 +51,16 @@
       bar.style.setProperty("--wf-income-width", Math.max(0, Math.min(100, value)) + "%");
     }
   });
+
+  // Wealthfolio applies the account picker as soon as a value is chosen.
+  // Keep the native form as a no-JS fallback while preserving the existing
+  // GET contract (tab, period and group remain unchanged).
+  document.querySelectorAll("[data-wf2-insights-filter]").forEach(function (form) {
+    var account = form.querySelector("[data-wf2-insights-account]");
+    if (!account) return;
+    account.addEventListener("change", function () {
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
+    });
+  });
 }());
