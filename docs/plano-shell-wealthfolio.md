@@ -340,7 +340,7 @@ interface do NetWorth**. As fases abaixo não são alternativas nem escopo
 opcional: elas descrevem os lotes necessários para chegar a esse destino sem
 voltar a criar uma segunda interface de patrimônio.
 
-Estado do repositório na revisão `e90e45e`:
+Estado do repositório na revisão `8768aa1`:
 
 | Área | Estado atual | O que falta para aceite |
 | --- | --- | --- |
@@ -450,6 +450,23 @@ As suítes dos publicadores passaram em Docker (CB: 534; CRV: 458) e a suíte
 integrada do NetWorth passou com 212 testes. Restam os gates de captura visual
 autenticada e a validação interativa em navegador descritos na matriz; eles
 dependem de uma sessão/baseline Wealthfolio disponível no ambiente de QA.
+
+### Progresso do lote F — fechamento estrutural do Dashboard (2026-09-21)
+
+O shell recebeu os blocos que faltavam na composição das abas do Dashboard,
+sem criar dados locais nem habilitar escrita:
+
+- Investments agora mantém a coluna de Posições e exibe o bloco de Metas no
+  mesmo arranjo lateral da referência; a ação permanece somente leitura;
+- Spending agora exibe Aprofundar, Orçamento mensal e Eventos, com ações
+  indisponíveis explicitamente identificadas quando as fontes não publicam a
+  capacidade;
+- links novos e existentes preservam período, data e filtros na URL.
+
+O lote passou a suíte Docker integrada (212 testes), `git diff --check` e foi
+publicado no VPS na revisão `8768aa1`. A comparação pixel a pixel, console,
+foco, teclado e tooltips continuam gates de aceite separados; eles não são
+declarados concluídos por este lote estrutural.
 
 
 ## 8. Divisão entre agentes Luna

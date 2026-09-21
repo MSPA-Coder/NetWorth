@@ -83,6 +83,14 @@ declara no metadata que esses fatos não existem no seu domínio. O NetWorth
 consome as séries e a renda do CRV em Insights, mantendo a mensagem de dados
 parciais quando a capacidade não está disponível em uma fonte.
 
+Após o lote estrutural do Dashboard (`8768aa1`), a composição também inclui
+Metas em Investments e os blocos Aprofundar, Orçamento mensal e Eventos em
+Spending. As ações sem contrato continuam desabilitadas e identificadas como
+somente leitura. O deploy público foi validado com NetWorth, CB e CRV em
+`/health` (HTTP 200), rotas autenticadas redirecionando anonimamente para
+login (HTTP 302) e os endpoints v3 publicados respondendo internamente com
+Bearer (CB metadata/activities; CRV metadata/income/performance/events).
+
 Uma rota só deve ser marcada como concluída depois dos gates automáticos e da
 evidência visual/interativa correspondente. `HTTP 200` sozinho não é critério
 de paridade.
