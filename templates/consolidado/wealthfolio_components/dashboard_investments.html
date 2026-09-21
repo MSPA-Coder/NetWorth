@@ -33,13 +33,23 @@
       {% empty %}<li class="wf2-list__empty">Nenhuma conta publicada.</li>{% endfor %}
     </ul>
   </section>
-  <section aria-labelledby="wf2-holdings-heading">
-    <header class="wf2-section-heading"><h2 id="wf2-holdings-heading">Posições</h2>{% if wf_dashboard.investments.holdings_url %}<a href="{{ wf_dashboard.investments.holdings_url }}">Ver tudo <span aria-hidden="true">›</span></a>{% endif %}</header>
-    <ul class="wf2-position-list">
-      {% for holding in wf_dashboard.investments.holdings %}
-        <li><a href="{{ holding.url|default:'#' }}"><span class="wf2-position-badge">{{ holding.badge|default:'•' }}</span><span><strong>{{ holding.name }}</strong><small>{{ holding.detail }}</small></span><span class="wf2-row-value"><b class="wf2-sensitive">{{ holding.value|default:'—' }}</b>{% if holding.delta or holding.percent %}<small class="{% if holding.positive %}is-positive{% endif %}">{{ holding.delta }}{% if holding.percent %} · {{ holding.percent }}{% endif %}</small>{% endif %}</span></a></li>
-      {% empty %}<li class="wf2-list__empty">Nenhuma posição publicada.</li>{% endfor %}
-      {% if wf_dashboard.investments.remaining_count %}<li class="wf2-position-list__more"><a href="{{ wf_dashboard.investments.holdings_url }}"><span class="wf2-position-badge">+</span><span><strong>+{{ wf_dashboard.investments.remaining_count }} posições</strong><small>Ver carteira completa</small></span><span aria-hidden="true">›</span></a></li>{% endif %}
-    </ul>
-  </section>
+  <div class="wf2-investments-side">
+    <section aria-labelledby="wf2-holdings-heading">
+      <header class="wf2-section-heading"><h2 id="wf2-holdings-heading">Posições</h2>{% if wf_dashboard.investments.holdings_url %}<a data-wf2-preserve-query href="{{ wf_dashboard.investments.holdings_url }}">Ver tudo <span aria-hidden="true">›</span></a>{% endif %}</header>
+      <ul class="wf2-position-list">
+        {% for holding in wf_dashboard.investments.holdings %}
+          <li><a data-wf2-preserve-query href="{{ holding.url|default:'#' }}"><span class="wf2-position-badge">{{ holding.badge|default:'•' }}</span><span><strong>{{ holding.name }}</strong><small>{{ holding.detail }}</small></span><span class="wf2-row-value"><b class="wf2-sensitive">{{ holding.value|default:'—' }}</b>{% if holding.delta or holding.percent %}<small class="{% if holding.positive %}is-positive{% endif %}">{{ holding.delta }}{% if holding.percent %} · {{ holding.percent }}{% endif %}</small>{% endif %}</span></a></li>
+        {% empty %}<li class="wf2-list__empty">Nenhuma posição publicada.</li>{% endfor %}
+        {% if wf_dashboard.investments.remaining_count %}<li class="wf2-position-list__more"><a data-wf2-preserve-query href="{{ wf_dashboard.investments.holdings_url }}"><span class="wf2-position-badge">+</span><span><strong>+{{ wf_dashboard.investments.remaining_count }} posições</strong><small>Ver carteira completa</small></span><span aria-hidden="true">›</span></a></li>{% endif %}
+      </ul>
+    </section>
+    <section aria-labelledby="wf2-goals-heading">
+      <header class="wf2-section-heading"><h2 id="wf2-goals-heading">Metas</h2><span>Somente leitura</span></header>
+      <div class="wf2-unavailable-card wf2-unavailable-card--compact">
+        <strong>Nenhuma meta publicada</strong>
+        <span>As metas continuam pertencendo às fontes de dados e ainda não estão disponíveis no shell.</span>
+        <a class="wf2-button" data-wf2-preserve-query href="{{ wf_shell.goals_url|default:'/goals/' }}">Abrir metas <span aria-hidden="true">›</span></a>
+      </div>
+    </section>
+  </div>
 </div>
