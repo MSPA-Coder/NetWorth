@@ -2,7 +2,7 @@
   {% if chart.empty %}
     <div class="wf2-chart wf2-chart--empty" role="img" aria-label="Sem histórico"><span>{{ chart.empty_message|default:'O gráfico aparecerá quando houver histórico suficiente.' }}</span></div>
   {% elif chart.geometry %}
-    <div class="wf2-chart" role="img" aria-label="{{ chart.aria_label|default:'Evolução financeira' }}"><svg viewBox="72 0 872 {{ chart.geometry.altura }}" preserveAspectRatio="none" aria-hidden="true">{% for curve in chart.geometry.curvas %}{% if not chart.series_class or curve.classe == chart.series_class %}<path d="{{ curve.caminho }}" class="wf2-chart__line {{ chart.series_class }}"></path>{% endif %}{% endfor %}</svg></div>
+    <div class="wf2-chart" role="img" aria-label="{{ chart.aria_label|default:'Evolução financeira' }}"><svg viewBox="72 0 872 {{ chart.geometry.altura }}" preserveAspectRatio="none" aria-hidden="true">{% for curve in chart.geometry.curvas %}{% if not chart.series_class or curve.classe == chart.series_class %}<path d="{{ curve.caminho }} L{{ chart.geometry.direita }} {{ chart.geometry.base }} L{{ chart.geometry.esquerda }} {{ chart.geometry.base }} Z" class="wf2-chart__area {{ chart.series_class }}"></path><path d="{{ curve.caminho }}" class="wf2-chart__line {{ chart.series_class }}"></path>{% endif %}{% endfor %}</svg></div>
   {% else %}
     <div class="wf2-chart wf2-chart--empty" role="img" aria-label="Sem histórico"><span>{{ chart.empty_message|default:'Não há histórico para o período selecionado.' }}</span></div>
   {% endif %}

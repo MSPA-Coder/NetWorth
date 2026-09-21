@@ -9,8 +9,8 @@
       <a class="wf2-dashboard-tabs__link{% if item.active %} is-active{% endif %}" href="{{ item.url }}" role="tab"{% if item.active %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ item.label }}</a>
     {% endfor %}
   {% else %}
-    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab|default:'investments' == 'investments' %} is-active{% endif %}" href="?tab=investments" role="tab">↗ Investimentos</a>
-    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'net-worth' %} is-active{% endif %}" href="?tab=net-worth" role="tab">▣ Patrimônio líquido</a>
-    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'spending' %} is-active{% endif %}" href="?tab=spending" role="tab">♨ Gastos</a>
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab|default:'investments' == 'investments' %} is-active{% endif %}" href="?tab=investments" role="tab"{% if wf_dashboard.tab|default:dashboard_tab|default:'investments' == 'investments' %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>↗ Investimentos</a>
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'net-worth' %} is-active{% endif %}" href="?tab=net-worth" role="tab"{% if wf_dashboard.tab|default:dashboard_tab == 'net-worth' %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>▣ Patrimônio líquido</a>
+    <a class="wf2-dashboard-tabs__link{% if wf_dashboard.tab|default:dashboard_tab == 'spending' %} is-active{% endif %}" href="?tab=spending" role="tab"{% if wf_dashboard.tab|default:dashboard_tab == 'spending' %} aria-selected="true"{% else %} aria-selected="false"{% endif %}>♨ Gastos</a>
   {% endif %}
 </nav>

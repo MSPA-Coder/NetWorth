@@ -17,7 +17,9 @@
   --wf2-surface-muted: hsl(51 25% 93%);
   --wf2-radius: 11px;
   --wf2-shadow: 0 1px 3px #302f2510;
-  --wf2-sidebar-width: 70px;
+  /* Wealthfolio's desktop rail is intentionally narrow; the workspace starts
+     close to the viewport edge and the data surface gets the breathing room. */
+  --wf2-sidebar-width: 56px;
 }
 
 body:has(.wf2-shell) { background: var(--wf2-bg); color: var(--wf2-ink); }
@@ -29,7 +31,7 @@ body:has(.wf2-shell) > main { max-width: none; margin: 0; padding: 0; }
 .wf2-shell a { color: inherit; }
 .wf2-shell button, .wf2-shell input, .wf2-shell select { font: inherit; }
 
-.wf2-sidebar { position: fixed; z-index: 40; inset: 0 auto 0 0; display: flex; width: var(--wf2-sidebar-width); flex-direction: column; align-items: center; padding: 38px 5px 10px; border-right: 1px solid var(--wf2-border); background: var(--wf2-bg); }
+.wf2-sidebar { position: fixed; z-index: 40; inset: 0 auto 0 0; display: flex; width: var(--wf2-sidebar-width); flex-direction: column; align-items: center; padding: 8px 4px 10px; border-right: 1px solid var(--wf2-border); background: var(--wf2-bg); }
 .wf2-sidebar__brand { display: grid; width: 38px; height: 38px; place-items: center; margin-bottom: 34px; border-radius: 50%; background: #3b3c35; color: white !important; font-size: 14px; font-weight: 800; text-decoration: none; box-shadow: 0 2px 7px #302f2530; }
 .wf2-sidebar__nav, .wf2-sidebar__secondary { display: grid; width: 100%; gap: 5px; }
 .wf2-sidebar__secondary { margin-top: auto; }
@@ -40,7 +42,7 @@ body:has(.wf2-shell) > main { max-width: none; margin: 0; padding: 0; }
 .wf2-sidebar__link.is-active { background: hsl(51 13% 84%); color: #34352f; }
 
 .wf2-shell__workspace { min-height: 100vh; margin-left: var(--wf2-sidebar-width); }
-.wf2-topbar { position: relative; z-index: 20; display: flex; min-height: 50px; align-items: center; gap: 20px; padding: 4px 14px; }
+.wf2-topbar { position: relative; z-index: 20; display: flex; min-height: 50px; align-items: center; gap: 20px; padding: 4px 9px; }
 .wf2-topbar__menu { display: none; }
 .wf2-topbar__heading h1 { margin: 0; font-size: 18px; }
 .wf2-topbar__heading p { margin: 2px 0 0; color: var(--wf2-muted); font-size: 11px; }
@@ -67,7 +69,7 @@ body:has(.wf2-shell) > main { max-width: none; margin: 0; padding: 0; }
 .wf2-more button { width: 100%; cursor: pointer; }
 .wf2-user { color: var(--wf2-muted) !important; border-bottom: 1px solid var(--wf2-border) !important; }
 
-body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-width: none; margin: 0; padding: 0 14px 48px; }
+body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-width: none; margin: 0; padding: 0 9px 48px; }
 .wf2-dashboard { display: block; }
 .wf2-shell__workspace:has(.wf2-hero--investments), .wf2-shell__workspace:has(.wf2-spending-hero) { background: linear-gradient(180deg, var(--wf2-bg) 0 48%, hsl(79 31% 90%) 100%); }
 .wf2-shell__workspace:has(.wf2-hero--net-worth) { background: linear-gradient(180deg, var(--wf2-bg) 0 48%, hsl(42 85% 91%) 100%); }
@@ -80,8 +82,11 @@ body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-widt
 .wf2-chart-panel { height: 350px; }
 .wf2-chart { display: grid; width: 100%; height: 350px; place-items: center; overflow: hidden; }
 .wf2-chart svg { width: 100%; height: 100%; }
+.wf2-chart__area { fill: var(--wf2-chart-fill, var(--wf2-accent-soft)); opacity: .75; }
 .wf2-chart__line { fill: none; stroke: var(--wf2-green); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+.wf2-hero--investments { --wf2-chart-fill: hsl(73 30% 86%); }
 .wf2-hero--net-worth .wf2-chart__line { stroke: var(--wf2-amber); }
+.wf2-hero--net-worth { --wf2-chart-fill: hsl(42 65% 85%); }
 .wf2-chart--empty { height: 310px; padding-top: 70px; color: var(--wf2-muted); font-size: 11px; }
 .wf2-periods { display: flex; justify-content: center; gap: 4px; margin-top: -1px; }
 .wf2-periods a, .wf2-periods span { padding: 7px 10px; border-radius: 18px; color: #686961; font-size: 10px; font-weight: 700; text-decoration: none; white-space: nowrap; }
