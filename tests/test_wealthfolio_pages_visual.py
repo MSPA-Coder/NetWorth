@@ -111,10 +111,23 @@ def test_holdings_and_activities_start_with_reference_toolbar(pages_client):
 
 def test_settings_matches_general_read_only_structure(pages_client):
     body = pages_client.get("/settings/").content.decode()
-    for marker in ("DADOS", "Valores mobiliários", "Classificações", "Backup e exportação", "Geral", "Moeda base", "Idioma e região"):
+    for marker in ("Configurações", "PREFERÊNCIAS", "FINANÇAS", "DADOS", "CONEXÕES", "Acesso de agentes de IA", "EXTENSÕES", "SOBRE", "Geral", "Moeda base", "Idioma e região", "Taxas de câmbio", "Atualizações automáticas"):
+        assert marker in body
+    assert 'data-settings-section="geral"' in body
+    assert 'class="wf2p-settings-nav"' in body
+
+
+def test_settings_general_detail_is_read_only_and_has_stable_back_link(pages_client):
+    response = pages_client.get("/settings/", {"secao": "geral", "periodo": "1a"})
+    body = response.content.decode()
+    assert response.status_code == 200
+    assert 'data-settings-section="geral"' in body
+    for marker in ("Geral", "Moeda base", "Idioma e região", "Taxas de câmbio", "Atualizações automáticas", "Indisponível"):
         assert marker in body
     assert 'disabled>Salvar moeda</button>' in body
     assert 'aria-label="Idioma" disabled' in body
+    assert 'class="wf2p-settings-nav"' in body
+    assert 'href="/settings/?periodo=1a"' in body
 
 
 def test_settings_section_and_holdings_tab_are_query_driven(pages_client):

@@ -840,15 +840,16 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         # Keep the selected section in the URL while carrying the caller's
         # other query scope (date/period/source filters) to every item.
         section_specs = (
-            ("PREFERÊNCIAS", (("geral", "Geral"), ("aparencia", "Aparência"))),
-            ("FINANÇAS", (("contas", "Contas"), ("carteiras", "Carteiras"), ("limites-aporte", "Limites de aporte"), ("controle-gastos", "Controle de gastos"))),
-            ("DADOS", (("valores-mobiliarios", "Valores mobiliários"), ("classificacoes", "Classificações"), ("backup", "Backup e exportação"))),
-            ("CONEXÕES", (("conexoes", "Wealthfolio Connect"), ("dados-mercado", "Dados de mercado"), ("ai-providers", "Provedores de IA"))),
-            ("EXTENSÕES", (("extensoes", "Extensões"),)),
-            ("SOBRE", (("sobre", "Sobre"),)),
+            ("PREFERÊNCIAS", (("geral", "Geral", "Moeda, idioma, região e atualizações"), ("aparencia", "Aparência", "Tema e preferências visuais"))),
+            ("FINANÇAS", (("contas", "Contas", "Contas e fontes de patrimônio"), ("carteiras", "Carteiras", "Carteiras e posições publicadas"), ("limites-aporte", "Limites de aporte", "Limites e regras de aportes"), ("controle-gastos", "Controle de gastos", "Categorias e fluxo de caixa"))),
+            ("DADOS", (("valores-mobiliarios", "Valores mobiliários", "Instrumentos e posições de investimento"), ("classificacoes", "Classificações", "Categorias e classificações"), ("backup", "Backup e exportação", "Dados publicados e exportações"))),
+            ("CONEXÕES", (("conexoes", "Wealthfolio Connect", "Conexões de dados do shell"), ("dados-mercado", "Dados de mercado", "Cotações e referências de mercado"), ("ai-providers", "Provedores de IA", "Provedores usados pelo assistente"), ("ai-access", "Acesso de agentes de IA", "Permissões de agentes para consultas"))),
+            ("EXTENSÕES", (("extensoes", "Extensões", "Extensões disponíveis para o aplicativo"),)),
+            ("SOBRE", (("sobre", "Sobre", "Informações sobre o aplicativo"),)),
         )
-        allowed_sections = {key for _group, items in section_specs for key, _label in items}
-        selected_section = request.GET.get("secao") or "geral"
+        allowed_sections = {key for _group, items in section_specs for key, _label, _description in items}
+        requested_section = request.GET.get("secao")
+        selected_section = requested_section or "geral"
         if selected_section not in allowed_sections:
             selected_section = "geral"
 
@@ -857,13 +858,18 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             query["secao"] = section
             return f"{reverse('consolidado:settings')}?{urlencode(query, doseq=True)}"
 
+        landing_query = request.GET.copy()
+        landing_query.pop("secao", None)
+        landing_suffix = urlencode(landing_query, doseq=True)
+        page["settings_home_url"] = f"{reverse('consolidado:settings')}?{landing_suffix}" if landing_suffix else reverse("consolidado:settings")
+        page["settings_mode"] = "detail"
         page["settings_section"] = selected_section
         page["settings_nav_groups"] = tuple(
             {
                 "label": group,
                 "items": tuple(
-                    {"key": key, "label": label, "url": settings_url(key), "active": key == selected_section}
-                    for key, label in items
+                    {"key": key, "label": label, "description": description, "url": settings_url(key), "active": key == selected_section}
+                    for key, label, description in items
                 ),
             }
             for group, items in section_specs
@@ -881,10 +887,11 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             "conexoes": ("Wealthfolio Connect", "Estado das conexões de leitura utilizadas pelo shell."),
             "dados-mercado": ("Dados de mercado", "Cotações e referências de mercado publicadas pela fonte de renda variável."),
             "ai-providers": ("Provedores de IA", "Provedores de IA são informativos até existir um contrato de escrita."),
+            "ai-access": ("Acesso de agentes de IA", "Permissões de agentes de IA são informativas e permanecem bloqueadas no shell."),
             "extensoes": ("Extensões", "Extensões disponíveis para o shell, sem instalação ou alteração nesta fase."),
             "sobre": ("Sobre", "Informações do NetWorth e da camada visual derivada do Wealthfolio."),
         }
-        page["settings_section_title"], page["settings_section_description"] = section_content[selected_section]
+        page["settings_section_title"], page["settings_section_description"] = section_content.get(selected_section, ("Configurações", "Preferências e conexões do aplicativo."))
     if kind == "holdings":
         holding_type = (request.GET.get("tipo") or "investimentos").strip().casefold()
         if holding_type not in {"investimentos", "ativos", "passivos"}:
