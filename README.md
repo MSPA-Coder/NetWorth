@@ -36,7 +36,7 @@ SharedAuth `v0.12.0` e recebem apenas os tokens de tema do NetWorth.
 
 ## Insights
 
-A aba **Insights** (`/patrimonio/?visao=insights`) é uma camada de leitura sobre
+A aba **Insights** (`/insights/`) é uma camada de leitura sobre
 as mesmas linhas publicadas pelo Controle Bancário e pelo Controle de Renda
 Variável. Ela permite alternar entre classe de ativo, setor, região, mercado,
 moeda, instituição, titular, fonte e posição/conta; cada item é filtrável e
@@ -49,12 +49,16 @@ ficam na URL, e a página preserva a regra de não somar moedas sem taxa válida
 
 ## Superfície compatível com o Wealthfolio
 
-Além da tela legada `/patrimonio/`, o NetWorth oferece uma superfície de
-consulta com a organização visual do Wealthfolio: `/dashboard/` (Investimentos,
+O NetWorth oferece uma única superfície de consulta com a organização visual do
+Wealthfolio: `/dashboard/` (Investimentos,
 Patrimônio líquido e Gastos), `/insights/` (Resumo, Desempenho e Rendimentos),
 `/holdings/`, `/accounts/`, `/activities/`, `/spending/insights/`,
 `/spending/budget/` e `/goals/`. Os links e filtros são GET reproduzíveis e os
 endpoints JSON ficam em `/api/wealthfolio/`.
+
+Os endereços históricos `/patrimonio/` e `/patrimonio/historico/` apenas
+redirecionam para a aba equivalente do shell; não há uma segunda interface
+renderizada.
 
 Nesta fase o Wealthfolio é somente o **shell de consulta**. Contas, posições,
 lançamentos, categorias e séries continuam pertencendo ao Controle Bancário e

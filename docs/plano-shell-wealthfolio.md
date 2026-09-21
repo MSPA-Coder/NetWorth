@@ -216,7 +216,8 @@ Entregas:
 - tema, tipografia, tokens visuais, foco e ARIA;
 - cabeçalhos, menus, dropdowns e ocultação de valores;
 - remoção, nas rotas canônicas, do cabeçalho e navegação próprios do NetWorth;
-- preservação da tela legada `/patrimonio/` fora do shell canônico.
+- os endereços legados `/patrimonio/` e `/patrimonio/historico/` redirecionam
+  para o shell canônico e não renderizam uma interface paralela.
 
 Rotas mínimas do shell:
 

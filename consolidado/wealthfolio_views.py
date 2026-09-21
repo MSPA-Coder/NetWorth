@@ -1,10 +1,9 @@
-"""Views for the Wealthfolio-compatible surface.
+"""Views for the single Wealthfolio-compatible surface.
 
-The original ``/patrimonio/`` screen remains the conservative, source-oriented
-view.  These views provide the richer navigation model used by Wealthfolio
-without copying data from Controle Bancário or Controle de Renda Variável.  All
-financial values are assembled from the same ``Consolidado`` object and keep
-the currency/coverage warnings that are part of NetWorth's contract.
+All financial values are assembled from the same ``Consolidado`` object and
+keep the currency/coverage warnings that are part of NetWorth's contract.
+Legacy URLs are translated to this surface in :mod:`consolidado.urls`; the
+retired templates are never rendered by a public route.
 """
 
 from __future__ import annotations
