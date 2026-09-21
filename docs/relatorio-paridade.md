@@ -42,8 +42,9 @@ Resultado desta execução:
 | G7 ausência de escrita em CB/CRV | GET/405 e não-mutação do snapshot em memória | coberto no shell; confirmar com teste de transporte no lote E |
 
 A execução integrada da suíte completa (`quality` sem selecionar um arquivo)
-passou após a integração dos adapters, transport, atividades v3 e templates:
-**207 testes passaram**. O comando também executa Ruff, verificações de dependências e
+passou após a integração dos adapters, transport, atividades v3, contratos
+analíticos e templates:
+**212 testes passaram**. O comando também executa Ruff, verificações de dependências e
 `collectstatic` dentro da imagem de qualidade.
 
 ## O que a matriz garante
@@ -68,12 +69,19 @@ Wealthfolio. Ainda precisam de implementação/validação coordenada:
 1. screenshot diff nos viewports de `docs/wealthfolio-parity/matriz.md`, com
    máscara somente para dados dinâmicos;
 2. validação de foco, teclado, tooltip, carregamento/erro e console no navegador;
-3. eventos, séries de renda e performance ainda não publicados pelas fontes;
-4. IDs opacos/deep links publicados pelas fontes em todas as rotas derivadas;
-5. substituição das telas derivadas provisórias por componentes próprios quando
+3. validação de produção dos filtros e deep links v3 com dados reais, sem
+   transformar a consulta em uma escrita ou em uma cópia local;
+4. substituição das telas derivadas provisórias por componentes próprios quando
    a referência exigir interação ainda indisponível;
-6. validação de produção dos filtros e deep links v3 com dados reais, sem
-   transformar a consulta em uma escrita ou em uma cópia local.
+5. captura automatizada de screenshots autenticadas e comparação contra a
+   referência Wealthfolio congelada, quando a sessão de referência estiver
+   disponível no ambiente de QA.
+
+Os contratos de atividades, categorias e metadados estão publicados nos dois
+publicadores. O CRV também publica `income`, `performance` e `events`; o CB
+declara no metadata que esses fatos não existem no seu domínio. O NetWorth
+consome as séries e a renda do CRV em Insights, mantendo a mensagem de dados
+parciais quando a capacidade não está disponível em uma fonte.
 
 Uma rota só deve ser marcada como concluída depois dos gates automáticos e da
 evidência visual/interativa correspondente. `HTTP 200` sozinho não é critério

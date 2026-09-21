@@ -216,12 +216,21 @@ def normalize_activities_payload(
     return ActivitySourceResult(source, state, activities, total, page, page_size, pages, fetched_at=fetched_at)
 
 
-def _http_response(fonte: Fonte, *, inicio: date | None, fim: date | None, page: int, page_size: int) -> TransportResponse:
+def _http_response(
+    fonte: Fonte,
+    *,
+    inicio: date | None,
+    fim: date | None,
+    page: int,
+    page_size: int,
+    filters: Mapping[str, str] | None = None,
+) -> TransportResponse:
     params = {"page": str(page), "page_size": str(page_size)}
     if inicio:
         params["inicio"] = inicio.isoformat()
     if fim:
         params["fim"] = fim.isoformat()
+    params.update({key: value for key, value in (filters or {}).items() if value})
     endpoint = f"{fonte.url.rstrip('/')}/patrimonio/v3/activities?{urlencode(params)}"
     request = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {fonte.token}", "Accept": "application/json"}, method="GET")
     try:
@@ -249,6 +258,7 @@ def fetch_activities(
     fim: date | None = None,
     page: int = 1,
     page_size: int = PAGE_SIZE_DEFAULT,
+    filters: Mapping[str, str] | None = None,
     transport: ReadOnlyTransport | None = None,
 ) -> ActivitySourceResult:
     """Busca somente GET e converte erros de rede em estado explícito."""
@@ -256,13 +266,21 @@ def fetch_activities(
         return ActivitySourceResult(fonte.apelido, STATUS_ERROR, error="paginação inválida")
     try:
         if transport is None:
-            response = _http_response(fonte, inicio=inicio, fim=fim, page=page, page_size=page_size)
+            response = _http_response(
+                fonte,
+                inicio=inicio,
+                fim=fim,
+                page=page,
+                page_size=page_size,
+                filters=filters,
+            )
         else:
             params = {"page": str(page), "page_size": str(page_size)}
             if inicio:
                 params["inicio"] = inicio.isoformat()
             if fim:
                 params["fim"] = fim.isoformat()
+            params.update({key: value for key, value in (filters or {}).items() if value})
             response = transport.get(f"/patrimonio/v3/activities?{urlencode(params)}", timeout=TIMEOUT_SECONDS, headers={"Authorization": f"Bearer {fonte.token}", "Accept": "application/json"})
     except Exception as exc:  # noqa: BLE001 - uma fonte fora do ar não derruba a tela
         LOGGER.warning("Falha ao buscar atividades de %s: %s", fonte.apelido, exc)

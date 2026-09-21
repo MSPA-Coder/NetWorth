@@ -45,3 +45,4 @@
 .wf2-topbar > .wf2-insights-account {
   margin: 0 0 0 auto;
 }
+.wf-insights-v2__income-history{display:grid;gap:.7rem;width:100%}.wf-insights-v2__income-history-row{display:grid;grid-template-columns:4.2rem minmax(0,1fr) auto;align-items:center;gap:.65rem;color:var(--w2-muted);font-size:.7rem}.wf-insights-v2__income-history-row i{display:block;width:var(--wf-income-width,0%);min-width:2px;height:8px;border-radius:99px;background:var(--w2-accent)}.wf-insights-v2__income-history-row strong{color:var(--w2-ink);font-size:.7rem;white-space:nowrap}

@@ -430,6 +430,27 @@ manter o estado parcial quando apenas uma fonte responder. Até esse consumo
 ser integrado e validado, a tela continua explicitamente indisponível para
 lançamentos individuais; nenhum dado é copiado para tabelas locais.
 
+### Progresso do lote E — analytics v3 e consumo no shell (2026-09-21)
+
+O contrato foi estendido sem alterar v1/v2:
+
+- o Controle Bancário publica no metadata as capacidades efetivamente
+  existentes (`fluxos`, `atividades`, `categorias`, `escrita=false`) e declara
+  que não possui renda, performance ou eventos de carteira;
+- o Controle de Renda Variável publica `GET /patrimonio/v3/income`,
+  `/performance` e `/events`, sempre autenticados, paginados quando aplicável,
+  com escopo do proprietário, IDs opacos, deep links e `Cache-Control:
+  no-store`;
+- o NetWorth normaliza esses envelopes em DTOs read-only, usa renda e TWR
+  publicados na aba Insights e mantém o estado parcial quando uma origem não
+  oferece o recurso. A composição não converte moedas sem taxa publicada nem
+  cria lançamentos locais.
+
+As suítes dos publicadores passaram em Docker (CB: 534; CRV: 458) e a suíte
+integrada do NetWorth passou com 212 testes. Restam os gates de captura visual
+autenticada e a validação interativa em navegador descritos na matriz; eles
+dependem de uma sessão/baseline Wealthfolio disponível no ambiente de QA.
+
 
 ## 8. Divisão entre agentes Luna
 

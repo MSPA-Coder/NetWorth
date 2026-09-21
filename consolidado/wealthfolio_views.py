@@ -8,6 +8,7 @@ retired templates are never rendered by a public route.
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,6 +28,12 @@ from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.fontes import fontes_configuradas
 from consolidado.templatetags.dinheiro import dinheiro
 from consolidado.wealthfolio_compat.activities import compose_activities, fetch_activities
+from consolidado.wealthfolio_compat.analytics import (
+    IncomeRecord,
+    PerformanceRecord,
+    compose_analytics,
+    fetch_analytics,
+)
 from consolidado.wealthfolio_compat.view_models import (
     UnavailableVM,
     build_view_models,
@@ -228,6 +235,39 @@ def _view_model(request: HttpRequest, context: dict[str, Any], *, active: str):
     return cache[active]
 
 
+def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
+    """Consulta recursos analíticos v3 sem transformar a fonte em réplica.
+
+    O v2 continua sendo a compatibilidade agregada para as métricas básicas.
+    Quando um publicador oferece um recurso v3 detalhado, ele é preferido nas
+    abas de Insights; uma fonte que não oferece a capacidade permanece visível
+    como lacuna, nunca como zero ou série inventada.
+    """
+
+    fontes = fontes_configuradas()
+    if not fontes:
+        return {}
+    inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
+    fim = context["data_da_tela"]
+    result: dict[str, Any] = {}
+    for resource in ("income", "performance", "events"):
+        result[resource] = compose_analytics(
+            resource,
+            (
+                fetch_analytics(
+                    fonte,
+                    resource=resource,
+                    inicio=inicio,
+                    fim=fim,
+                    page=1,
+                    page_size=500,
+                )
+                for fonte in fontes
+            ),
+        )
+    return result
+
+
 def _metric_vm(metric: Any) -> dict[str, Any]:
     values = tuple(getattr(metric, "values", ()) or ())
     return {
@@ -289,21 +329,117 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         )
 
     performance = []
-    for item in context.get("desempenhos") or ():
-        performance.append(
-            {
-                "method": item.get("metodo") or "TWR",
-                "currency": item.get("moeda") or context["moeda_base"],
-                "return": _percent_label(item.get("retorno_percentual")),
-                "series_json": item.get("serie_json") or "[]",
-            }
-        )
+    performance_composition = (context.get("analytics") or {}).get("performance")
+    if performance_composition and performance_composition.items:
+        for item in performance_composition.items:
+            if not isinstance(item, PerformanceRecord):
+                continue
+            points = [
+                {"date": point_day.isoformat(), "value": str(value)}
+                for point_day, value in item.points
+            ]
+            last_value = item.points[-1][1] if item.points else None
+            performance.append(
+                {
+                    "method": item.method or "TWR",
+                    "currency": item.currency or context["moeda_base"],
+                    "return": _percent_label(last_value * 100 if last_value is not None else None),
+                    "series_json": json.dumps(points, ensure_ascii=False),
+                }
+            )
+    else:
+        for item in context.get("desempenhos") or ():
+            performance.append(
+                {
+                    "method": item.get("metodo") or "TWR",
+                    "currency": item.get("moeda") or context["moeda_base"],
+                    "return": _percent_label(item.get("retorno_percentual")),
+                    "series_json": item.get("serie_json") or "[]",
+                }
+            )
 
-    income_metrics = [_metric_vm(item) for item in vm.income.metrics]
-    income_sources = [breakdown(item) for item in vm.income.sources]
+    income_composition = (context.get("analytics") or {}).get("income")
+    income_history = []
+    if income_composition and income_composition.items:
+        records = [item for item in income_composition.items if isinstance(item, IncomeRecord)]
+        grouped: dict[tuple[str, str], Decimal] = {}
+        for item in records:
+            key = (item.date.strftime("%Y-%m"), item.value.currency)
+            grouped[key] = grouped.get(key, Decimal("0")) + item.value.amount
+        max_by_currency: dict[str, Decimal] = {}
+        for (_month, currency), amount in grouped.items():
+            max_by_currency[currency] = max(max_by_currency.get(currency, Decimal("0")), amount)
+        income_history = [
+            {
+                "label": month,
+                "value": dinheiro(amount, currency),
+                "currency": currency,
+                "percent": (amount * 100 / max_by_currency[currency]) if max_by_currency[currency] else Decimal("0"),
+            }
+            for (month, currency), amount in sorted(grouped.items())
+        ]
+        totals: dict[str, Decimal] = {}
+        for item in records:
+            totals[item.value.currency] = totals.get(item.value.currency, Decimal("0")) + item.value.amount
+        income_metrics = [
+            {
+                "key": "income_total",
+                "label": "Rendimentos",
+                "value": " · ".join(dinheiro(amount, currency) for currency, amount in sorted(totals.items())),
+                "state": "ok",
+                "detail": f"{len(records)} lançamentos publicados",
+                "percent": "",
+            },
+            {
+                "key": "income_sources",
+                "label": "Fontes de renda",
+                "value": str(len({item.category or item.kind for item in records})),
+                "state": "ok",
+                "detail": "categorias publicadas",
+                "percent": "",
+            },
+            {
+                "key": "income_period",
+                "label": "Período",
+                "value": f"{records[0].date.strftime('%m/%Y')}" if records else "—",
+                "state": "ok",
+                "detail": "último recebimento publicado",
+                "percent": "",
+            },
+        ]
+        by_source: dict[tuple[str, str, str], Decimal] = {}
+        for item in records:
+            key = (item.category or item.kind or "Renda", item.value.currency, item.source)
+            by_source[key] = by_source.get(key, Decimal("0")) + item.value.amount
+        total_by_currency = next(iter(totals.values())) if len(totals) == 1 else None
+        income_sources = [
+            {
+                "key": f"{category}:{currency}:{source}",
+                "name": category,
+                "value": dinheiro(amount, currency),
+                "percent": (amount * 100 / total_by_currency) if total_by_currency else None,
+                "percent_number": (amount * 100 / total_by_currency) if total_by_currency else None,
+                "classified": bool(category),
+            }
+            for (category, currency, source), amount in sorted(by_source.items())
+        ]
+    else:
+        income_metrics = [_metric_vm(item) for item in vm.income.metrics]
+        income_sources = [breakdown(item) for item in vm.income.sources]
+    analytics_values = tuple((context.get("analytics") or {}).values())
+    analytics_partial = any(
+        getattr(item, "status", "") in {"partial", "error", "unsupported", "stale"}
+        for item in analytics_values
+    )
+    analytics_warnings = tuple(
+        warning
+        for item in analytics_values
+        for warning in getattr(item, "warnings", ())
+    )
     return {
         "tab": context.get("insights_tab") or "summary",
-        "partial": not vm.shell.coverage.complete,
+        "partial": not vm.shell.coverage.complete or analytics_partial,
+        "warnings": analytics_warnings,
         "period": context["periodo"],
         "currency": context["moeda_base"],
         "account_options": account_options,
@@ -327,7 +463,8 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "metrics": income_metrics,
             "sources": income_sources,
             "available": bool(income_sources),
-            "history_available": not hasattr(vm.income.history, "reason"),
+            "history_available": bool(income_history) or not hasattr(vm.income.history, "reason"),
+            "history": income_history,
         },
     }
 
@@ -748,6 +885,24 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             else:
                 page["state"] = "empty"
     elif kind == "activities":
+        page["toolbar"]["filters"] = (
+            {
+                "label": "Status",
+                "name": "status",
+                "options": tuple(
+                    {"value": value, "label": label, "active": request.GET.get("status", "") == value}
+                    for value, label in (("", "Todos"), ("realizado", "Realizado"), ("pendente", "Pendente"), ("projetado", "Projetado"))
+                ),
+            },
+            {
+                "label": "Natureza",
+                "name": "natureza",
+                "options": tuple(
+                    {"value": value, "label": label, "active": request.GET.get("natureza", "") == value}
+                    for value, label in (("", "Todas"), ("gerencial", "Gerencial"), ("movimentacao", "Movimentação"), ("transferencia", "Transferência"), ("renda", "Renda"))
+                ),
+            },
+        )
         composition = context.get("activity_composition")
         if composition is None:
             page.update(
@@ -942,6 +1097,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 @require_GET
 def insights_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="insights")
+    context["analytics"] = _analytics_context(context)
     context["insights_tab"] = request.GET.get("tab") or "summary"
     if context["insights_tab"] not in {"summary", "performance", "income"}:
         context["insights_tab"] = "summary"
@@ -1022,6 +1178,10 @@ def activities_view(request: HttpRequest) -> HttpResponse:
         except (TypeError, ValueError):
             page_limit = 100
         inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
+        activity_filters = {
+            key: (request.GET.get(key) or "").strip()
+            for key in ("conta", "categoria", "status", "natureza")
+        }
         context["activity_composition"] = compose_activities(
             fetch_activities(
                 fonte,
@@ -1029,6 +1189,7 @@ def activities_view(request: HttpRequest) -> HttpResponse:
                 fim=context["data_da_tela"],
                 page=page_number,
                 page_size=page_limit,
+                filters=activity_filters,
             )
             for fonte in fontes
         )

@@ -22,6 +22,16 @@ from .adapters import (
     adapt_response,
     compose_results,
 )
+from .analytics import (
+    AnalyticsComposition,
+    AnalyticsSourceResult,
+    EventRecord,
+    IncomeRecord,
+    PerformanceRecord,
+    compose_analytics,
+    fetch_analytics,
+    normalize_analytics_payload,
+)
 from .contracts import (
     Account,
     Activity,
@@ -92,4 +102,12 @@ __all__ = [
     "compose_activities",
     "fetch_activities",
     "normalize_activities_payload",
+    "AnalyticsComposition",
+    "AnalyticsSourceResult",
+    "EventRecord",
+    "IncomeRecord",
+    "PerformanceRecord",
+    "compose_analytics",
+    "fetch_analytics",
+    "normalize_analytics_payload",
 ]

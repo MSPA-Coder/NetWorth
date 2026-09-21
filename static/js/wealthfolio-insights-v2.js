@@ -44,4 +44,11 @@
   }
 
   document.querySelectorAll("[data-wf-performance-series]").forEach(drawChart);
+
+  document.querySelectorAll("[data-wf-income-percent]").forEach(function (bar) {
+    var value = Number(bar.getAttribute("data-wf-income-percent"));
+    if (Number.isFinite(value)) {
+      bar.style.setProperty("--wf-income-width", Math.max(0, Math.min(100, value)) + "%");
+    }
+  });
 }());

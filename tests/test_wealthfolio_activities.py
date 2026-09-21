@@ -72,11 +72,17 @@ def test_fetch_activities_is_get_only_and_exposes_http_failure():
             return TransportResponse(503, error="offline")
 
     transport = FakeTransport()
-    result = fetch_activities(Fonte("CB", "Controle Bancário", "caixa", "http://cb", "secret"), transport=transport)
+    result = fetch_activities(
+        Fonte("CB", "Controle Bancário", "caixa", "http://cb", "secret"),
+        filters={"status": "realizado", "natureza": "gerencial"},
+        transport=transport,
+    )
 
     assert result.status == "error"
     assert result.activities == ()
     assert transport.calls[0][0].startswith("/patrimonio/v3/activities?")
+    assert "status=realizado" in transport.calls[0][0]
+    assert "natureza=gerencial" in transport.calls[0][0]
     assert transport.calls[0][2]["Authorization"] == "Bearer secret"
 
 
