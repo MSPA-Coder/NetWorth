@@ -115,3 +115,24 @@ def test_settings_matches_general_read_only_structure(pages_client):
         assert marker in body
     assert 'disabled>Salvar moeda</button>' in body
     assert 'aria-label="Idioma" disabled' in body
+
+
+def test_settings_section_and_holdings_tab_are_query_driven(pages_client):
+    settings = pages_client.get("/settings/", {"secao": "sobre", "periodo": "1a"})
+    assert settings.status_code == 200
+    settings_page = settings.context["wf_page"]
+    assert settings_page["settings_section"] == "sobre"
+    active_settings = [
+        item
+        for group in settings_page["settings_nav_groups"]
+        for item in group["items"]
+        if item["active"]
+    ]
+    assert [(item["key"], item["url"]) for item in active_settings] == [("sobre", "/settings/?secao=sobre&periodo=1a")]
+
+    holdings = pages_client.get("/holdings/", {"tipo": "ativos", "periodo": "1a"})
+    assert holdings.status_code == 200
+    tabs = {tab["key"]: tab for tab in holdings.context["wf_page"]["holding_tabs"]}
+    assert tabs["ativos"]["active"] is True
+    assert tabs["investimentos"]["active"] is False
+    assert "periodo=1a" in tabs["passivos"]["url"]

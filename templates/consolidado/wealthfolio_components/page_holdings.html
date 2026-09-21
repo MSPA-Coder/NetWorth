@@ -4,19 +4,17 @@
   weight, detail}]. Values are preformatted strings.
 {% endcomment %}
 <nav class="wf2p-segmented" aria-label="Tipo de carteira">
-  <a class="is-active" href="{{ wf_page.toolbar.url|default:'' }}" data-wf2-preserve-query>Investimentos</a>
-  <a href="{{ wf_page.toolbar.url|default:'' }}?tipo=ativos" data-wf2-preserve-query>Ativos</a>
-  <a href="{{ wf_page.toolbar.url|default:'' }}?tipo=passivos" data-wf2-preserve-query>Passivos</a>
+  {% for tab in wf_page.holding_tabs %}<a class="{% if tab.active %}is-active{% endif %}" href="{{ tab.url }}" data-wf2-preserve-query{% if tab.active %} aria-current="page"{% endif %}>{{ tab.label }}</a>{% endfor %}
 </nav>
 <section class="wf2p-panel wf2p-toolbar-panel">
   <form class="wf2p-toolbar" method="get" data-wf2-query-form action="{{ wf_page.toolbar.url|default:'' }}">
     <label>Conta<select name="conta" aria-label="Todas as contas" disabled><option>Todas as contas</option></select></label>
     {% if wf_page.toolbar.filters %}{% for filter in wf_page.toolbar.filters %}<label>{{ filter.label }}<select name="{{ filter.name }}">{% for option in filter.options %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endfor %}{% endif %}
     <label class="wf2p-search">Buscar<input type="search" name="busca" value="{{ wf_page.toolbar.search|default:'' }}" placeholder="posição ou instituição"></label>
-    <label class="wf2p-toolbar-check"><input type="checkbox" name="aberta" value="1" checked> Abertas</label>
-    <label class="wf2p-toolbar-check"><input type="checkbox" name="fechada" value="1"> Fechadas</label>
-    <button class="wf2p-button" type="button" aria-label="Mais filtros">Filtros</button>
-    <button class="wf2p-button" type="button" aria-label="Selecionar colunas">Colunas</button>
+    <label class="wf2p-toolbar-check"><input type="checkbox" name="aberta" value="1" checked disabled> Abertas</label>
+    <label class="wf2p-toolbar-check"><input type="checkbox" name="fechada" value="1" disabled> Fechadas</label>
+    <button class="wf2p-button" type="button" aria-label="Mais filtros" disabled aria-disabled="true">Filtros</button>
+    <button class="wf2p-button" type="button" aria-label="Selecionar colunas" disabled aria-disabled="true">Colunas</button>
     <button class="wf2p-button wf2p-button--primary" type="submit">Aplicar</button>
   </form>
 </section>

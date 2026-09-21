@@ -14,10 +14,8 @@
     <button class="wf2a-add" type="button" disabled aria-disabled="true">＋ Adicionar atividades</button>
     <label class="wf2a-search">Buscar<input type="search" name="busca" value="{{ wf_page.toolbar.search|default:'' }}" placeholder="Buscar..." aria-label="Buscar..."></label>
     <div class="wf2a-filter-chips">
-      {% for filter in wf_page.toolbar.filters %}<label class="wf2a-filter-chip"><span>{% if filter.name == 'natureza' %}Tipo{% else %}{{ filter.label }}{% endif %}</span><select name="{{ filter.name }}" aria-label="{% if filter.name == 'natureza' %}Tipo{% else %}{{ filter.label }}{% endif %}">{% for option in filter.options %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endfor %}
+      {% for filter in wf_page.toolbar.filters %}<label class="wf2a-filter-chip"><span>{{ filter.label }}</span><select name="{{ filter.name }}" aria-label="{{ filter.label }}">{% for option in filter.options %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endfor %}
       {% if wf_page.toolbar.periods %}<label class="wf2a-filter-chip"><span>Data</span><select name="periodo" aria-label="Data">{% for option in wf_page.toolbar.periods %}<option value="{{ option.value }}"{% if option.active %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>{% endif %}
-      <label class="wf2a-filter-chip"><span>Conta</span><select name="conta" aria-label="Conta"><option value="">Todas</option></select></label>
-      <label class="wf2a-filter-chip"><span>Instrumento</span><select name="instrumento" aria-label="Instrumento" disabled><option>Todos</option></select></label>
     </div>
     <div class="wf2a-toolbar-actions">
       <button class="wf2a-view-button is-active" type="button" aria-label="Modo de visualização" aria-pressed="true" data-wf2-activity-view="list">Lista</button>

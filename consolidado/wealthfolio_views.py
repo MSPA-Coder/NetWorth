@@ -835,14 +835,115 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         },
         "back_url": reverse("consolidado:dashboard"),
     }
+    if kind == "settings":
+        # Settings is a read-only projection of the Wealthfolio navigation.
+        # Keep the selected section in the URL while carrying the caller's
+        # other query scope (date/period/source filters) to every item.
+        section_specs = (
+            ("PREFERÊNCIAS", (("geral", "Geral"), ("aparencia", "Aparência"))),
+            ("FINANÇAS", (("contas", "Contas"), ("carteiras", "Carteiras"), ("limites-aporte", "Limites de aporte"), ("controle-gastos", "Controle de gastos"))),
+            ("DADOS", (("valores-mobiliarios", "Valores mobiliários"), ("classificacoes", "Classificações"), ("backup", "Backup e exportação"))),
+            ("CONEXÕES", (("conexoes", "Wealthfolio Connect"), ("dados-mercado", "Dados de mercado"), ("ai-providers", "Provedores de IA"))),
+            ("EXTENSÕES", (("extensoes", "Extensões"),)),
+            ("SOBRE", (("sobre", "Sobre"),)),
+        )
+        allowed_sections = {key for _group, items in section_specs for key, _label in items}
+        selected_section = request.GET.get("secao") or "geral"
+        if selected_section not in allowed_sections:
+            selected_section = "geral"
+
+        def settings_url(section: str) -> str:
+            query = request.GET.copy()
+            query["secao"] = section
+            return f"{reverse('consolidado:settings')}?{urlencode(query, doseq=True)}"
+
+        page["settings_section"] = selected_section
+        page["settings_nav_groups"] = tuple(
+            {
+                "label": group,
+                "items": tuple(
+                    {"key": key, "label": label, "url": settings_url(key), "active": key == selected_section}
+                    for key, label in items
+                ),
+            }
+            for group, items in section_specs
+        )
+        section_content = {
+            "geral": ("Geral", "Gerencie as configurações e preferências gerais do aplicativo."),
+            "aparencia": ("Aparência", "Preferências visuais informativas do shell Wealthfolio."),
+            "contas": ("Contas", "Contas publicadas pelas fontes conectadas ao NetWorth."),
+            "carteiras": ("Carteiras", "Carteiras e posições exibidas em modo somente leitura."),
+            "limites-aporte": ("Limites de aporte", "Limites publicados pelas fontes de dados, sem edição no shell."),
+            "controle-gastos": ("Controle de gastos", "Categorias e regras de gastos fornecidas pelo Controle Bancário."),
+            "valores-mobiliarios": ("Valores mobiliários", "Instrumentos publicados pelo Controle de Renda Variável."),
+            "classificacoes": ("Classificações", "Classificações e categorias recebidas das fontes de origem."),
+            "backup": ("Backup e exportação", "Exportações pertencem aos sistemas de origem e permanecem bloqueadas aqui."),
+            "conexoes": ("Wealthfolio Connect", "Estado das conexões de leitura utilizadas pelo shell."),
+            "dados-mercado": ("Dados de mercado", "Cotações e referências de mercado publicadas pela fonte de renda variável."),
+            "ai-providers": ("Provedores de IA", "Provedores de IA são informativos até existir um contrato de escrita."),
+            "extensoes": ("Extensões", "Extensões disponíveis para o shell, sem instalação ou alteração nesta fase."),
+            "sobre": ("Sobre", "Informações do NetWorth e da camada visual derivada do Wealthfolio."),
+        }
+        page["settings_section_title"], page["settings_section_description"] = section_content[selected_section]
     if kind == "holdings":
+        holding_type = (request.GET.get("tipo") or "investimentos").strip().casefold()
+        if holding_type not in {"investimentos", "ativos", "passivos"}:
+            holding_type = "investimentos"
+        page["holding_type"] = holding_type
+        tab_urls = []
+        for key, label in (("investimentos", "Investimentos"), ("ativos", "Ativos"), ("passivos", "Passivos")):
+            query = request.GET.copy()
+            if key == "investimentos":
+                query.pop("tipo", None)
+            else:
+                query["tipo"] = key
+            query_string = urlencode(query, doseq=True)
+            tab_urls.append({"key": key, "label": label, "active": key == holding_type, "url": f"{request.path}?{query_string}" if query_string else request.path})
+        page["holding_tabs"] = tuple(tab_urls)
+
+        raw_rows = context["holdings"]
+        # The v2 position aggregate is the authoritative investment view. For
+        # the other Wealthfolio tabs only expose source rows whose published
+        # role supports that view; never reinterpret an investment as a debt.
+        if holding_type in {"ativos", "passivos"}:
+            def line_value(line: Any, name: str, default: Any = "") -> Any:
+                if isinstance(line, dict):
+                    return line.get(name, default)
+                return getattr(line, name, default)
+
+            wanted = {"passivo", "liability", "liabilities"} if holding_type == "passivos" else None
+            grouped: dict[tuple[str, str], dict[str, Any]] = {}
+            for line in context["consolidado"].linhas:
+                role = str(line_value(line, "papel", "")).strip().casefold()
+                is_liability = role in {"passivo", "liability", "liabilities"}
+                if (wanted is not None) != is_liability:
+                    continue
+                name = str(line_value(line, "descricao", "—"))
+                currency = str(line_value(line, "moeda", ""))
+                bucket = grouped.setdefault((name, currency), {"descricao": name, "moeda": currency, "valor": Decimal("0"), "quantidade": Decimal("0"), "instituicoes": set(), "ganho": Decimal("0"), "ganho_informado": False})
+                value = line_value(line, "valor", Decimal("0"))
+                bucket["valor"] += value if isinstance(value, Decimal) else Decimal(str(value or 0))
+                quantity = line_value(line, "quantidade", None)
+                if quantity is not None:
+                    bucket["quantidade"] += quantity if isinstance(quantity, Decimal) else Decimal(str(quantity))
+                gain = line_value(line, "ganho_nao_realizado", None)
+                if gain is not None:
+                    bucket["ganho"] += gain if isinstance(gain, Decimal) else Decimal(str(gain))
+                    bucket["ganho_informado"] = True
+                institution = str(line_value(line, "instituicao", "") or "")
+                if institution:
+                    bucket["instituicoes"].add(institution)
+            raw_rows = list(grouped.values())
+            for row in raw_rows:
+                row["ganho_nao_realizado"] = row.pop("ganho") if row.pop("ganho_informado") else None
+
         page["rows"] = [
             {
                 "url": reverse("consolidado:holding_detail", kwargs={"holding_id": row["descricao"]}),
                 "name": row["descricao"],
                 "ticker": row["descricao"],
                 "institution": ", ".join(row.get("instituicoes") or ()),
-                "detail": ", ".join(row.get("instituicoes") or ()),
+                "detail": ", ".join(sorted(row.get("instituicoes") or ())),
                 "currency": row["moeda"],
                 "quantity": row.get("quantidade"),
                 "price": dinheiro(
@@ -854,8 +955,15 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 if row.get("ganho_nao_realizado") is not None else "Indisponível",
                 "return_percent": _percent_label(row.get("retorno_percentual"), signed=True),
             }
-            for row in context["holdings"]
+            for row in raw_rows
         ]
+        search = (request.GET.get("busca") or "").strip().casefold()
+        if search:
+            page["rows"] = [
+                row for row in page["rows"]
+                if search in f"{row['name']} {row['detail']}".casefold()
+            ]
+        page["toolbar"]["search"] = request.GET.get("busca") or ""
         if not page["rows"]:
             page.update(state="empty", empty_title="Nenhuma posição publicada")
     elif kind == "holding-detail":
@@ -932,25 +1040,31 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             else:
                 page["state"] = "empty"
     elif kind == "activities":
-        page["toolbar"]["filters"] = (
-            {
-                "label": "Status",
-                "name": "status",
-                "options": tuple(
-                    {"value": value, "label": label, "active": request.GET.get("status", "") == value}
-                    for value, label in (("", "Todos"), ("realizado", "Realizado"), ("pendente", "Pendente"), ("projetado", "Projetado"))
-                ),
-            },
-            {
-                "label": "Natureza",
-                "name": "natureza",
-                "options": tuple(
-                    {"value": value, "label": label, "active": request.GET.get("natureza", "") == value}
-                    for value, label in (("", "Todas"), ("gerencial", "Gerencial"), ("movimentacao", "Movimentação"), ("transferencia", "Transferência"), ("renda", "Renda"))
-                ),
-            },
-        )
         composition = context.get("activity_composition")
+        published = tuple(composition.activities) if composition is not None else ()
+
+        def activity_options(name: str, query_name: str, empty_label: str = "Todos") -> tuple[dict[str, Any], ...]:
+            values = []
+            for activity in published:
+                value = str(getattr(activity, name, "") or "").strip()
+                if not value and name == "category_kind":
+                    value = str(getattr(activity, "kind", "") or "").strip()
+                if value and value not in values:
+                    values.append(value)
+            selected_value = request.GET.get(query_name, "")
+            options = [{"value": "", "label": empty_label, "active": not selected_value}]
+            if values:
+                options.extend({"value": value, "label": value, "active": selected_value == value} for value in values)
+            else:
+                options.append({"value": "__unavailable__", "label": "Indisponível", "active": selected_value == "__unavailable__"})
+            return tuple(options)
+
+        page["toolbar"]["filters"] = (
+            {"label": "Status", "name": "status", "options": activity_options("status", "status")},
+            {"label": "Tipo", "name": "natureza", "options": activity_options("category_kind", "natureza", "Todas")},
+            {"label": "Conta", "name": "conta", "options": activity_options("account", "conta")},
+            {"label": "Instrumento", "name": "instrumento", "options": activity_options("instrument", "instrumento")},
+        )
         if composition is None:
             page.update(
                 state="empty",
@@ -991,7 +1105,22 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                     ] = fonte
                 rows = []
                 busca = (request.GET.get("busca") or "").strip().casefold()
+                selected = {
+                    "status": request.GET.get("status") or "",
+                    "natureza": request.GET.get("natureza") or "",
+                    "conta": request.GET.get("conta") or "",
+                    "instrumento": request.GET.get("instrumento") or "",
+                }
                 for activity in composition.activities:
+                    if selected["status"] and selected["status"] != "__unavailable__" and activity.status != selected["status"]:
+                        continue
+                    activity_nature = activity.category_kind or activity.kind
+                    if selected["natureza"] and selected["natureza"] != "__unavailable__" and activity_nature != selected["natureza"]:
+                        continue
+                    if selected["conta"] and selected["conta"] != "__unavailable__" and activity.account != selected["conta"]:
+                        continue
+                    if selected["instrumento"] and selected["instrumento"] != "__unavailable__" and activity.instrument != selected["instrumento"]:
+                        continue
                     searchable = " ".join(
                         (
                             activity.description,
@@ -1023,6 +1152,9 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                                 if part
                             ),
                             "nature": activity.category_kind or activity.kind,
+                            "status": activity.status,
+                            "account": activity.account,
+                            "instrument": activity.instrument,
                             "source": activity.source,
                             "currency": value.currency,
                             "inflow": dinheiro(
@@ -1300,7 +1432,7 @@ def activities_view(request: HttpRequest) -> HttpResponse:
         inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
         activity_filters = {
             key: (request.GET.get(key) or "").strip()
-            for key in ("conta", "categoria", "status", "natureza")
+            for key in ("conta", "categoria", "status", "natureza", "instrumento")
         }
         context["activity_composition"] = compose_activities(
             fetch_activities(

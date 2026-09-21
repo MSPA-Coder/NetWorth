@@ -185,6 +185,9 @@
 .wf2p-settings-nav a:hover, .wf2p-settings-nav a:focus-visible, .wf2p-settings-nav a.is-active { background: var(--wf2-surface-muted); color: var(--wf2-ink); outline: none; }
 .wf2p-settings-card { min-height: 220px; }
 .wf2p-settings-card--controls { min-height: 0; }
+.wf2p-settings-card--compact { min-height: 0; }
+.wf2p-settings-page-title { padding: 0 0 21px; border-bottom: 1px solid var(--wf2-border); }
+.wf2p-settings-page-title h2 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.7rem); letter-spacing: -.06em; }
 .wf2p-settings-help { margin: 6px 0 0; color: var(--wf2-muted); font-size: .72rem; }
 .wf2p-settings-control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 18px; }
 .wf2p-settings-control-row select, .wf2p-settings-control-grid select { min-height: 36px; padding: 7px 10px; border: 1px solid var(--wf2-border); border-radius: 7px; background: var(--wf2-bg); color: var(--wf2-ink); font: inherit; font-size: .73rem; }
@@ -203,6 +206,10 @@
 .wf2p-settings-boundary { display: grid; gap: 7px; }
 .wf2p-settings-boundary h3 { margin: 0; font-size: .93rem; }
 .wf2p-settings-boundary p { max-width: 760px; margin: 0; color: var(--wf2-muted); font-size: .72rem; }
+.wf2p-settings-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 13px; padding: 11px 0; border-top: 1px solid var(--wf2-border); color: var(--wf2-muted); font-size: .71rem; }
+.wf2p-toggle { display: inline-flex; width: 35px; height: 20px; align-items: center; padding: 3px; border: 1px solid var(--wf2-border); border-radius: 99px; background: var(--wf2-surface-muted); }
+.wf2p-toggle::after { width: 12px; height: 12px; border-radius: 50%; background: var(--wf2-muted); content: ""; }
+.wf2p-toggle--off { opacity: .7; }
 .wf2p-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 .wf2p-sensitive { transition: color .12s ease, text-shadow .12s ease; }
 body.wf2-values-hidden .wf2p-sensitive { color: transparent !important; text-shadow: 0 0 8px rgba(38, 39, 32, .55); user-select: none; }
@@ -215,6 +222,10 @@ body.wf2-values-hidden .wf2p-sensitive { color: transparent !important; text-sha
 .wf2-page[data-page-kind="assistant"] > .wf2p-header,
 .wf2-page[data-page-kind="spending-insights"] > .wf2p-header,
 .wf2-page[data-page-kind="budget"] > .wf2p-header { display: none; }
+.wf2-page[data-page-kind="settings"] { margin-top: 0; gap: 26px; }
+.wf2-page[data-page-kind="settings"] > .wf2p-header,
+.wf2-page[data-page-kind="settings"] > .wf2p-warning { display: none; }
+body:has(.wf2-page[data-page-kind="settings"]) .wf2-topbar__actions { visibility: hidden; }
 .wf2-page:has(.wf2p-reference-page) > .wf2p-header,
 .wf2-page:has(.wf2p-reference-page) > .wf2p-warning { display: none; }
 body:has(.wf2p-reference-page) .wf2-page > .wf2p-header,
