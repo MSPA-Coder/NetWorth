@@ -445,7 +445,12 @@ def _arvore_de_contas(
                 "variacao_absoluta": variacao_absoluta,
                 "variacao_percentual": variacao_percentual,
                 "url_origem": links_de_origem[0] if len(links_de_origem) == 1 else "",
-                "url": url_drilldown(grupo_id, None if conta_id == conta_parametro else conta_id),
+                # A child row is an actionable account drill-down.  It must
+                # always carry its own account id; omitting it for the
+                # currently unselected account turns every child link into a
+                # group-only URL and the dashboard appears to reload without
+                # showing that account's published lines.
+                "url": url_drilldown(grupo_id, conta_id),
                 "expandida": conta_id == conta_parametro and grupo_id == grupo_selecionado,
             }
             contas.append(conta_node)

@@ -611,6 +611,18 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         {"key": "spending", "label": "♨ Gastos", "active": tab == "spending", "url": _query_url("consolidado:dashboard", tab="spending", periodo=context["periodo"], data=context["data_da_tela"].isoformat())},
     ]
     investments = all_vm.investments
+
+    def account_detail_url(child: dict[str, Any]) -> str:
+        line = (child.get("linhas") or [{}])[0]
+        account_id = line.get("instituicao") or child.get("nome")
+        query: dict[str, str] = {
+            "periodo": context["periodo"],
+            "data": context["data_da_tela"].isoformat(),
+        }
+        if line.get("papel") != "investimento" and line.get("descricao"):
+            query["account"] = line["descricao"]
+        return f"{reverse('consolidado:account_detail', kwargs={'account_id': account_id})}?{urlencode(query)}"
+
     accounts = []
     for group in context["cartoes_de_contas"]:
         converted = getattr(group.get("conversao"), "total", None)
@@ -644,10 +656,12 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
                         )
                         if getattr(child.get("conversao"), "total", None) is not None
                         else "Indisponível",
-                        # O deep link publicado pela fonte pode usar o hostname
-                        # interno do Compose. No shell, o drill-down GET local
-                        # é o destino seguro e reproduzível.
-                        "url": child.get("url") or "#",
+                        # Wealthfolio opens a child account in its account
+                        # detail view, where the published lines are shown.
+                        # The legacy drill-down URL only expands the group on
+                        # the dashboard, so derive the shell-local detail
+                        # route from the first published line instead.
+                        "url": account_detail_url(child),
                     }
                     for child in group.get("contas") or ()
                 ],

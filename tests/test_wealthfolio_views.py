@@ -88,6 +88,20 @@ def test_account_detail_resolves_groups_and_published_account_filter(logged_clie
     assert len(filtered.context["wf_page"]["rows"]) == 1
 
 
+def test_dashboard_account_children_keep_account_drilldown(logged_client):
+    response = logged_client.get("/dashboard/", {"tab": "investments"})
+
+    assert response.status_code == 200
+    groups = response.context["wf_dashboard"]["investments"]["accounts"]
+    child = groups[0]["children"][0]
+    assert child["url"].startswith("/accounts/Banco/")
+    assert "account=Conta" in child["url"]
+    detail = logged_client.get(child["url"])
+    assert detail.status_code == 200
+    assert detail.context["wf_page"]["account"]["name"] == "Banco · Conta"
+    assert len(detail.context["wf_page"]["rows"]) == 1
+
+
 def test_dashboard_api_keeps_currency_and_coverage(logged_client):
     response = logged_client.get("/api/wealthfolio/dashboard/")
 
