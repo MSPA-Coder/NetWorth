@@ -37,6 +37,22 @@ SOURCE_ALIASES = {
     "crv": "controle-renda-variavel",
 }
 
+STATUS_ALIASES = {
+    "ok": "ok",
+    "sucesso": "ok",
+    "success": "ok",
+    "partial": "partial",
+    "parcial": "partial",
+    "empty": "empty",
+    "vazio": "empty",
+    "stale": "stale",
+    "defasado": "stale",
+    "desatualizado": "stale",
+    "error": "error",
+    "erro": "error",
+    "falhou": "error",
+}
+
 
 class CompatibilityError(DTOError):
     """Envelope externo inválido ou incompatível com o contrato interno."""
@@ -83,6 +99,49 @@ def _link(raw: Any) -> str:
     if any(ord(char) < 32 for char in value) or "://" in value:
         return ""
     return value
+
+
+def _status(payload: Mapping[str, Any]) -> str:
+    """Lê o estado opcional publicado sem aceitar estados inventados."""
+    raw = payload.get("estado", payload.get("status"))
+    if raw is None:
+        quality = payload.get("qualidade", payload.get("quality"))
+        if isinstance(quality, Mapping):
+            raw = quality.get("estado", quality.get("status"))
+    if raw is None:
+        return "ok"
+    if not isinstance(raw, str) or raw.casefold().strip() not in STATUS_ALIASES:
+        raise CompatibilityError(f"estado desconhecido: {raw!r}")
+    return STATUS_ALIASES[raw.casefold().strip()]
+
+
+def _error_message(payload: Mapping[str, Any]) -> str:
+    for key in ("erro", "error", "motivo", "mensagem"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "A fonte não publicou dados para esta consulta."
+
+
+def _fx_missing(payload: Mapping[str, Any], lines: Iterable[leitor.Linha], totals: Iterable[Money]) -> bool:
+    """Detecta ausência declarada de FX sem somar moedas por aproximação.
+
+    Uma fonte que publica apenas BRL (ou apenas USD) não precisa de câmbio.
+    Quando há mais de uma moeda, a conversão só é considerada disponível se o
+    próprio envelope publicar taxas/FX. Os totais continuam separados em
+    qualquer caso.
+    """
+    currencies = {line.moeda for line in lines}
+    currencies.update(money.currency for money in totals)
+    if len(currencies) < 2:
+        return False
+    for key in ("taxas_de_cambio", "taxas_cambio", "fx", "fx_rates", "cambio", "conversao"):
+        if key not in payload:
+            continue
+        value = payload[key]
+        # A fonte pode declarar explicitamente ``fx: false`` ou ``null``.
+        return not (isinstance(value, (Mapping, list)) and value)
+    return True
 
 
 def _money(value: Any, currency: Any, field: str) -> Money:
@@ -252,14 +311,22 @@ def normalize_payload(payload: Mapping[str, Any], *, expected_source: str | None
     if contract not in CONTRACTS:
         raise CompatibilityError(f"contrato desconhecido: {contract!r}")
     source = _source(payload.get("sistema"), expected_source)
+    state = _status(payload)
+    if state == "error":
+        raise CompatibilityError(_error_message(payload))
     reference = _date(payload.get("data_de_referencia"), "data_de_referencia")
     parsed = leitor.interpretar(_fonte(source), dict(payload))
     if not parsed.respondeu:
         raise CompatibilityError(parsed.motivo or "payload recusado pela validação")
-    omissions = _critical_omissions(payload, parsed)
+    omissions = list(_critical_omissions(payload, parsed))
     income = _income(source, parsed)
     if not income and contract == "patrimonio/v1":
         income = _legacy_income(source, payload)
+    totals = _totals(payload, parsed.linhas)
+    fx_missing = _fx_missing(payload, parsed.linhas, totals)
+    if fx_missing:
+        omissions.append("taxa de câmbio ausente; moedas permanecem separadas")
+    omissions = tuple(dict.fromkeys(omissions))
     capabilities = Capabilities(
         source=source,
         contract=contract,
@@ -272,14 +339,28 @@ def normalize_payload(payload: Mapping[str, Any], *, expected_source: str | None
         quality=parsed.qualidade is not None,
         individual_activities=False,
     )
-    coverage = Coverage(not omissions, 1, 1, omissions, "partial" if omissions else "ok")
+    has_data = bool(parsed.linhas or parsed.fluxos or parsed.rendas or parsed.twr or parsed.ganhos_realizados or totals)
+    if state == "ok" and not has_data:
+        state = "empty"
+    if state == "ok" and omissions:
+        state = "fx_missing" if fx_missing and len(omissions) == 1 else "partial"
+    complete = state == "ok" and not omissions
+    coverage = Coverage(
+        complete,
+        1,
+        1,
+        omissions,
+        state,
+        stale=state == "stale",
+        fx_missing=fx_missing,
+    )
     quality = parsed.qualidade if isinstance(parsed.qualidade, Mapping) else {}
     return SnapshotDTO(
         source=source,
         contract=contract,
         as_of=reference,
         generated_at=payload.get("gerado_em") if isinstance(payload.get("gerado_em"), str) else None,
-        totals=_totals(payload, parsed.linhas),
+        totals=totals,
         accounts=_accounts(source, parsed),
         positions=_positions(source, parsed),
         flows=_flows(source, parsed),

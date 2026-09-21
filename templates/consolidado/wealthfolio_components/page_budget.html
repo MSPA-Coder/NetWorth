@@ -1,0 +1,14 @@
+{% comment %}
+  Budget is an explicit source-capability boundary. The page keeps the
+  Wealthfolio information architecture without creating a local budget or a
+  write form before a source publishes a budget contract.
+{% endcomment %}
+<section class="wf2p-capability-hero wf2p-capability-hero--budget">
+  <div class="wf2p-capability-hero__icon" aria-hidden="true">⌁</div>
+  <div><p class="wf2p-kicker">Planejamento</p><h3>Orçamento mensal</h3><p>Organize a leitura do fluxo por mês quando uma fonte publicar metas de orçamento.</p></div>
+  <span class="wf2p-readonly-badge">Aguardando fonte</span>
+</section>
+<div class="wf2p-capability-grid">
+  <section class="wf2p-panel wf2p-capability-card"><header class="wf2p-panel__heading"><div><p class="wf2p-kicker">Estado atual</p><h3>Metas de orçamento</h3></div><span class="wf2p-status-dot" aria-label="Indisponível"></span></header><div class="wf2p-capability-state"><strong>Orçamento não publicado</strong><p>O Controle Bancário ainda não fornece metas mensais para esta visão.</p><small>Ainda não disponível nesta fase.</small></div></section>
+  <section class="wf2p-panel wf2p-capability-card"><header class="wf2p-panel__heading"><div><p class="wf2p-kicker">Disponível agora</p><h3>Fluxo observado</h3></div><span class="wf2p-muted">Somente leitura</span></header><p class="wf2p-capability-copy">O fluxo consolidado pode ser consultado na análise de gastos enquanto o contrato de orçamento não existe.</p><a class="wf2p-button wf2p-button--primary" href="{% url 'consolidado:spending_insights' %}">Abrir análise de gastos</a></section>
+</div>

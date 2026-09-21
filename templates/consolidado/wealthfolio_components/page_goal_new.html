@@ -1,0 +1,8 @@
+{% comment %}The create-goal route remains a read-only capability boundary.{% endcomment %}
+<section class="wf2p-capability-hero wf2p-capability-hero--goals">
+  <div class="wf2p-capability-hero__icon" aria-hidden="true">＋</div>
+  <div><p class="wf2p-kicker">Planejamento</p><h3>Nova meta</h3><p>A criação de metas só será habilitada quando houver uma API de escrita deliberadamente aprovada.</p></div>
+  <span class="wf2p-readonly-badge">Somente leitura</span>
+</section>
+<section class="wf2p-readonly-notice" role="status"><strong>Criação não disponível</strong><span>Esta rota não exibe formulário nem altera o Controle Bancário ou o Controle de Renda Variável.</span><a class="wf2p-button" href="{{ wf_page.back_url|default:wf_shell.goals_url }}">Voltar às metas</a></section>
+<section class="wf2p-panel wf2p-source-boundary"><p class="wf2p-kicker">Próximo contrato</p><h3>Quando a origem publicar metas</h3><p class="wf2p-capability-copy">A tela poderá mostrar o formulário da origem ou um link seguro para ela. Até lá, o shell permanece uma consulta fiel e sem mutações.</p></section>

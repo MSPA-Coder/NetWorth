@@ -36,8 +36,16 @@
         {% include "consolidado/wealthfolio_components/page_activities.html" %}
       {% elif kind == 'spending-insights' %}
         {% include "consolidado/wealthfolio_components/page_spending_insights.html" %}
-      {% elif kind == 'budget' or kind == 'goals' or kind == 'goal-new' or kind == 'assistant' or kind == 'settings' %}
-        {% include "consolidado/wealthfolio_components/page_unavailable.html" %}
+      {% elif kind == 'budget' %}
+        {% include "consolidado/wealthfolio_components/page_budget.html" %}
+      {% elif kind == 'goals' %}
+        {% include "consolidado/wealthfolio_components/page_goals.html" %}
+      {% elif kind == 'goal-new' %}
+        {% include "consolidado/wealthfolio_components/page_goal_new.html" %}
+      {% elif kind == 'assistant' %}
+        {% include "consolidado/wealthfolio_components/page_assistant.html" %}
+      {% elif kind == 'settings' %}
+        {% include "consolidado/wealthfolio_components/page_settings.html" %}
       {% else %}
         {% include "consolidado/wealthfolio_components/page_unavailable.html" %}
       {% endif %}

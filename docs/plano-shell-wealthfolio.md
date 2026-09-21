@@ -333,6 +333,87 @@ Entregas:
 - documentação da arquitetura e dos contratos;
 - comandos Docker reproduzíveis para build, testes e smoke.
 
+### Estado auditado e ordem de retomada — 2026-09-21
+
+O destino deste plano continua sendo **todo o sistema Wealthfolio como a única
+interface do NetWorth**. As fases abaixo não são alternativas nem escopo
+opcional: elas descrevem os lotes necessários para chegar a esse destino sem
+voltar a criar uma segunda interface de patrimônio.
+
+Estado do repositório na revisão `e90e45e`:
+
+| Área | Estado atual | O que falta para aceite |
+| --- | --- | --- |
+| Interface pública | A raiz abre `/dashboard/`; `/patrimonio/` e `/patrimonio/historico/` redirecionam para o shell | Manter esse redirecionamento; nenhuma rota pode voltar a renderizar os templates retirados. |
+| Shell global | Sidebar, topbar, privacidade e navegação inicial existem | Comparação visual desktop/mobile, foco por teclado, menus, tooltips e todos os estados da referência. |
+| Camada de compatibilidade | `models.py`, `normalize.py` e `view_models.py` validam DTOs e produzem view-models | Tornar DTOs/adapters/transport o caminho de produção; hoje as views ainda partem de `Consolidado` diretamente. |
+| Dashboard | As três abas, períodos, gráficos, cards e endpoints JSON iniciais existem | Fidelidade visual/comportamental, tooltips, retry/loading/erro, links e todos os estados da matriz. |
+| Insights | Summary, Performance e Income existem em estrutura inicial | Filtros, busca, ordenação, drill-down, séries completas e fidelidade visual por aba. |
+| Holdings e Accounts | Lista e detalhe iniciais existem | IDs opacos de fonte, paginação, filtros, detalhes e composição específica da referência. |
+| Activities e Spending | Fluxos agregados são exibidos; atividades individuais são declaradas indisponíveis | Contratos v3 para lançamentos/categorias e telas específicas de atividades, categorias e análise de gastos. |
+| Goals, Budget, Assistant e Settings | Rotas e estados indisponíveis existem | Páginas próprias equivalentes à referência; operações só serão ativadas após migração deliberada. |
+| QA visual | Testes de modelo, rota e contrato existem | Fixtures iguais nas fontes, screenshots lado a lado, diff, geometria, mobile e acessibilidade. |
+
+#### Lotes obrigatórios a partir do estado atual
+
+**Lote A — consolidar o caminho de dados.** Separar o uso interno de
+`Consolidado` da superfície Wealthfolio: adapters HTTP normalizam cada fonte em
+`SnapshotDTO`; uma composição read-only produz `WealthfolioVM`; templates e
+endpoints JSON consomem exclusivamente esse view-model. Cobrir sucesso,
+parcial, vazio, defasado, erro e câmbio ausente. Nenhum template recebe payload
+da fonte ou dicionário cru.
+
+**Lote B — fechar Dashboard.** Validar Investments, Net Worth e Spending contra
+a referência congelada nos viewports da matriz. Cada aba precisa de estrutura,
+ações, estados e navegação equivalentes. Spending usa os agregados v2 onde eles
+forem suficientes e usa a forma visual de indisponibilidade onde ainda não
+forem.
+
+**Lote C — fechar Insights.** Entregar Summary, Performance e Income usando os
+mesmos contratos e cobertura do Dashboard. Busca, filtros, ordenação,
+dimensão, drill-down, gráficos e URL pertencem ao lote; métricas não publicadas
+continuam explicitamente indisponíveis.
+
+**Lote D — substituir a página genérica pelas rotas do sistema.** Cada rota
+abaixo terá template, view-model e estados próprios, seguindo a referência e
+sem reutilizar uma página genérica como substituta:
+
+1. `/holdings/` e `/holdings/<id>/`;
+2. `/accounts/` e `/accounts/<id>/`;
+3. `/activities/`;
+4. `/spending/insights/` e `/spending/budget/`;
+5. `/goals/` e criação/detalhe de meta;
+6. `/assistant/`;
+7. `/settings/`.
+
+Cada rota nasce completa visualmente, mesmo quando sua fonte ainda não publica
+os dados ou autoriza a ação correspondente. Nesse caso, mostra o estado de
+indisponibilidade equivalente ao Wealthfolio, nunca uma tabela alternativa do
+NetWorth.
+
+**Lote E — estender os contratos nas fontes.** Implementar aditivamente os
+contratos v3 de CB e CRV na ordem exigida pelos lotes B–D: atividades
+detalhadas/paginadas, categorias, metadados de contas, eventos de investimento,
+séries de renda e performance. O NetWorth só consome HTTP autenticado,
+somente leitura, com IDs prefixados pela fonte e deep links publicados por ela.
+
+**Lote F — aceite de paridade.** Construir fixtures determinísticas equivalentes
+nos três sistemas, executar os gates G0–G7 e registrar screenshot diff e
+comparação de geometria para cada rota/estado/viewport. Nenhuma rota é
+considerada concluída só por renderizar ou por ter teste de backend.
+
+#### Regras de execução contínua
+
+- Não reintroduzir a antiga interface de patrimônio, templates ou navegação
+  como fallback visual.
+- Não tratar a página genérica atual como entrega final de uma rota derivada.
+- Não criar dados operacionais locais para preencher lacunas das fontes.
+- Não ativar escrita em CB ou CRV a partir do NetWorth sem uma migração
+  deliberada e um contrato próprio.
+- Cada lote encerra com a suíte Docker completa, smoke autenticado, revisão de
+  cobertura/moeda/data e checkpoint visual antes do lote seguinte.
+
+
 ## 8. Divisão entre agentes Luna
 
 No máximo três agentes trabalharão simultaneamente, além do coordenador.

@@ -1,0 +1,8 @@
+{% comment %}Read-only Wealthfolio goals landing state until a source publishes goals.{% endcomment %}
+<section class="wf2p-capability-hero wf2p-capability-hero--goals">
+  <div class="wf2p-capability-hero__icon" aria-hidden="true">✦</div>
+  <div><p class="wf2p-kicker">Planejamento</p><h3>Metas financeiras</h3><p>Uma área reservada para metas publicadas por uma fonte do NetWorth.</p></div>
+  <span class="wf2p-readonly-badge">Aguardando fonte</span>
+</section>
+<section class="wf2p-goals-empty wf2p-panel" role="status"><div class="wf2p-goals-empty__mark" aria-hidden="true">＋</div><div><h3>Nenhuma meta publicada</h3><p>O NetWorth não cria metas localmente. Quando o Controle Bancário ou o CRV publicar esse recurso, esta tela mostrará o progresso sem duplicar os dados da origem.</p><small>Ainda não disponível nesta fase.</small></div><a class="wf2p-button" href="{{ wf_page.back_url|default:wf_shell.dashboard_url }}">Voltar ao painel</a></section>
+<section class="wf2p-panel wf2p-source-boundary"><p class="wf2p-kicker">Contrato de dados</p><h3>O que falta para esta tela</h3><div class="wf2p-boundary-list"><span>Identificador da meta</span><span>Valor-alvo e prazo</span><span>Progresso publicado</span></div><small>Esses campos serão exibidos somente quando existirem no sistema de origem.</small></section>

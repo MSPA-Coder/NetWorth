@@ -64,6 +64,9 @@ class Coverage:
     responded_sources: int
     omissions: tuple[str, ...] = ()
     status: str = "ok"
+    stale: bool = False
+    fx_missing: bool = False
+    error: str = ""
 
     def __post_init__(self) -> None:
         if self.expected_sources < 0 or self.responded_sources < 0:
@@ -72,12 +75,29 @@ class Coverage:
             raise DTOError("coverage: fontes respondidas excedem fontes esperadas")
         if self.complete and (self.omissions or self.responded_sources != self.expected_sources):
             raise DTOError("coverage: completa não pode conter lacunas")
+        if self.status not in {"ok", "partial", "empty", "stale", "error", "fx_missing"}:
+            raise DTOError("coverage: estado desconhecido")
+        if self.complete and self.status != "ok":
+            raise DTOError("coverage: fotografia completa precisa estar em estado ok")
+        if self.error and self.status != "error":
+            raise DTOError("coverage: erro só pode existir no estado error")
+        if self.stale and self.status not in {"stale", "partial"}:
+            raise DTOError("coverage: stale requer estado stale ou partial")
+
+    @property
+    def available(self) -> bool:
+        """Indica que a fonte respondeu, ainda que com dados incompletos."""
+        return self.responded_sources > 0 and self.status != "error"
+
+    @property
+    def empty(self) -> bool:
+        return self.status == "empty"
 
 
 @dataclass(frozen=True, slots=True)
 class Capabilities:
-    source: str
-    contract: str
+    source: str = ""
+    contract: str = ""
     accounts: bool = False
     positions: bool = False
     flows: bool = False
@@ -179,6 +199,11 @@ class SnapshotDTO:
     @property
     def complete(self) -> bool:
         return self.coverage.complete and not self.omissions
+
+    @property
+    def status(self) -> str:
+        """Estado normalizado da fotografia, útil para templates e APIs."""
+        return self.coverage.status
 
     @property
     def currencies(self) -> tuple[str, ...]:

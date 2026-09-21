@@ -207,6 +207,129 @@ def _percent_label(value: Decimal | None, *, signed: bool = False) -> str:
     return f"{prefix}{value.quantize(Decimal('0.01'))}%".replace(".", ",")
 
 
+def _view_model(request: HttpRequest, context: dict[str, Any], *, active: str):
+    """Return the immutable compatibility tree used by a public surface.
+
+    The legacy consolidator remains the transport boundary for now, but the
+    templates do not need to know that.  Keeping one cached tree per active
+    surface prevents each partial from reinterpreting the source payload and
+    gives the migration to the DTO transport a single seam.
+    """
+
+    cache = context.setdefault("_wealthfolio_view_models", {})
+    if active not in cache:
+        cache[active] = build_view_models(
+            context,
+            user_label=request.user.get_username(),
+            active_area=active,
+        )
+    return cache[active]
+
+
+def _metric_vm(metric: Any) -> dict[str, Any]:
+    values = tuple(getattr(metric, "values", ()) or ())
+    return {
+        "key": getattr(metric, "key", ""),
+        "label": getattr(metric, "label", ""),
+        "value": _money_label(values),
+        "state": getattr(metric, "state", "ok"),
+        "detail": getattr(metric, "detail", ""),
+        "percent": _percent_label(getattr(metric, "percent", None), signed=True),
+    }
+
+
+def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str, Any]:
+    """Adapt the immutable Insights tree to display-only template data."""
+
+    vm = _view_model(request, context, active="insights")
+    summary = vm.insights_summary
+    raw = context.get("insights") or {}
+
+    def breakdown(item: Any) -> dict[str, Any]:
+        return {
+            "key": item.key,
+            "name": item.label,
+            "value": _money_label(item.values),
+            "percent": _percent_label(item.percent),
+            "percent_number": item.percent,
+            "classified": item.classified,
+        }
+
+    dimensions = []
+    for item in raw.get("dimensoes") or ():
+        dimensions.append(
+            {
+                "name": item.get("nome"),
+                "url": item.get("url"),
+                "active": item.get("ativa", False),
+            }
+        )
+    account_options = [
+        {"id": item.get("id"), "name": item.get("nome")}
+        for item in context.get("arvore_drilldown") or ()
+    ]
+    detail_rows = []
+    for item in raw.get("itens") or ():
+        conversion = item.get("conversao")
+        detail_rows.append(
+            {
+                "name": item.get("nome") or "Não classificado",
+                "url": item.get("url") or "#",
+                "institutions": item.get("instituicoes") or (),
+                "lines": item.get("linhas", 0),
+                "percent": _percent_label(item.get("percentual")),
+                "value": (
+                    dinheiro(conversion.total, context["moeda_base"])
+                    if getattr(conversion, "possivel", False)
+                    else "Indisponível"
+                ),
+            }
+        )
+
+    performance = []
+    for item in context.get("desempenhos") or ():
+        performance.append(
+            {
+                "method": item.get("metodo") or "TWR",
+                "currency": item.get("moeda") or context["moeda_base"],
+                "return": _percent_label(item.get("retorno_percentual")),
+                "series_json": item.get("serie_json") or "[]",
+            }
+        )
+
+    income_metrics = [_metric_vm(item) for item in vm.income.metrics]
+    income_sources = [breakdown(item) for item in vm.income.sources]
+    return {
+        "tab": context.get("insights_tab") or "summary",
+        "partial": not vm.shell.coverage.complete,
+        "period": context["periodo"],
+        "currency": context["moeda_base"],
+        "account_options": account_options,
+        "summary": {
+            "available": bool(raw),
+            "metrics": [_metric_vm(item) for item in summary.metrics],
+            "overview": context.get("insights_overview") or (),
+            "dimension_name": raw.get("dimensao_nome") or "Classe",
+            "items": [breakdown(item) for item in summary.treemap],
+            "dimensions": dimensions,
+            "details": detail_rows,
+            "target_available": getattr(summary.target_allocation, "available", False),
+            "target_reason": getattr(summary.target_allocation, "reason", ""),
+        },
+        "performance": {
+            "periods": context.get("periodos_dashboard") or (),
+            "items": performance,
+            "available": bool(performance),
+        },
+        "income": {
+            "metrics": income_metrics,
+            "sources": income_sources,
+            "available": bool(income_sources),
+            "history_available": not hasattr(vm.income.history, "reason"),
+        },
+    }
+
+
 def _query_url(route: str, **params: Any) -> str:
     filtered = {key: value for key, value in params.items() if value not in (None, "")}
     target = reverse(route)
@@ -214,7 +337,7 @@ def _query_url(route: str, **params: Any) -> str:
 
 
 def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> dict[str, Any]:
-    vm = build_view_models(context, user_label=request.user.get_username(), active_area=active)
+    vm = _view_model(request, context, active=active)
     coverage = vm.shell.coverage
     failure_reasons = []
     for reading in context["consolidado"].leituras:
@@ -331,7 +454,7 @@ def _delta_vm(metric: Any, period_label: str) -> dict[str, Any]:
 
 
 def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> dict[str, Any]:
-    all_vm = build_view_models(context, user_label=request.user.get_username(), active_area="dashboard")
+    all_vm = _view_model(request, context, active="dashboard")
     period_label = next(
         (label for key, label in context["periodos_dashboard"] if key == context["periodo"]),
         {"este_mes": "Este mês", "mes_passado": "Mês passado"}.get(
@@ -520,7 +643,7 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         "assistant": "Assistente",
         "settings": "Configurações",
     }
-    all_vm = build_view_models(context, user_label=request.user.get_username(), active_area=kind)
+    all_vm = _view_model(request, context, active=kind)
     periods = [
         {"value": item["key"], "label": item["label"], "active": item["active"]}
         for item in _period_items(context, tab="", route="consolidado:holdings")
@@ -735,6 +858,7 @@ def insights_view(request: HttpRequest) -> HttpResponse:
     if context["insights_tab"] not in {"summary", "performance", "income"}:
         context["insights_tab"] = "summary"
     context["wf_shell"] = _shell_vm(request, context, active="insights")
+    context["wf_insights"] = _insights_page_vm(request, context)
     context["allocations"] = ()
     return render(request, "consolidado/wealthfolio_insights_v2.html", context)
 
@@ -868,30 +992,36 @@ def settings_view(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def dashboard_api(request: HttpRequest) -> JsonResponse:
-    return JsonResponse(_json_snapshot(_base_context(request, visao="investimentos")))
+    context = _base_context(request, visao="investimentos")
+    payload = _json_snapshot(context)
+    # The compatibility tree is the canonical display contract. Legacy keys
+    # stay for existing clients during the additive migration.
+    payload["view_model"] = _json_safe(_dashboard_vm(request, context, "investments"))
+    return JsonResponse(payload)
 
 
 @login_required
 @require_GET
 def insights_api(request: HttpRequest) -> JsonResponse:
     context = _base_context(request, visao="insights")
+    context["insights_tab"] = request.GET.get("tab") or "summary"
     insight = context["insights"] or {}
-    return JsonResponse(
-        {
-            "as_of": context["data_da_tela"].isoformat(),
-            "dimension": insight.get("dimensao"),
-            "items": [
-                {
-                    "id": item["id"],
-                    "name": item["nome"],
-                    "lines": item["linhas"],
-                    "percent": str(item["percentual"]) if item["percentual"] is not None else None,
-                    "totals": [
-                        {**total, "total": _serialize_decimal(total["total"])}
-                        for total in item["totais_por_moeda"]
-                    ],
-                }
-                for item in insight.get("itens", [])
-            ],
-        }
-    )
+    payload = {
+        "as_of": context["data_da_tela"].isoformat(),
+        "dimension": insight.get("dimensao"),
+        "items": [
+            {
+                "id": item["id"],
+                "name": item["nome"],
+                "lines": item["linhas"],
+                "percent": str(item["percentual"]) if item["percentual"] is not None else None,
+                "totals": [
+                    {**total, "total": _serialize_decimal(total["total"])}
+                    for total in item["totais_por_moeda"]
+                ],
+            }
+            for item in insight.get("itens", [])
+        ],
+    }
+    payload["view_model"] = _json_safe(_insights_page_vm(request, context))
+    return JsonResponse(payload)
