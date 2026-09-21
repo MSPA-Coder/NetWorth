@@ -30,7 +30,7 @@
     </label>
     <details class="wf2-more">
       <summary aria-label="Mais opções" title="Mais opções"><span aria-hidden="true">⋮</span></summary>
-      <div>{% if wf_shell.user_label %}<span class="wf2-user">{{ wf_shell.user_label }}</span>{% endif %}<a href="{{ wf_shell.settings_url|default:'/settings/' }}">Configurações</a><form method="post" action="{{ wf_shell.logout_url|default:'/logout' }}">{% csrf_token %}<button type="submit">Sair</button></form></div>
+      <div>{% if wf_shell.user_label %}<span class="wf2-user">{{ wf_shell.user_label }}</span>{% endif %}<a data-wf2-preserve-query href="{{ wf_shell.settings_url|default:'/settings/' }}">Configurações</a><form method="post" action="{{ wf_shell.logout_url|default:'/logout' }}">{% csrf_token %}<button type="submit">Sair</button></form></div>
     </details>
   </div>
 </header>

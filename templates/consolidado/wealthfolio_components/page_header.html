@@ -11,6 +11,6 @@
     {% if wf_page.as_of_label %}<p class="wf2p-as-of">{{ wf_page.as_of_label }}</p>{% endif %}
   </div>
   <nav class="wf2p-actions" aria-label="Ações da página">
-    {% for action in wf_page.actions %}<a class="wf2p-button{% if action.primary %} wf2p-button--primary{% endif %}" href="{{ action.url }}">{{ action.label }}</a>{% empty %}<a class="wf2p-button" href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}">Dashboard</a>{% endfor %}
+    {% for action in wf_page.actions %}<a class="wf2p-button{% if action.primary %} wf2p-button--primary{% endif %}" data-wf2-preserve-query href="{{ action.url }}">{{ action.label }}</a>{% empty %}<a class="wf2p-button" data-wf2-preserve-query href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}">Dashboard</a>{% endfor %}
   </nav>
 </header>

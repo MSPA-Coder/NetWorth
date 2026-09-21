@@ -56,18 +56,41 @@
     setPrivacy(Boolean(privacy && privacy.checked) || initialHidden, false);
     if (privacy) privacy.addEventListener("change", function () { setPrivacy(privacy.checked, true); });
 
-    function closeMenu() {
+    // Keep the current read-only scope when moving between shell areas. The
+    // destination may replace a value (for example, its active tab), but
+    // period/date/search filters should not disappear on a drill-down.
+    var preservedQuery = new Set([
+      "periodo", "data", "busca", "dimensao", "ordenar", "direcao",
+      "conta", "categoria", "natureza", "status", "stage", "pagina",
+    ]);
+    var currentUrl = new URL(window.location.href);
+    shell.querySelectorAll("[data-wf2-preserve-query]").forEach(function (link) {
+      var raw = link.getAttribute("href");
+      if (!raw || raw === "#") return;
+      var target;
+      try { target = new URL(raw, window.location.href); } catch (_error) { return; }
+      if (target.origin !== window.location.origin) return;
+      preservedQuery.forEach(function (key) {
+        if (!target.searchParams.has(key) && currentUrl.searchParams.has(key)) {
+          target.searchParams.set(key, currentUrl.searchParams.get(key));
+        }
+      });
+      link.setAttribute("href", target.pathname + target.search + target.hash);
+    });
+
+    function closeMenu(restoreFocus) {
       if (!sidebar || !menu) return;
       sidebar.classList.remove("is-open");
       menu.setAttribute("aria-expanded", "false");
+      if (restoreFocus) menu.focus();
     }
     if (menu && sidebar) {
       menu.addEventListener("click", function () {
         var open = sidebar.classList.toggle("is-open");
         menu.setAttribute("aria-expanded", open ? "true" : "false");
       });
-      sidebar.querySelectorAll("a").forEach(function (link) { link.addEventListener("click", closeMenu); });
-      document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeMenu(); });
+      sidebar.querySelectorAll("a").forEach(function (link) { link.addEventListener("click", function () { closeMenu(false); }); });
+      document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeMenu(true); });
     }
 
     // Account groups are server-expanded through relative GET links. Once a

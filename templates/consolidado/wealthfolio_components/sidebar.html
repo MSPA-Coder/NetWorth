@@ -13,42 +13,42 @@
     <a class="wf2-sidebar__link{% if wf_shell.active_route|default:'dashboard' == 'dashboard' %} is-active{% endif %}"
        href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}"
        {% if wf_shell.active_route|default:'dashboard' == 'dashboard' %}aria-current="page"{% endif %}
-       data-wf2-nav="dashboard">
+       data-wf2-nav="dashboard" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
       <span>{{ wf_shell.labels.dashboard|default:'Painel' }}</span>
     </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'insights' %} is-active{% endif %}"
        href="{{ wf_shell.insights_url|default:'/insights/' }}"
        {% if wf_shell.active_route == 'insights' %}aria-current="page"{% endif %}
-       data-wf2-nav="insights">
+       data-wf2-nav="insights" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 18V6m0 12h16M7 15l3-4 3 2 4-6"/></svg>
       <span>{{ wf_shell.labels.insights|default:'Análises' }}</span>
     </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'holdings' %} is-active{% endif %}"
        href="{{ wf_shell.holdings_url|default:'/holdings/' }}"
        {% if wf_shell.active_route == 'holdings' %}aria-current="page"{% endif %}
-       data-wf2-nav="holdings">
+       data-wf2-nav="holdings" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M5 5h14v14H5zM8 9h8M8 13h8M8 17h4"/></svg>
       <span>{{ wf_shell.labels.holdings|default:'Posições' }}</span>
     </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'activities' %} is-active{% endif %}"
        href="{{ wf_shell.activities_url|default:'/activities/' }}"
        {% if wf_shell.active_route == 'activities' %}aria-current="page"{% endif %}
-       data-wf2-nav="activities">
+       data-wf2-nav="activities" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h3"/></svg>
       <span>{{ wf_shell.labels.activities|default:'Atividades' }}</span>
     </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'goals' %} is-active{% endif %}"
        href="{{ wf_shell.goals_url|default:'/goals/' }}"
        {% if wf_shell.active_route == 'goals' %}aria-current="page"{% endif %}
-       data-wf2-nav="goals">
+       data-wf2-nav="goals" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M12 4l2.2 4.5L19 9.2l-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8L5 9.2l4.8-.7z"/></svg>
       <span>{{ wf_shell.labels.goals|default:'Metas' }}</span>
     </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'assistant' %} is-active{% endif %}"
        href="{{ wf_shell.assistant_url|default:'/assistant/' }}"
        {% if wf_shell.active_route == 'assistant' %}aria-current="page"{% endif %}
-       data-wf2-nav="assistant">
+       data-wf2-nav="assistant" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4zM18 16l.7 2.3L21 19l-2.3.7L18 22l-.7-2.3L15 19l2.3-.7z"/></svg>
       <span>{{ wf_shell.labels.assistant|default:'Assistente' }}</span>
     </a>
@@ -58,7 +58,7 @@
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'settings' %} is-active{% endif %}"
        href="{{ wf_shell.settings_url|default:'/settings/' }}"
        {% if wf_shell.active_route == 'settings' %}aria-current="page"{% endif %}
-       data-wf2-nav="settings">
+       data-wf2-nav="settings" data-wf2-preserve-query>
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zM4 13.2v-2.4l2-.6c.2-.6.4-1.1.8-1.6L5.9 6.8l1.7-1.7 1.8.9c.5-.3 1-.6 1.6-.8l.6-2h2.4l.6 2c.6.2 1.1.4 1.6.8l1.8-.9 1.7 1.7-.9 1.8c.3.5.6 1 .8 1.6l2 .6v2.4l-2 .6c-.2.6-.4 1.1-.8 1.6l.9 1.8-1.7 1.7-1.8-.9c-.5.3-1 .6-1.6.8l-.6 2h-2.4l-.6-2c-.6-.2-1.1-.4-1.6-.8l-1.8.9-1.7-1.7.9-1.8c-.3-.5-.6-1-.8-1.6z"/></svg>
       <span>{{ wf_shell.labels.settings|default:'Configurações' }}</span>
     </a>

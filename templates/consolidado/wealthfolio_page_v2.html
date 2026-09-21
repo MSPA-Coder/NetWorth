@@ -19,6 +19,7 @@
 
 {% block wf2_content %}
   <link rel="stylesheet" href="{% static 'css/wealthfolio-pages-v2.css' %}">
+  <script src="{% static 'js/wealthfolio-pages-v2.js' %}" defer></script>
   <div class="wf2-page" data-wf2-page data-page-kind="{{ wf_page.kind|default:page_type }}">
     {% include "consolidado/wealthfolio_components/page_header.html" %}
     {% include "consolidado/wealthfolio_components/page_state.html" %}
