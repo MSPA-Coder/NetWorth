@@ -447,9 +447,9 @@ O contrato foi estendido sem alterar v1/v2:
   cria lançamentos locais.
 
 As suítes dos publicadores passaram em Docker (CB: 534; CRV: 458) e a suíte
-integrada do NetWorth passou com 212 testes. Restam os gates de captura visual
-autenticada e a validação interativa em navegador descritos na matriz; eles
-dependem de uma sessão/baseline Wealthfolio disponível no ambiente de QA.
+integrada do NetWorth passou com 213 testes. A validação autenticada pública
+também foi executada com o usuário de teste autorizado; o detalhe de contas
+resolve grupos, instituições e o filtro da conta publicada.
 
 ### Progresso do lote F — fechamento estrutural do Dashboard (2026-09-21)
 
@@ -463,10 +463,18 @@ sem criar dados locais nem habilitar escrita:
   capacidade;
 - links novos e existentes preservam período, data e filtros na URL.
 
-O lote passou a suíte Docker integrada (212 testes), `git diff --check` e foi
-publicado no VPS na revisão `8768aa1`. A comparação pixel a pixel, console,
+O lote passou a suíte Docker integrada (213 testes), `git diff --check` e foi
+publicado no VPS na revisão `de14533`. A comparação pixel a pixel, console,
 foco, teclado e tooltips continuam gates de aceite separados; eles não são
 declarados concluídos por este lote estrutural.
+
+### Correção do drill-down de contas (2026-09-21)
+
+O detalhe autenticado deixou de aceitar somente o nome da instituição. URLs
+derivadas de grupos/titulares (como `Esposita`) agora resolvem a árvore
+publicada, e `?account=Conta%2001` filtra as linhas da conta escolhida (como
+Mercado Pago — Conta 01). O comportamento é somente leitura e tem regressão
+automatizada na suíte de views.
 
 
 ## 8. Divisão entre agentes Luna
