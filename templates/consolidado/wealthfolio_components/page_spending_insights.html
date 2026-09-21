@@ -1,10 +1,22 @@
-{% comment %}
-  Spending insights contract: wf_page.stages [{label, url, active}],
-  wf_page.metrics [{label, value, detail, tone}], categories [{label, value,
-  percent, detail}], and optional report_url. This is read-only; category
-  rules and budget writes remain unavailable until a source publishes them.
-{% endcomment %}
-<section class="wf2p-insight-intro"><div><p class="wf2p-kicker">Análise de gastos</p><h3>Entenda onde o dinheiro foi</h3><p>Use as etapas para navegar pelas dimensões publicadas pelo Controle Bancário.</p></div><span class="wf2p-readonly-badge">Somente leitura</span></section>
-<nav class="wf2p-stage-tabs" aria-label="Etapas dos gastos">{% for stage in wf_page.stages %}<a data-wf2-preserve-query href="{{ stage.url }}"{% if stage.active %} aria-current="page"{% endif %}>{{ stage.label }}</a>{% empty %}<a data-wf2-preserve-query href="?stage=where" aria-current="page">Onde</a><a data-wf2-preserve-query href="?stage=changed">O que mudou</a><a data-wf2-preserve-query href="?stage=when">Quando</a>{% endfor %}</nav>
-<section class="wf2p-metric-strip" aria-label="Resumo do período">{% for metric in wf_page.metrics %}<article class="wf2p-insight-metric{% if metric.tone %} wf2p-insight-metric--{{ metric.tone }}{% endif %}"><span>{{ metric.label }}</span><strong class="wf2p-sensitive">{{ metric.value|default:'—' }}</strong>{% if metric.detail %}<small>{{ metric.detail }}</small>{% endif %}</article>{% empty %}<article class="wf2p-insight-metric"><span>Resumo</span><strong>—</strong><small>Nenhum fluxo publicado no período.</small></article>{% endfor %}</section>
-<section class="wf2p-panel wf2p-breakdown-panel" aria-labelledby="wf2p-spending-breakdown-title"><header class="wf2p-panel__heading"><div><p class="wf2p-kicker">Detalhamento</p><h3 id="wf2p-spending-breakdown-title">Gastos por categoria</h3></div>{% if wf_page.report_url %}<a class="wf2p-inline-link" data-wf2-preserve-query href="{{ wf_page.report_url }}">Ver relatório</a>{% else %}<span class="wf2p-muted">Fonte de categorias</span>{% endif %}</header>{% if wf_page.categories %}<ul class="wf2p-bars">{% for item in wf_page.categories %}<li><div><span>{{ item.label }}</span><strong class="wf2p-sensitive">{{ item.value|default:'—' }}</strong></div><span class="wf2p-bar"><i data-wf2-width-percent="{{ item.percent|default:'0' }}"></i></span><small>{{ item.detail }}</small></li>{% endfor %}</ul>{% else %}<div class="wf2p-substate"><strong>Categorias não publicadas</strong><span>O Controle Bancário ainda não publicou categorias para esta consulta.</span></div>{% endif %}</section>
+<div class="wf2p-reference-page wf2p-reference-page--spending">
+  <header class="wf2p-reference-toolbar wf2p-reference-toolbar--back">
+    <a class="wf2p-reference-back" data-wf2-preserve-query href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}" aria-label="Voltar ao painel">←</a>
+    <h1>Análise de gastos</h1>
+    <nav class="wf2p-period-selector" aria-label="Período">{% for item in wf_page.toolbar.periods %}<a data-wf2-preserve-query href="{{ wf_page.toolbar.url|default:'' }}?periodo={{ item.value }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>{% empty %}<span>Período selecionado</span>{% endfor %}</nav>
+  </header>
+  <nav class="wf2p-analysis-tabs" aria-label="Etapas de análise">
+    {% for stage in wf_page.stages %}<a data-wf2-preserve-query href="{{ stage.url }}"{% if stage.active %} aria-current="page"{% endif %}>{% if forloop.counter == 1 %}Onde estou{% elif forloop.counter == 2 %}O que mudou{% else %}Quando e onde{% endif %}</a>{% empty %}<a aria-current="page" href="?stage=where">Onde estou</a><a href="?stage=changed">O que mudou</a><a href="?stage=when">Quando e onde</a>{% endfor %}
+  </nav>
+  <section class="wf2p-metric-strip" aria-label="Resumo do período">
+    <article class="wf2p-insight-metric wf2p-budget-empty-card"><span>Sem orçamento definido</span><strong>Defina uma meta mensal para ver como está seu ritmo.</strong><small>Um orçamento ativo habilita os sinais de ritmo, projeção e saldo restante.</small><span class="wf2p-inline-link wf2p-inline-link--disabled" aria-disabled="true">Criar um orçamento →</span></article>
+    {% with spending=wf_page.metrics.1 cashflow=wf_page.metrics.2 %}
+      <article class="wf2p-insight-metric"><span>{{ spending.label|default:'Gasto no período' }}</span><strong class="wf2p-sensitive">{{ spending.value|default:'—' }}</strong><small>{{ spending.detail|default:'Nenhum gasto categorizado neste período.' }}</small></article>
+      <article class="wf2p-insight-metric wf2p-cashflow-card"><span>Fluxo de caixa líquido</span><strong class="wf2p-positive-value wf2p-sensitive">{{ cashflow.value|default:'—' }}</strong><div><small>Receitas</small><b class="wf2p-sensitive">{{ wf_page.metrics.0.value|default:'—' }}</b></div><div><small>Gasto</small><b class="wf2p-sensitive">{{ spending.value|default:'—' }}</b></div></article>
+    {% endwith %}
+  </section>
+  <section class="wf2p-spending-plan" aria-labelledby="wf2p-spending-plan-title"><header><div><h2 id="wf2p-spending-plan-title">Plano de gastos</h2><p>Gasto orçado por categoria para o período selecionado.</p></div><span class="wf2p-muted">Ordenar por&nbsp; <button class="wf2p-select-button" type="button" disabled>gasto⌄</button></span></header>
+    <nav class="wf2p-plan-filters" aria-label="Filtros do plano"><button class="is-active" type="button" disabled>Todas <b>0</b></button><button type="button" disabled>Orçamento excedido <b>0</b></button><button type="button" disabled>Maiores variações <b>0</b></button><button type="button" disabled>Sem orçamento definido <b>0</b></button></nav>
+    <div class="wf2p-table-scroll"><table class="wf2p-table wf2p-spending-table"><thead><tr><th>Categoria</th><th>Gasto / orçamento</th><th>Progresso</th><th>Δ vs anterior</th></tr></thead><tbody><tr><td colspan="4" class="wf2p-empty-row">Nenhuma categoria publicada para esta consulta.</td></tr></tbody></table></div>
+    <footer><span>0 de 0 categoria mostrada</span><a class="wf2p-inline-link" data-wf2-preserve-query href="{{ wf_shell.activities_url|default:'/activities/' }}?tab=spending">Abrir transações →</a></footer>
+  </section>
+</div>

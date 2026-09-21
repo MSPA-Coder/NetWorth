@@ -1,14 +1,18 @@
-{% comment %}
-  Budget is an explicit source-capability boundary. The page keeps the
-  Wealthfolio information architecture without creating a local budget or a
-  write form before a source publishes a budget contract.
-{% endcomment %}
-<section class="wf2p-capability-hero wf2p-capability-hero--budget">
-  <div class="wf2p-capability-hero__icon" aria-hidden="true">⌁</div>
-  <div><p class="wf2p-kicker">Planejamento</p><h3>Orçamento mensal</h3><p>Organize a leitura do fluxo por mês quando uma fonte publicar metas de orçamento.</p></div>
-  <span class="wf2p-readonly-badge">Aguardando fonte</span>
-</section>
-<div class="wf2p-capability-grid">
-  <section class="wf2p-panel wf2p-capability-card"><header class="wf2p-panel__heading"><div><p class="wf2p-kicker">Estado atual</p><h3>Metas de orçamento</h3></div><span class="wf2p-status-dot" aria-label="Indisponível"></span></header><div class="wf2p-capability-state"><strong>Orçamento não publicado</strong><p>O Controle Bancário ainda não fornece metas mensais para esta visão.</p><small>Ainda não disponível nesta fase.</small></div></section>
-  <section class="wf2p-panel wf2p-capability-card"><header class="wf2p-panel__heading"><div><p class="wf2p-kicker">Disponível agora</p><h3>Fluxo observado</h3></div><span class="wf2p-muted">Somente leitura</span></header><p class="wf2p-capability-copy">O fluxo consolidado pode ser consultado na análise de gastos enquanto o contrato de orçamento não existe.</p><a class="wf2p-button wf2p-button--primary" data-wf2-preserve-query href="{% url 'consolidado:spending_insights' %}">Abrir análise de gastos</a></section>
+<div class="wf2p-reference-page wf2p-reference-page--budget">
+  <header class="wf2p-reference-toolbar wf2p-reference-toolbar--back">
+    <a class="wf2p-reference-back" data-wf2-preserve-query href="{{ wf_shell.dashboard_url|default:'/dashboard/' }}" aria-label="Voltar ao painel">←</a>
+    <div><h1>Orçamento</h1><p>O plano, os dados reais e as exceções deste mês.</p></div>
+    <div class="wf2p-month-control"><button type="button" disabled aria-label="Mês anterior">‹</button><span>{{ month_label|default:month|default:'Mês selecionado' }}</span><button type="button" disabled aria-label="Mês seguinte">›</button></div>
+  </header>
+  <div class="wf2p-budget-layout">
+    <main>
+      <section class="wf2p-budget-plan"><p class="wf2p-kicker">Plano mensal</p><strong>—</strong><span>Nenhum orçamento publicado</span><div class="wf2p-budget-legend"><span>Needs&nbsp; —</span><span>Wants&nbsp; —</span><span>Savings&nbsp; —</span><span>Giving&nbsp; —</span><span>Personal&nbsp; —</span><span>Other&nbsp; —</span></div></section>
+      <p class="wf2p-budget-note">As metas de orçamento pertencem à fonte de dados e permanecem somente leitura nesta tela.</p>
+      <section class="wf2p-budget-categories" aria-label="Categorias do orçamento"><div class="wf2p-budget-category"><span>Needs</span><small>— / —</small><b>—<em>/ mês</em></b></div><div class="wf2p-budget-category"><span>Wants</span><small>— / —</small><b>—<em>/ mês</em></b></div><div class="wf2p-budget-category"><span>Savings</span><small>— / —</small><b>—<em>/ mês</em></b></div><div class="wf2p-budget-category"><span>Giving</span><small>— / —</small><b>—<em>/ mês</em></b></div><div class="wf2p-budget-category"><span>Personal</span><small>— / —</small><b>—<em>/ mês</em></b></div><div class="wf2p-budget-category"><span>Other</span><small>— / —</small><b>—<em>/ mês</em></b></div></section>
+    </main>
+    <aside>
+      <section class="wf2p-budget-receipts"><h2>▣&nbsp; Receitas <strong>—</strong></h2><p>Nenhuma receita publicada para este mês.</p><span class="wf2p-button wf2p-button--disabled" aria-disabled="true">＋ Adicionar fonte</span></section>
+      <section class="wf2p-budget-copy"><h2>▣&nbsp; Copiar o plano de outro mês</h2><p>A cópia de planos pertence à fonte de orçamento e não está disponível nesta fase.</p><span class="wf2p-button wf2p-button--disabled" aria-disabled="true">Copiar plano</span></section>
+    </aside>
+  </div>
 </div>

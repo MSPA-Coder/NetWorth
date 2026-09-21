@@ -842,10 +842,17 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 "name": row["descricao"],
                 "ticker": row["descricao"],
                 "institution": ", ".join(row.get("instituicoes") or ()),
+                "detail": ", ".join(row.get("instituicoes") or ()),
                 "currency": row["moeda"],
                 "quantity": row.get("quantidade"),
+                "price": dinheiro(
+                    row["valor"] / row["quantidade"], row["moeda"]
+                ) if row.get("quantidade") else "Indisponível",
                 "value": dinheiro(row.get("valor"), row["moeda"]),
                 "weight": _percent_label(row.get("percentual")),
+                "return": dinheiro(row.get("ganho_nao_realizado"), row["moeda"])
+                if row.get("ganho_nao_realizado") is not None else "Indisponível",
+                "return_percent": _percent_label(row.get("retorno_percentual"), signed=True),
             }
             for row in context["holdings"]
         ]
@@ -1338,7 +1345,7 @@ def spending_insights_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="gastos")
     context["stage"] = request.GET.get("stage") or "where"
     context["page_type"] = "spending-insights"
-    context["wf_shell"] = _shell_vm(request, context, active="dashboard")
+    context["wf_shell"] = _shell_vm(request, context, active="spending")
     context["wf_page"] = _page_vm(context, kind="spending-insights", request=request)
     return render(request, "consolidado/wealthfolio_page_v2.html", context)
 
@@ -1348,8 +1355,9 @@ def spending_insights_view(request: HttpRequest) -> HttpResponse:
 def budget_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="gastos")
     context["month"] = request.GET.get("month") or context["data_da_tela"].strftime("%Y-%m")
+    context["month_label"] = context["data_da_tela"].strftime("%B %Y")
     context["page_type"] = "budget"
-    context["wf_shell"] = _shell_vm(request, context, active="dashboard")
+    context["wf_shell"] = _shell_vm(request, context, active="spending")
     context["wf_page"] = _page_vm(context, kind="budget", request=request)
     return render(request, "consolidado/wealthfolio_page_v2.html", context)
 

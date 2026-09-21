@@ -20,8 +20,11 @@
 {% block wf2_content %}
   <link rel="stylesheet" href="{% static 'css/wealthfolio-pages-v2.css' %}">
   <script src="{% static 'js/wealthfolio-pages-v2.js' %}" defer></script>
+  {% if wf_page.kind == 'activities' %}<link rel="stylesheet" href="{% static 'css/wealthfolio-activities-v2.css' %}"><script src="{% static 'js/wealthfolio-activities-v2.js' %}" defer></script>{% endif %}
   <div class="wf2-page" data-wf2-page data-page-kind="{{ wf_page.kind|default:page_type }}">
-    {% include "consolidado/wealthfolio_components/page_header.html" %}
+    {% if wf_page.kind != 'holdings' and wf_page.kind != 'activities' %}
+      {% include "consolidado/wealthfolio_components/page_header.html" %}
+    {% endif %}
     {% include "consolidado/wealthfolio_components/page_state.html" %}
 
     {% with kind=wf_page.kind|default:page_type %}

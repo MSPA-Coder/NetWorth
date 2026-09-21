@@ -69,8 +69,10 @@ def pages_client(monkeypatch):
         ("/accounts/", ("Contas conectadas", "Lista", "Mapa", "Buscar")),
         ("/holdings/", ("Todas as posições", "Investimentos", "Ativos", "Passivos", "Colunas")),
         ("/activities/", ("Atividades publicadas", "Adicionar", "Modo de visualização")),
-        ("/goals/", ("Metas financeiras", "Ainda não há metas", "Criar primeira meta")),
-        ("/assistant/", ("Assistente financeiro", "Assistente indisponível")),
+        ("/goals/", ("Metas", "Acompanhe e planeje suas metas financeiras", "Ainda não há metas", "Crie sua primeira meta")),
+        ("/assistant/", ("Nenhum provedor de IA configurado", "Configurar provedores de IA")),
+        ("/spending/insights/", ("Análise de gastos", "Onde estou", "O que mudou", "Quando e onde", "Plano de gastos")),
+        ("/spending/budget/", ("Orçamento", "Plano mensal", "Receitas", "Needs", "Copiar o plano de outro mês")),
         ("/settings/", ("Configurações", "PREFERÊNCIAS", "FINANÇAS", "CONEXÕES")),
     ],
 )
@@ -99,3 +101,17 @@ def test_holding_detail_and_state_contracts_remain_present(pages_client):
     assert missing.status_code == 200
     assert "Posição não encontrada" in missing.content.decode()
 
+
+def test_holdings_and_activities_start_with_reference_toolbar(pages_client):
+    for path, first_marker in (("/holdings/", "Tipo de carteira"), ("/activities/", "Adicionar atividade")):
+        body = pages_client.get(path).content.decode()
+        assert first_marker in body
+        assert '<header class="wf2p-header">' not in body
+
+
+def test_settings_matches_general_read_only_structure(pages_client):
+    body = pages_client.get("/settings/").content.decode()
+    for marker in ("DADOS", "Valores mobiliários", "Classificações", "Backup e exportação", "Geral", "Moeda base", "Idioma e região"):
+        assert marker in body
+    assert 'disabled>Salvar moeda</button>' in body
+    assert 'aria-label="Idioma" disabled' in body
