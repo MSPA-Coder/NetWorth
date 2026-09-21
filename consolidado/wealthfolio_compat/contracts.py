@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 
 from .models import (
     AccountDTO,
+    ActivityDTO,
     Capabilities,
     Coverage,
     FlowDTO,
@@ -114,6 +115,7 @@ type SourceSnapshot = SnapshotDTO
 type Account = AccountDTO
 type Holding = PositionDTO
 type Activity = FlowDTO
+type IndividualActivity = ActivityDTO
 type RealizedGain = GainDTO
 type CapabilitySet = Capabilities
 
@@ -122,6 +124,8 @@ __all__ = [
     "Account",
     "AccountDTO",
     "Activity",
+    "ActivityDTO",
+    "IndividualActivity",
     "Capabilities",
     "CapabilitySet",
     "ChartSeries",

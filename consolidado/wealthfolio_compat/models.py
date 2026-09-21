@@ -150,6 +150,44 @@ class FlowDTO:
 
 
 @dataclass(frozen=True, slots=True)
+class ActivityDTO:
+    """Lançamento individual publicado por uma fonte v3.
+
+    A atividade é uma projeção imutável da origem. O shell não tenta inferir
+    categorias, dividir valores ou transformar uma atividade em lançamento
+    contábil local; campos opcionais permanecem vazios quando a fonte não os
+    publicou.
+    """
+
+    id: str
+    date: date
+    description: str
+    kind: str
+    status: str
+    value: Money
+    source: str
+    realized_value: Money | None = None
+    institution: str = ""
+    instrument: str = ""
+    owner: str = ""
+    category: str = ""
+    category_kind: str = ""
+    account: str = ""
+    origin: str = ""
+    link: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.id.strip():
+            raise DTOError("activity: id obrigatório")
+        if not isinstance(self.date, date):
+            raise DTOError("activity: data obrigatória")
+        for field_name in ("description", "kind", "status", "source"):
+            _text(getattr(self, field_name), field_name=field_name)
+        if self.realized_value is not None and self.realized_value.currency != self.value.currency:
+            raise DTOError("activity: moedas divergentes")
+
+
+@dataclass(frozen=True, slots=True)
 class IncomeDTO:
     value: Money
     source: str

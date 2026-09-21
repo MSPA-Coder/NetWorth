@@ -413,6 +413,23 @@ considerada concluída só por renderizar ou por ter teste de backend.
 - Cada lote encerra com a suíte Docker completa, smoke autenticado, revisão de
   cobertura/moeda/data e checkpoint visual antes do lote seguinte.
 
+#### Progresso do lote E — contratos de atividades (2026-09-21)
+
+Os dois publicadores agora têm alterações aditivas preparadas em PRs, sem
+alterar v1/v2 nem aceitar escritas:
+
+- Controle Bancário: `/patrimonio/v3/activities`, `/categories` e `/metadata`,
+  com filtros de período/conta/categoria/status/natureza, paginação estável,
+  IDs opacos e deep links.
+- Controle de Renda Variável: os mesmos recursos, publicando transações
+  encerradas e proventos de carteiras reais, com IDs opacos sem colisão e
+  deep links locais.
+
+O NetWorth ainda precisa consumir esses endpoints na rota `/activities/` e
+manter o estado parcial quando apenas uma fonte responder. Até esse consumo
+ser integrado e validado, a tela continua explicitamente indisponível para
+lançamentos individuais; nenhum dado é copiado para tabelas locais.
+
 
 ## 8. Divisão entre agentes Luna
 

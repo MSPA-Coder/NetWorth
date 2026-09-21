@@ -5,6 +5,13 @@ Renda Variável em DTOs imutáveis. Ele não consulta banco, não grava nada e n
 contém entidades espelho dos sistemas de origem.
 """
 
+from .activities import (
+    ActivityComposition,
+    ActivitySourceResult,
+    compose_activities,
+    fetch_activities,
+    normalize_activities_payload,
+)
 from .adapters import (
     CompositionResult,
     SourceResult,
@@ -22,12 +29,14 @@ from .contracts import (
     ChartSeries,
     DeepLink,
     Holding,
+    IndividualActivity,
     PerformancePoint,
     RealizedGain,
     SourceSnapshot,
 )
 from .models import (
     AccountDTO,
+    ActivityDTO,
     Capabilities,
     Coverage,
     FlowDTO,
@@ -47,6 +56,7 @@ __all__ = [
     "CompatibilityError",
     "Coverage",
     "FlowDTO",
+    "ActivityDTO",
     "GainDTO",
     "IncomeDTO",
     "Money",
@@ -57,6 +67,7 @@ __all__ = [
     "Account",
     "Holding",
     "Activity",
+    "IndividualActivity",
     "RealizedGain",
     "CapabilitySet",
     "DeepLink",
@@ -64,6 +75,8 @@ __all__ = [
     "ChartSeries",
     "SourceResult",
     "CompositionResult",
+    "ActivityComposition",
+    "ActivitySourceResult",
     "SourceStatus",
     "adapt_payload",
     "adapt_response",
@@ -76,4 +89,7 @@ __all__ = [
     "response_from_payload",
     "normalize_payload",
     "normalize_payloads",
+    "compose_activities",
+    "fetch_activities",
+    "normalize_activities_payload",
 ]

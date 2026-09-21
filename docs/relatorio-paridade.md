@@ -68,13 +68,14 @@ Wealthfolio. Ainda precisam de implementação/validação coordenada:
 1. screenshot diff nos viewports de `docs/wealthfolio-parity/matriz.md`, com
    máscara somente para dados dinâmicos;
 2. validação de foco, teclado, tooltip, carregamento/erro e console no navegador;
-3. contratos v3 dos dois sistemas para atividades individuais, categorias,
-   metadados, eventos, séries de renda e performance;
+3. consumo dos contratos v3 aditivos dos dois sistemas para atividades,
+   categorias e metadados; os endpoints já estão preparados em PRs, mas ainda
+   precisam ser integrados ao shell;
 4. IDs opacos/deep links publicados pelas fontes em todas as rotas derivadas;
 5. substituição das telas derivadas provisórias por componentes próprios quando
    a referência exigir interação ainda indisponível;
-6. contratos v3 aditivos nas fontes, quando as telas exigirem atividades,
-   categorias ou metadados que ainda não são publicados.
+6. eventos, séries de renda e performance ainda não publicados pelas fontes,
+   além da revisão/integração dos PRs v3 de atividades.
 
 Uma rota só deve ser marcada como concluída depois dos gates automáticos e da
 evidência visual/interativa correspondente. `HTTP 200` sozinho não é critério

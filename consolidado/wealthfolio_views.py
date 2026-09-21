@@ -24,7 +24,9 @@ from consolidado import dashboard, fotos, grafico
 from consolidado import insights as insights_builder
 from consolidado import views as legacy_views
 from consolidado.cambio import MOEDA_BASE, converter_totais
+from consolidado.fontes import fontes_configuradas
 from consolidado.templatetags.dinheiro import dinheiro
+from consolidado.wealthfolio_compat.activities import compose_activities, fetch_activities
 from consolidado.wealthfolio_compat.view_models import (
     UnavailableVM,
     build_view_models,
@@ -746,11 +748,97 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             else:
                 page["state"] = "empty"
     elif kind == "activities":
-        page.update(
-            state="empty",
-            empty_title="Atividades individuais não publicadas",
-            empty_message="As fontes atuais publicam fluxos agregados, não lançamentos individuais.",
-        )
+        composition = context.get("activity_composition")
+        if composition is None:
+            page.update(
+                state="empty",
+                empty_title="Atividades individuais não publicadas",
+                empty_message="As fontes atuais ainda não publicaram atividades para esta consulta.",
+            )
+        elif composition.status == "error":
+            # A cobertura do cabeçalho continua descrevendo a fotografia v1/v2;
+            # a falha específica da extensão v3 fica explícita neste estado.
+            page.update(
+                state="error",
+                error_title="Atividades indisponíveis",
+                error_message="; ".join(composition.coverage.omissions) or "As fontes não responderam.",
+                retry_url=request.get_full_path(),
+            )
+        else:
+            page["meta"] = {
+                "complete": composition.coverage.complete,
+                "sources_responded": composition.coverage.responded_sources,
+                "sources_expected": composition.coverage.expected_sources,
+                "warning": "; ".join(composition.coverage.omissions),
+            }
+            if not composition.activities:
+                page.update(
+                    state="empty",
+                    empty_title="Nenhuma atividade publicada",
+                    empty_message="As fontes responderam, mas não há atividades para o período selecionado.",
+                )
+            else:
+                fontes = {}
+                for fonte in fontes_configuradas():
+                    fontes[fonte.apelido.casefold()] = fonte
+                    fontes[fonte.nome.casefold()] = fonte
+                    fontes[
+                        "controle-bancario"
+                        if fonte.apelido.casefold() == "cb"
+                        else "controle-renda-variavel"
+                    ] = fonte
+                rows = []
+                busca = (request.GET.get("busca") or "").strip().casefold()
+                for activity in composition.activities:
+                    searchable = " ".join(
+                        (
+                            activity.description,
+                            activity.institution,
+                            activity.instrument,
+                            activity.category,
+                            activity.origin,
+                            activity.source,
+                        )
+                    ).casefold()
+                    if busca and busca not in searchable:
+                        continue
+                    value = activity.realized_value or activity.value
+                    positive = value.amount >= 0
+                    fonte = fontes.get(activity.source.casefold())
+                    url = fonte.link(activity.link) if fonte and activity.link else activity.link
+                    rows.append(
+                        {
+                            "url": url,
+                            "date": activity.date.strftime("%d/%m/%Y"),
+                            "description": activity.description,
+                            "detail": " · ".join(
+                                part
+                                for part in (
+                                    activity.institution,
+                                    activity.instrument,
+                                    activity.account,
+                                )
+                                if part
+                            ),
+                            "nature": activity.category_kind or activity.kind,
+                            "source": activity.source,
+                            "currency": value.currency,
+                            "inflow": dinheiro(
+                                value.amount if positive else Decimal("0"), value.currency
+                            ),
+                            "outflow": dinheiro(
+                                abs(value.amount) if not positive else Decimal("0"), value.currency
+                            ),
+                            "net": dinheiro(value.amount, value.currency),
+                        }
+                    )
+                page["rows"] = rows
+                if not rows:
+                    page.update(
+                        state="empty",
+                        empty_title="Nenhuma atividade corresponde à busca",
+                        empty_message="A fonte não publicou um registro correspondente aos filtros selecionados.",
+                    )
     elif kind == "spending-insights":
         page["stages"] = [
             {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": request.GET.get("stage", "where") == key}
@@ -921,6 +1009,29 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
 def activities_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="gastos")
     context["activities"] = context["consolidado"].fluxos
+    fontes = fontes_configuradas()
+    if fontes:
+        page = request.GET.get("page") or "1"
+        page_size = request.GET.get("page_size") or "100"
+        try:
+            page_number = max(1, int(page))
+        except (TypeError, ValueError):
+            page_number = 1
+        try:
+            page_limit = min(500, max(1, int(page_size)))
+        except (TypeError, ValueError):
+            page_limit = 100
+        inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
+        context["activity_composition"] = compose_activities(
+            fetch_activities(
+                fonte,
+                inicio=inicio,
+                fim=context["data_da_tela"],
+                page=page_number,
+                page_size=page_limit,
+            )
+            for fonte in fontes
+        )
     context["page_type"] = "activities"
     context["wf_shell"] = _shell_vm(request, context, active="activities")
     context["wf_page"] = _page_vm(context, kind="activities", request=request)
