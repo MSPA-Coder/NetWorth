@@ -864,21 +864,37 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         else:
             account = context.get("account")
             if account:
+                totals = account.get("totais_por_moeda") or ()
+                if account.get("total") is not None:
+                    account_value = dinheiro(account["total"], account["moeda"])
+                elif totals:
+                    account_value = " · ".join(
+                        dinheiro(item.get("total"), item.get("moeda"))
+                        for item in totals
+                    )
+                else:
+                    account_value = "Indisponível"
                 page["account"] = {
-                    "name": account["instituicao"],
+                    "name": account.get("nome") or account["instituicao"],
                     "institution": account["instituicao"],
                     "type": "Conta publicada",
-                    "currency": account["moeda"],
-                    "value": dinheiro(account["total"], account["moeda"]),
+                    "currency": account.get("moeda") or "",
+                    "value": account_value,
                 }
+
+                def field(line: Any, name: str, default: Any = "") -> Any:
+                    if isinstance(line, dict):
+                        return line.get(name, default)
+                    return getattr(line, name, default)
+
                 page["rows"] = [
                     {
-                        "name": line.descricao,
-                        "description": line.descricao,
-                        "source": line.fonte,
-                        "currency": line.moeda,
-                        "value": dinheiro(line.valor, line.moeda),
-                        "url": line.link,
+                        "name": field(line, "descricao"),
+                        "description": field(line, "descricao"),
+                        "source": field(line, "fonte"),
+                        "currency": field(line, "moeda"),
+                        "value": dinheiro(field(line, "valor"), field(line, "moeda")),
+                        "url": field(line, "link"),
                     }
                     for line in account.get("linhas") or ()
                 ]
@@ -1151,9 +1167,82 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
     context = _base_context(request, visao="investimentos")
     context["accounts"] = context["consolidado"].por_instituicao()
     context["account_id"] = account_id
-    context["account"] = next(
-        (item for item in context["accounts"] if item["instituicao"] == account_id), None
+
+    # A dashboard group is a first-class Wealthfolio drill-down (for example
+    # ``Esposita``), while the legacy page historically resolved institutions
+    # only (for example ``Mercado Pago``).  Resolve both surfaces against the
+    # same published tree so a click never lands on a technically valid but
+    # empty detail page.
+    account = next(
+        (item for item in context["accounts"] if item["instituicao"] == account_id),
+        None,
     )
+    if account is None:
+        group = next(
+            (item for item in context["arvore_drilldown"] if item["nome"] == account_id),
+            None,
+        )
+        if group is not None:
+            totals = group.get("totais_por_moeda") or ()
+            group_lines = [
+                line
+                for child in group.get("contas") or ()
+                for line in child.get("linhas") or ()
+            ]
+            if len(totals) == 1:
+                currency = totals[0].get("moeda") or "BRL"
+                total = totals[0].get("total")
+            else:
+                currency = ""
+                total = None
+            account = {
+                "nome": group["nome"],
+                "instituicao": group["nome"],
+                "moeda": currency,
+                "total": total,
+                "totais_por_moeda": totals,
+                "linhas": group_lines,
+            }
+
+    # A source can publish multiple accounts under one institution.  Preserve
+    # the optional account label from the clicked URL instead of silently
+    # displaying the institution aggregate again.
+    account_filter = (request.GET.get("account") or request.GET.get("conta") or "").strip()
+    if account and account_filter:
+        needle = account_filter.casefold()
+
+        def line_value(line: Any, name: str, default: Any = "") -> Any:
+            if isinstance(line, dict):
+                return line.get(name, default)
+            return getattr(line, name, default)
+
+        matching = [
+            line
+            for line in account.get("linhas") or ()
+            if needle in str(line_value(line, "descricao")).strip().casefold()
+        ]
+        if matching:
+            currencies = {str(line_value(line, "moeda")) for line in matching}
+            if len(currencies) == 1:
+                currency = next(iter(currencies))
+                total = sum(
+                    (line_value(line, "valor", Decimal("0")) for line in matching),
+                    Decimal("0"),
+                )
+            else:
+                currency = account.get("moeda") or "BRL"
+                total = account.get("total")
+            account = {
+                **account,
+                "nome": f"{account.get('nome') or account['instituicao']} · {account_filter}",
+                "moeda": currency,
+                "total": total,
+                "totais_por_moeda": [
+                    {"moeda": currency, "total": total}
+                ] if len(currencies) == 1 else account.get("totais_por_moeda") or (),
+                "linhas": matching,
+            }
+    context["account"] = account
     context["page_type"] = "account-detail"
     context["wf_shell"] = _shell_vm(request, context, active="holdings")
     context["wf_page"] = _page_vm(context, kind="account-detail", request=request)

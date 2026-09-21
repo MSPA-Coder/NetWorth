@@ -74,6 +74,20 @@ def test_dashboard_and_insights_routes_render(logged_client):
     assert "Portfolio Insights" not in insights_body
 
 
+def test_account_detail_resolves_groups_and_published_account_filter(logged_client):
+    client = logged_client
+
+    group = client.get("/accounts/Pessoa/")
+    filtered = client.get("/accounts/Banco/", {"account": "Conta"})
+
+    assert group.status_code == 200
+    assert group.context["wf_page"]["account"]["name"] == "Pessoa"
+    assert "Conta" in group.content.decode()
+    assert filtered.status_code == 200
+    assert filtered.context["wf_page"]["account"]["name"] == "Banco · Conta"
+    assert len(filtered.context["wf_page"]["rows"]) == 1
+
+
 def test_dashboard_api_keeps_currency_and_coverage(logged_client):
     response = logged_client.get("/api/wealthfolio/dashboard/")
 
