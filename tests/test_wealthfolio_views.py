@@ -67,6 +67,8 @@ def test_dashboard_and_insights_routes_render(logged_client):
     insights = logged_client.get("/insights/", {"tab": "summary"})
 
     assert dashboard.status_code == 200
+    assert dashboard.context["periodo"] == "3m"
+    assert "últimos 3 meses" in dashboard.content.decode().lower()
     assert "Dashboard" in dashboard.content.decode()
     assert insights.status_code == 200
     insights_body = insights.content.decode()

@@ -42,7 +42,7 @@ from consolidado.wealthfolio_compat.view_models import (
 PERIODS = legacy_views.PERIODOS_DASHBOARD
 
 
-def _date_and_period(request: HttpRequest) -> tuple[date, str, date]:
+def _date_and_period(request: HttpRequest, *, dashboard_default: bool = False) -> tuple[date, str, date]:
     raw = (request.GET.get("data") or "").strip()
     try:
         anchor = date.fromisoformat(raw) if raw else date.today()
@@ -50,7 +50,7 @@ def _date_and_period(request: HttpRequest) -> tuple[date, str, date]:
         anchor = date.today()
     reference = anchor
     period = request.GET.get("periodo") or (
-        "3m" if request.GET.get("tab") == "spending" else "1a"
+        "3m" if dashboard_default or request.GET.get("tab") == "spending" else "1a"
     )
     if period not in PERIODS and period not in {"este_mes", "mes_passado"}:
         period = "1a"
@@ -59,10 +59,10 @@ def _date_and_period(request: HttpRequest) -> tuple[date, str, date]:
     return reference, period, anchor
 
 
-def _base_context(request: HttpRequest, *, visao: str) -> dict[str, Any]:
+def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool = False) -> dict[str, Any]:
     """Build one request snapshot shared by every Wealthfolio route."""
 
-    reference, period, period_anchor = _date_and_period(request)
+    reference, period, period_anchor = _date_and_period(request, dashboard_default=dashboard_default)
     inicio = legacy_views._inicio_do_periodo(period, reference)
     consolidado = legacy_views.consolidar_v2(
         inicio=inicio,
@@ -1267,7 +1267,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     tab = request.GET.get("tab") or "investments"
     if tab not in {"investments", "net-worth", "spending"}:
         tab = "investments"
-    context = _base_context(request, visao="patrimonio" if tab == "net-worth" else "gastos" if tab == "spending" else "investimentos")
+    context = _base_context(request, visao="patrimonio" if tab == "net-worth" else "gastos" if tab == "spending" else "investimentos", dashboard_default=True)
     context.update(
         {
             "dashboard_tab": tab,
