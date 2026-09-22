@@ -203,10 +203,37 @@ e avisa, antes do número, que aquele total não é o patrimônio inteiro.
 
 ## Validação
 
-```bash
+A suíte tem duas camadas, e o venv só alcança uma delas.
+
+**No venv — o laço rápido do ciclo de edição.** Duas variáveis precisam estar
+no ambiente: sem elas o Django nem importa, porque `sharedauth.secrets` recusa
+subir sem segredo configurado. Os valores abaixo são descartáveis e servem só
+para a suíte.
+
+```powershell
+$env:DJANGO_SECRET_KEY = "dev-only-nao-usada-em-producao"
+$env:POSTGRES_PASSWORD = "dev-only"
+
 .venv\Scripts\python.exe -m ruff check .
-.venv\Scripts\python.exe -m pytest
+.venv\Scripts\python.exe -m pytest -m "not django_db"
 ```
+
+O filtro `-m "not django_db"` não é opcional aqui: **não há PostgreSQL no
+host**. Sem ele, os testes marcados com `django_db` não falham por defeito —
+eles erram com `django.db.utils.OperationalError`, e a mensagem não aponta
+para a causa. São 90 testes nesta camada.
+
+**No Docker — o portão de verdade.** A camada com banco roda no perfil
+`quality`, que sobe o `postgres-teste` efêmero junto. São 228 testes, e é o
+que precisa passar antes de publicar.
+
+```powershell
+docker compose --env-file .env.docker --profile quality run --build --rm quality
+```
+
+O `--build` importa: o contêiner testa o código **da imagem**, não o do disco.
+Sem reconstruir, uma alteração recém-salva não é exercitada, e a suíte passa
+sobre a versão anterior sem avisar.
 
 [Controle Bancário]: ../ControleBancario
 [Controle de Renda Variável]: ../ControleRendaVariavel
