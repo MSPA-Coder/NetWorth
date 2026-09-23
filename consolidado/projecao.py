@@ -105,6 +105,11 @@ class ContaProjetada:
     menor_saldo: Decimal
     data_do_menor: date
     link: str = ""
+    tipo: str = ""
+
+    @property
+    def e_cartao_de_credito(self) -> bool:
+        return self.tipo == leitor.TIPO_CARTAO_DE_CREDITO
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +239,7 @@ def interpretar(fonte: Fonte, corpo: Any) -> ProjecaoDeCaixa:
                 menor_saldo=para_decimal(menor.get("valor"), "contas.menor_saldo"),
                 data_do_menor=_data(menor.get("data"), "contas.menor_saldo"),
                 link=leitor._link(fonte, item.get("deep_link"), "contas"),
+                tipo=leitor._texto_opcional(item, "tipo", "contas"),
             )
         )
 

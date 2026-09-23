@@ -93,10 +93,19 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
     )
     detail = []
     if conversion.possivel:
+        # O caixa publicado inclui o saldo dos cartões (dívida). A soma fica
+        # igual; o detalhamento só separa a fatura a pagar do dinheiro em conta.
+        cards = contexto.valor_dos_cartoes(consolidado.linhas, reference)
+        rows = []
         for role, label in (("investimento", "Investimentos"), ("caixa", "Caixa")):
             value = contexto.valor_do_papel(by_role, role, reference)
-            if value is not None:
-                detail.append({"nome": label, "valor": value, "percentual": value * 100 / conversion.total if conversion.total else Decimal("0")})
+            if role == "caixa" and value is not None and cards:
+                rows.append((label, value - cards))
+                rows.append(("Cartões de crédito", cards))
+            elif value is not None:
+                rows.append((label, value))
+        for label, value in rows:
+            detail.append({"nome": label, "valor": value, "percentual": value * 100 / conversion.total if conversion.total else Decimal("0")})
     # Keep both series available to the client.  The Investments and Net Worth
     # tabs differ only in the selected metric; recomputing one from the other
     # in JavaScript would incorrectly hide a missing/partial source.
@@ -709,7 +718,9 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
                 "label": item.label,
                 "value": _money_label(item.values),
                 "percent": _percent_label(item.percent),
-                "percent_number": item.percent or Decimal("0"),
+                # A barra é de proporção: a dívida dos cartões aparece na
+                # linha, com o sinal, mas não ocupa espaço na barra.
+                "percent_number": max(item.percent or Decimal("0"), Decimal("0")),
                 "total": item.key == "total",
             }
         )

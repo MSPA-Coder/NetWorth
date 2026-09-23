@@ -268,6 +268,17 @@ def test_tela_mostra_metricas_premissas_e_aviso_de_conta_negativa(cliente, monke
 
 
 @pytest.mark.django_db
+def test_cartao_negativo_nao_e_aviso_de_falta_de_caixa(cliente, monkeypatch):
+    corpo = envelope()
+    corpo["contas"][0]["tipo"] = "cartao_credito"
+    _com_projecao(monkeypatch, corpo)
+
+    resposta = cliente.get("/projecao/", {"horizonte": "tudo"})
+
+    assert resposta.context["wf_page"]["contas_negativas"] == []
+
+
+@pytest.mark.django_db
 def test_tela_sem_projecao_mostra_o_motivo(cliente, monkeypatch):
     monkeypatch.setattr(
         projecao, "buscar",
