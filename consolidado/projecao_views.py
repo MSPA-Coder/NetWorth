@@ -254,7 +254,9 @@ def pagina(request: HttpRequest, context: dict[str, Any], hoje: date) -> dict[st
                 "link": conta.link,
             }
             for conta in lida.contas
+            # Cartão negativo é fatura a pagar, não falta de caixa.
             if conta.menor_saldo < 0 and conta.data_do_menor <= projetado.ate
+            and not conta.e_cartao_de_credito
         ],
         "meses": [
             {

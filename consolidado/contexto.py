@@ -66,6 +66,25 @@ def valor_do_papel(blocos: list[dict], papel: str, referencia: date) -> Decimal 
     return conversao.total if conversao.possivel else None
 
 
+def valor_dos_cartoes(linhas: list[Any], referencia: date) -> Decimal | None:
+    """A dívida dos cartões de crédito em moeda base (negativa), ou None sem taxa.
+
+    O saldo do cartão já entra no caixa publicado pelo Controle Bancário -- a
+    soma do patrimônio não muda. Separá-lo só deixa à vista que parte do caixa
+    é, na verdade, fatura a pagar.
+    """
+    totais: dict[str, Decimal] = {}
+    for linha in linhas:
+        if getattr(linha, "e_cartao_de_credito", False):
+            totais[linha.moeda] = totais.get(linha.moeda, Decimal("0.00")) + linha.valor
+    if not totais:
+        return Decimal("0.00")
+    conversao = converter_totais(
+        [{"moeda": moeda, "total": total} for moeda, total in sorted(totais.items())], referencia
+    )
+    return conversao.total if conversao.possivel else None
+
+
 def variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) -> dict | None:
     if atual is None:
         return None

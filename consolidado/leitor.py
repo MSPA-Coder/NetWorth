@@ -59,6 +59,10 @@ TAMANHO_MAXIMO_BYTES = 8 * 1024 * 1024
 
 logger = logging.getLogger(__name__)
 
+#: Conta de cartão de crédito no Controle Bancário: o saldo é dívida, negativo
+#: por natureza. Ver "Cartão de crédito" em docs/domain.md daquele repositório.
+TIPO_CARTAO_DE_CREDITO = "cartao_credito"
+
 OK = "ok"
 FALHOU = "falhou"
 NAO_RESPONDEU = "nao_respondeu"
@@ -108,6 +112,10 @@ class Linha:
     @property
     def instrumento(self) -> str:
         return self.descricao
+
+    @property
+    def e_cartao_de_credito(self) -> bool:
+        return self.tipo == TIPO_CARTAO_DE_CREDITO
 
     @property
     def valor_bruto(self) -> Decimal:
@@ -850,6 +858,7 @@ def interpretar(fonte: Fonte, corpo: dict) -> Leitura:
                     valor=_para_decimal(conta.get("saldo"), onde),
                     id_de_origem=_texto_opcional(conta, "id", onde),
                     link=_link(fonte, conta.get("endereco"), onde),
+                    tipo=_texto_opcional(conta, "tipo", onde),
                 )
             )
         for indice, posicao in enumerate(corpo.get("posicoes") or []):
