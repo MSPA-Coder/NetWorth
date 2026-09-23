@@ -1,5 +1,76 @@
 # Plano de implementação — Wealthfolio como shell do NetWorth
 
+## 0. Revisão de rumo — 23/09/2026
+
+Esta seção prevalece sobre o restante do documento onde houver conflito. As
+seções seguintes continuam valendo para a camada de dados, os contratos e os
+limites de escrita; o que muda é **o que conta como pronto** na interface.
+
+### O que mudou
+
+**O Wealthfolio passa de gabarito a referência de design.** O NetWorth não é
+uma instalação do Wealthfolio: é uma reimplementação em Django do visual de
+um app React. Perseguir paridade pixel a pixel com ele é caro, não termina, e
+depende de uma instância externa -- que se perdeu uma vez e parou o trabalho.
+
+Continua valendo do Wealthfolio: a organização (sidebar, abas Investimentos /
+Patrimônio líquido / Gastos, Holdings, Insights, Accounts, Activities), a
+linguagem de cartões e gráficos, a ocultação de valores, e os conceitos de
+tela. Deixa de valer: diferença máxima de 2 px, diff visual abaixo de 1% e a
+proibição de acrescentar cards ou telas que a referência não tem.
+
+O critério passa a ser: **consistente, legível, correto sobre cobertura e
+moeda, e melhor que a referência onde os dados das fontes permitirem**. A
+instância de referência serve para consultar e comparar ideias, não como
+portão de aceite.
+
+**O diferencial entra no plano.** O Controle Bancário tem lançamentos futuros,
+recorrência e fluxo de caixa, que o Wealthfolio não tem. A tela de patrimônio
+projetado (saldo de hoje, mais lançamentos futuros do CB, mais proventos
+anunciados do CRV) passa a ser prioridade, à frente das rotas que só existem
+por paridade.
+
+**Metas (Goals) e Assistente continuam no horizonte**, fora do escopo
+obrigatório desta etapa. Eles não são cortados: as rotas continuam existindo
+com estado indisponível, e a arquitetura já comporta os dois:
+
+- Metas seriam o primeiro dado que **pertence ao próprio NetWorth** (valor
+  alvo, prazo, contas ou posições associadas), o que a seção 1 já prevê;
+  o progresso sai das mesmas leituras somente-leitura das fontes;
+- o Assistente seria uma conversa com um modelo de linguagem que consulta os
+  mesmos view-models, sem acesso de escrita às fontes.
+
+Antes de desenhar qualquer um dos dois, o usuário vai experimentar como eles
+funcionam no Wealthfolio de referência.
+
+### Direção de longo prazo
+
+1. Agora: **experiência única com dados federados** -- login único,
+   navegação comum entre os três aplicativos e visual base no SharedAuth. CB e
+   CRV continuam donos dos dados e das telas de lançamento; o NetWorth é a
+   visão sintética e leva de volta ao analítico por deep links.
+2. Talvez depois: **um aplicativo e um banco**. CB e NetWorth já são Django, e
+   seriam os primeiros a conviver no mesmo projeto; o CRV (Flask) seria o
+   último. Antes dessa fusão é preciso decidir a licença: código combinado com
+   o que deriva do Wealthfolio fica sob AGPL-3.0.
+
+Uso atual: pessoal. No futuro pode incluir a família, o que pesa a favor do
+login único e das permissões por titular que o CB já tem.
+
+### Ordem de trabalho a partir daqui
+
+| Fase | Entrega |
+| --- | --- |
+| 0. Referência | Instância 3.8.0 restaurada em `referencia-wealthfolio/`; NOTICE aponta ao código-fonte público. **Feito em 23/09/2026.** |
+| 1. Meta revisada | Esta seção. **Feito em 23/09/2026.** |
+| 2. Limpeza | Um só caminho de dados: `leitor.consolidar_v2` → `Consolidado` → `consolidado/contexto.py` → view-models → templates. O caminho paralelo (`adapters`/`normalize`/`contracts`/`SnapshotDTO`), que só os testes usavam, foi retirado; `views.py` e os templates `patrimonio.html`/`historico.html`, sem rota, também. **Feito em 23/09/2026.** |
+| 3. Diferencial | Tela de fluxo de caixa e patrimônio projetado, sobre os lançamentos futuros do CB (v3) e os proventos do CRV. Desenho aprovado pelo usuário antes do código. |
+| 4. Experiência única | Login único, barra comum para trocar de aplicativo e visual base no SharedAuth; os três atualizados para a mesma versão do SharedAuth. |
+| 5. Horizonte | Metas e Assistente; lançamento rápido pelo NetWorth gravando pela API da fonte; fusão CB + NetWorth. Cada um por decisão própria. |
+
+Os lotes B, C, D e F da seção 7 continuam como lista de telas a construir,
+mas o aceite de cada uma segue o critério desta seção, não o da seção 10.
+
 ## 1. Objetivo
 
 O NetWorth deve oferecer a mesma interface, navegação e experiência de consulta
@@ -35,7 +106,8 @@ A referência fica congelada em:
 - revisão `8f6f9898d30e84d7215e01d3d06cd65e02c9ab1b`;
 - imagem local com digest
   `sha256:3c6f117828949204029c2b4a391f039e62987b4e091139e11b04e6764b5f6866`;
-- instância de referência local em `http://127.0.0.1:8088`.
+- instância de referência local em `http://127.0.0.1:8088`, definida em
+  `referencia-wealthfolio/compose.yaml` (volume externo `wealthfolio-data`).
 
 Não usar a tag móvel `latest` como baseline durante a implementação.
 
@@ -51,6 +123,9 @@ afiliação, endosso ou distribuição oficial. Componentes reutilizados devem s
 identificados na documentação e em `NOTICE.md`.
 
 ## 3. Definição de fidelidade
+
+> **Substituída pela seção 0 (23/09/2026).** O texto abaixo registra o
+> critério original e não é mais portão de aceite.
 
 O resultado não será uma interface "inspirada" no Wealthfolio. Para cada rota,
 deve preservar:
@@ -356,6 +431,10 @@ Estado do repositório na revisão `8768aa1`:
 
 #### Lotes obrigatórios a partir do estado atual
 
+> **Redefinido em 23/09/2026 (seção 0, fase 2).** O caminho que ficou é o
+> que a produção já usava, o `Consolidado` do `leitor`, e não o `SnapshotDTO`;
+> o `leitor` já tinha a validação e os testes das regras de cobertura e moeda.
+
 **Lote A — consolidar o caminho de dados.** Separar o uso interno de
 `Consolidado` da superfície Wealthfolio: adapters HTTP normalizam cada fonte em
 `SnapshotDTO`; uma composição read-only produz `WealthfolioVM`; templates e
@@ -541,6 +620,10 @@ Verificações obrigatórias:
 
 ## 10. Comparação visual
 
+> **Não é mais portão de aceite (seção 0, 23/09/2026).** A comparação com a
+> referência continua útil para consulta; os limites numéricos abaixo não se
+> aplicam.
+
 As capturas devem usar a mesma versão, fixture, data, viewport, escala, DPR,
 locale, tema, aba e filtros.
 
@@ -573,7 +656,8 @@ Um lote só avança quando:
 5. build, migrations e `collectstatic --clear` passam;
 6. rotas autenticadas respondem 200 e rotas anônimas redirecionam para login;
 7. smoke dos endpoints JSON passa;
-8. comparação visual da rota passa em desktop e mobile;
+8. a rota foi revisada em desktop e mobile (foco, teclado, overflow), sem
+   exigir paridade com a referência;
 9. cobertura parcial, moeda e datas permanecem corretas;
 10. não houve escrita nem duplicação de dados das fontes.
 
@@ -591,10 +675,11 @@ Docker, sempre que um contrato publicado for alterado.
 
 O projeto estará concluído quando:
 
-1. o usuário reconhecer a interface como o Wealthfolio, e não como uma
-   interpretação do seu design;
-2. Dashboard, Insights e rotas derivadas tiverem a mesma estrutura e
-   comportamento da versão fixada;
+1. Dashboard, Insights e rotas derivadas seguirem a organização do
+   Wealthfolio como referência de design, com liberdade para melhorá-la
+   (seção 0);
+2. a visão de fluxo de caixa e patrimônio projetado, que o Wealthfolio não
+   tem, estiver disponível;
 3. os dados exibidos vierem dos dois sistemas proprietários por contratos
    read-only e view-models;
 4. NetWorth não duplicar contas, posições, lançamentos ou categorias;
@@ -612,10 +697,10 @@ atribuição curta e o inventário geral das alterações ficam em `NOTICE.md`.
 
 O código-fonte correspondente à versão reutilizada/modificada deve ser
 mantido junto da distribuição ou disponibilizado por uma oferta válida de
-fonte, conforme a AGPL-3.0. Para o desenvolvimento local, a cópia auditada é
-`CodexTemp/wealthfolio-src-3.8.0`, na revisão acima; a URL/repositório público
-correspondente deve ser registrada no artefato de release quando houver
-distribuição externa.
+fonte, conforme a AGPL-3.0. O código-fonte correspondente é o repositório
+público `https://github.com/wealthfolio/wealthfolio`, tag `v3.8.0`, na revisão
+acima (a antiga cópia local em `CodexTemp/` se perdeu). O código do NetWorth é
+público em `https://github.com/MSPA-Coder/NetWorth`.
 
 Nenhum logo ou asset de marca do Wealthfolio deve ser apresentado como marca
 do NetWorth. O NetWorth deve manter nome, identidade visual própria e um aviso

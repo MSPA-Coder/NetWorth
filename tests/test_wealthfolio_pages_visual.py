@@ -56,7 +56,7 @@ def pages_client(monkeypatch):
             ),
         ]
     )
-    monkeypatch.setattr(wealthfolio_views.legacy_views, "consolidar_v2", lambda **_: snapshot)
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: snapshot)
     user = get_user_model().objects.create_user("visual-owner", password="senha-longa-o-suficiente")
     client = Client()
     client.force_login(user)

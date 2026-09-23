@@ -37,7 +37,7 @@ def logged_client(monkeypatch):
     user = get_user_model().objects.create_user("parity-owner", password="senha-longa-o-suficiente")
     client = Client()
     client.force_login(user)
-    monkeypatch.setattr(wealthfolio_views.legacy_views, "consolidar_v2", lambda **_: snapshot_completo())
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: snapshot_completo())
     return client
 
 
@@ -86,7 +86,7 @@ def test_partial_source_keeps_warning_and_available_rows(logged_client, monkeypa
     snapshot = snapshot_completo()
     snapshot.leituras[1].estado = leitor.FALHOU
     snapshot.leituras[1].linhas = []
-    monkeypatch.setattr(wealthfolio_views.legacy_views, "consolidar_v2", lambda **_: snapshot)
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: snapshot)
     dashboard = logged_client.get("/dashboard/", {"tab": "net-worth"})
     insights = logged_client.get("/insights/", {"tab": "summary"})
     assert dashboard.status_code == 200
@@ -98,7 +98,7 @@ def test_partial_source_keeps_warning_and_available_rows(logged_client, monkeypa
 
 
 def test_empty_snapshot_has_explicit_empty_states(logged_client, monkeypatch):
-    monkeypatch.setattr(wealthfolio_views.legacy_views, "consolidar_v2", lambda **_: leitor.Consolidado())
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: leitor.Consolidado())
     dashboard = logged_client.get("/dashboard/", {"tab": "spending"})
     insights = logged_client.get("/insights/", {"tab": "summary"})
     assert dashboard.status_code == 200

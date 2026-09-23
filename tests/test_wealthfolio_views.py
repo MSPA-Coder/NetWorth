@@ -58,7 +58,7 @@ def logged_client(monkeypatch):
     user = get_user_model().objects.create_user("wealthfolio", password="senha-longa-o-suficiente")
     client = Client()
     client.force_login(user)
-    monkeypatch.setattr(wealthfolio_views.legacy_views, "consolidar_v2", lambda **_kwargs: _snapshot())
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: _snapshot())
     return client
 
 

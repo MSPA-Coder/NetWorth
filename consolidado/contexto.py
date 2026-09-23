@@ -1,40 +1,25 @@
-"""A tela que responde "quanto eu tenho".
+"""Montagem, a partir do `Consolidado`, dos dados que as telas mostram.
 
-Ela mostra os totais **por moeda**, e não um número só: somar reais com dólares
-exige uma taxa, e taxa é decisão datada — ela entra na etapa do câmbio, com data
-e fonte visíveis em cada número convertido. Até lá, dois números certos valem
-mais que um número redondo e errado.
+Cada função aqui é pura em relação às fontes: recebe o consolidado (ou partes
+dele) já lido por `leitor.consolidar_v2` e só organiza, soma por moeda e
+converte com a taxa da data. Nenhuma consulta às fontes nasce aqui, e nenhum
+valor em moedas diferentes é somado sem uma conversão datada.
 
-E ela nunca mostra um total sem dizer de quantas fontes ele é feito. O estado de
-cada fonte vem no mesmo objeto que os totais, de propósito: é a única defesa
-contra o defeito que importa aqui — o patrimônio "cair" porque um dos sistemas
-estava reiniciando, com o número continuando plausível.
+As funções vieram de `views.py`, onde serviam à tela de patrimônio que o shell
+substituiu; o shell é o único consumidor.
 """
 
 from __future__ import annotations
 
 import json
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from hashlib import sha256
 from typing import Any
 from urllib.parse import urlencode
 
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
-from django.utils import timezone
-
-from consolidado import dashboard, fotos, grafico, insights
-from consolidado.cambio import MOEDA_BASE, converter_totais
-from consolidado.leitor import consolidar_v2
-
-#: Os recortes da tela de histórico. A chave vai na URL; o valor diz de quando
-#: a curva começa (`None` é a história inteira).
-PERIODOS = {
-    "tudo": ("Tudo", None),
-    "desde-2026": ("Desde 2026", fotos.INICIO_DO_PATRIMONIO),
-    "12-meses": ("12 meses", "12m"),
-}
+from consolidado import dashboard, fotos, grafico
+from consolidado.cambio import converter_totais
 
 PERIODOS_DASHBOARD = {
     "1d": ("1 dia", "1d"),
@@ -48,11 +33,8 @@ PERIODOS_DASHBOARD = {
     "tudo": ("Tudo", None),
 }
 
-ROTULOS_DO_PAPEL = {"caixa": "Caixa", "investimento": "Investimentos"}
-CASAS_DO_PERCENTUAL = Decimal("0.01")
 
-
-def _inicio_do_periodo(chave: str, referencia: date) -> date | None:
+def inicio_do_periodo(chave: str, referencia: date) -> date | None:
     if chave == "este_mes":
         return referencia.replace(day=1)
     if chave == "mes_passado":
@@ -76,7 +58,7 @@ def _inicio_do_periodo(chave: str, referencia: date) -> date | None:
     return inicio
 
 
-def _valor_do_papel(blocos: list[dict], papel: str, referencia: date) -> Decimal | None:
+def valor_do_papel(blocos: list[dict], papel: str, referencia: date) -> Decimal | None:
     bloco = next((item for item in blocos if item["nome"] == papel), None)
     if bloco is None:
         return Decimal("0.00")
@@ -84,7 +66,7 @@ def _valor_do_papel(blocos: list[dict], papel: str, referencia: date) -> Decimal
     return conversao.total if conversao.possivel else None
 
 
-def _variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) -> dict | None:
+def variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) -> dict | None:
     if atual is None:
         return None
     primeiro = next(
@@ -102,7 +84,7 @@ def _variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) -
     }
 
 
-def _incluir_foto_atual(
+def incluir_foto_atual(
     pontos: list[fotos.Ponto],
     data_da_tela: date,
     patrimonio: Decimal | None,
@@ -121,7 +103,7 @@ def _incluir_foto_atual(
     return atuais
 
 
-def _desempenhos(consolidado) -> list[dict]:
+def desempenhos(consolidado) -> list[dict]:
     resultado = []
     for serie in consolidado.twr:
         pontos = serie.get("pontos") or []
@@ -151,52 +133,7 @@ def _desempenhos(consolidado) -> list[dict]:
     return resultado
 
 
-def _cartoes(blocos: list[dict], referencia: date, rotulos: dict[str, str] | None = None) -> list[dict]:
-    """Dá a cada agrupamento seus totais honestos e, quando dá, sua conversão.
-
-    A regra de câmbio é a mesma do cartão principal. Assim, um cartão por
-    instituição não troca dólares por reais sem dizer qual taxa permitiu isso.
-    """
-    cartoes = []
-    for bloco in blocos:
-        nome = rotulos.get(bloco["nome"], bloco["nome"]) if rotulos else bloco["nome"]
-        cartoes.append(
-            {
-                "nome": nome,
-                "totais_por_moeda": bloco["totais_por_moeda"],
-                "conversao": converter_totais(bloco["totais_por_moeda"], referencia),
-            }
-        )
-    return cartoes
-
-
-def _composicao(blocos: list[dict], referencia: date, total: Decimal | None) -> list[dict]:
-    """Fatias em moeda base que fecham exatamente 100%.
-
-    Só é chamada depois que o consolidado inteiro pôde ser convertido. Arredondar
-    cada fatia sem compensação faria barras que somam 99,99% ou 100,01%, uma
-    discrepância pequena que dá a impressão errada de que algo ficou de fora.
-    """
-    if total is None or not total:
-        return []
-    fatias = []
-    for bloco in blocos:
-        conversao = converter_totais(bloco["totais_por_moeda"], referencia)
-        if not conversao.possivel:
-            return []
-        fatias.append({"nome": bloco["nome"], "total": conversao.total})
-    fatias.sort(key=lambda fatia: (-fatia["total"], fatia["nome"]))
-    for fatia in fatias:
-        fatia["percentual"] = (fatia["total"] * 100 / total).quantize(
-            CASAS_DO_PERCENTUAL, rounding=ROUND_HALF_UP
-        )
-    fatias[0]["percentual"] += Decimal("100.00") - sum(
-        fatia["percentual"] for fatia in fatias
-    )
-    return fatias
-
-
-def _resumo_gastos(fluxos: list[dict]) -> list[dict]:
+def resumo_gastos(fluxos: list[dict]) -> list[dict]:
     """Resume entradas e saídas por moeda, sem inventar categorias.
 
     O contrato v2 publica fluxos agregados por natureza; portanto a visão de
@@ -217,7 +154,7 @@ def _resumo_gastos(fluxos: list[dict]) -> list[dict]:
     return [grupos[chave] for chave in sorted(grupos)]
 
 
-def _ritmo_mensal(fluxos: list[dict]) -> list[dict]:
+def ritmo_mensal(fluxos: list[dict]) -> list[dict]:
     """Agrega o ritmo mensal publicado pelas fontes, preservando moedas."""
     grupos: dict[tuple[date, str], dict[str, Decimal | int]] = {}
     for fluxo in fluxos:
@@ -285,7 +222,7 @@ def _variacao_das_linhas(linhas: list[Any]) -> tuple[Decimal | None, Decimal | N
     return absoluto, percentual
 
 
-def _arvore_de_contas(
+def arvore_de_contas(
     linhas: list[Any],
     *,
     referencia: date,
@@ -470,9 +407,9 @@ def _arvore_de_contas(
             "conversao": conversao_grupo,
             "variacao_absoluta": variacao_absoluta,
             "variacao_percentual": variacao_percentual,
-                "url": url_drilldown(None if grupo_id == grupo_selecionado else grupo_id, None),
-                "expandida": grupo_id == grupo_selecionado,
-                "solitario": grupo_bruto["_chave"].startswith("titular:") and len(contas) == 1,
+            "url": url_drilldown(None if grupo_id == grupo_selecionado else grupo_id, None),
+            "expandida": grupo_id == grupo_selecionado,
+            "solitario": grupo_bruto["_chave"].startswith("titular:") and len(contas) == 1,
         }
         arvore.append(grupo_node)
         por_grupo[grupo_id] = grupo_node
@@ -501,259 +438,3 @@ def _arvore_de_contas(
         "conta_selecionada": conta_selecionada,
         "url_recolher": url_drilldown(),
     }
-
-
-@login_required
-def patrimonio_view(request):
-    bruto = (request.GET.get("data") or "").strip()
-    referencia = None
-    data_invalida = False
-    if bruto:
-        try:
-            referencia = date.fromisoformat(bruto)
-        except ValueError:
-            data_invalida = True
-
-    visao = request.GET.get("visao") or "investimentos"
-    if visao not in {"investimentos", "patrimonio", "gastos", "insights"}:
-        visao = "investimentos"
-    periodo = request.GET.get("periodo") or "1a"
-    if periodo not in PERIODOS_DASHBOARD:
-        periodo = "1a"
-    grupo_parametro = (request.GET.get("grupo") or "").strip()
-    conta_parametro = (request.GET.get("conta") or "").strip()
-    dimensao_parametro = (request.GET.get("dimensao") or "classe").strip()
-    filtro_dimensao_parametro = (request.GET.get("filtro_dimensao") or "").strip()
-    filtro_parametro = (request.GET.get("filtro") or "").strip()
-    busca_parametro = (request.GET.get("busca") or "").strip()
-    ordenar_parametro = (request.GET.get("ordenar") or "valor").strip()
-    direcao_parametro = (request.GET.get("direcao") or "desc").strip()
-
-    data_da_tela = referencia or timezone.localdate()
-    inicio = _inicio_do_periodo(periodo, data_da_tela)
-    inicio_da_consulta = inicio or fotos.INICIO_DOS_INVESTIMENTOS
-    consolidado = consolidar_v2(
-        inicio=inicio_da_consulta,
-        data=data_da_tela,
-        periodo="all",
-    )
-    # A taxa é a do dia da foto, não a de hoje: converter o passado pela taxa de
-    # hoje faria o patrimônio de março mudar toda manhã.
-    conversao = converter_totais(consolidado.totais_por_moeda, referencia or timezone.localdate())
-    por_sistema = consolidado.por("papel")
-    por_instituicao = consolidado.por("instituicao")
-    por_mercado = consolidado.por_mercado()
-    por_classe = consolidado.por("classe", "Caixa e não classificados")
-    composicao_destaque = (
-        _composicao(por_classe, data_da_tela, conversao.total)
-        if conversao.possivel
-        else []
-    )
-    pontos = [
-        ponto
-        for ponto in fotos.curvas(desde=inicio)
-        if ponto.data <= data_da_tela
-    ]
-    patrimonio_atual = (
-        conversao.total if consolidado.completo and conversao.possivel else None
-    )
-    investimentos_atuais = (
-        _valor_do_papel(por_sistema, "investimento", data_da_tela)
-        if consolidado.completo
-        else None
-    )
-    pontos = _incluir_foto_atual(
-        pontos,
-        data_da_tela,
-        patrimonio_atual,
-        investimentos_atuais,
-    )
-    desenho = grafico.montar(
-        pontos,
-        (
-            ("patrimonio", "Patrimônio", "curva-patrimonio"),
-            ("investimentos", "Investimentos", "curva-investimentos"),
-        ),
-    )
-    fluxos_por_natureza = dashboard.resumo_fluxos_por_natureza(consolidado)
-    resumo_gastos = _resumo_gastos(fluxos_por_natureza)
-    ritmo_mensal = _ritmo_mensal(consolidado.fluxos)
-    detalhamento_patrimonio = []
-    if conversao.possivel:
-        for papel, nome in (("investimento", "Investimentos"), ("caixa", "Caixa")):
-            valor = _valor_do_papel(por_sistema, papel, data_da_tela)
-            if valor is not None:
-                detalhamento_patrimonio.append(
-                    {
-                        "nome": nome,
-                        "valor": valor,
-                        "percentual": (valor * 100 / conversao.total) if conversao.total else Decimal("0"),
-                    }
-                )
-    arvore_contas = _arvore_de_contas(
-        consolidado.linhas,
-        referencia=data_da_tela,
-        visao=visao,
-        periodo=periodo,
-        data_da_tela=data_da_tela,
-        grupo_parametro=grupo_parametro,
-        conta_parametro=conta_parametro,
-    )
-    insights_contexto = None
-    if visao == "insights":
-        insights_contexto = insights.montar(
-            consolidado.linhas,
-            referencia=data_da_tela,
-            periodo=periodo,
-            data=data_da_tela.isoformat(),
-            dimensao=dimensao_parametro,
-            filtro_dimensao=filtro_dimensao_parametro,
-            filtro=filtro_parametro,
-            busca=busca_parametro,
-            ordenar=ordenar_parametro,
-            direcao=direcao_parametro,
-            grupo=arvore_contas["grupo_selecionado"],
-            conta=arvore_contas["conta_selecionada"],
-            fonte_completa=consolidado.completo,
-            quantidade_fontes=len(consolidado.fontes_que_responderam),
-            quantidade_fontes_esperadas=len(consolidado.leituras),
-            motivo_fontes=(
-                "; ".join(
-                    f"{leitura.fonte.nome}: {leitura.motivo or ', '.join(leitura.lacunas)}"
-                    for leitura in consolidado.leituras
-                    if not leitura.respondeu or leitura.lacunas
-                )
-            ),
-        )
-    return render(
-        request,
-        "consolidado/patrimonio.html",
-        {
-            "consolidado": consolidado,
-            "conversao": conversao,
-            "moeda_base": MOEDA_BASE,
-            "referencia": referencia,
-            "visao": visao,
-            "insights": insights_contexto,
-            "data_da_tela": data_da_tela,
-            "data_invalida": data_invalida,
-            "por_instituicao": consolidado.por_instituicao(),
-            "grafico": desenho,
-            "primeira_data": pontos[0].data if pontos else None,
-            "ultima_data": pontos[-1].data if pontos else None,
-            "periodos_dashboard": [
-                (valor, rotulo)
-                for valor, (rotulo, _recorte) in PERIODOS_DASHBOARD.items()
-            ],
-            "periodo": periodo,
-            "top_posicoes": dashboard.top_posicoes(consolidado, limite=10),
-            "fluxos_por_natureza": fluxos_por_natureza,
-            "resumo_gastos": resumo_gastos,
-            "ritmo_mensal": ritmo_mensal,
-            "detalhamento_patrimonio": detalhamento_patrimonio,
-            # A árvore é transitória e nasce do mesmo consolidado já usado pelo
-            # restante da tela. Templates podem usar ``grupos`` ou os índices
-            # por ID sem precisar refazer agrupamentos ou consultar fontes.
-            "arvore_contas": arvore_contas["grupos"],
-            "arvore_drilldown": arvore_contas,
-            "grupos_drilldown": arvore_contas["grupos"],
-            "grupo_selecionado": arvore_contas["grupo_selecionado"],
-            "conta_selecionada": arvore_contas["conta_selecionada"],
-            "url_drilldown_recolher": arvore_contas["url_recolher"],
-            # Nomes compatíveis com o template da árvore e com a futura camada
-            # de nós unificados. O detalhe sempre vem do mesmo consolidado.
-            "cartoes_de_contas": arvore_contas["grupos"],
-            "grupo_aberto": arvore_contas["grupo_selecionado"],
-            "conta_aberta": arvore_contas["conta_selecionada"],
-            "detalhe_conta": arvore_contas["por_conta"].get(
-                arvore_contas["conta_selecionada"]
-            ),
-            "rendas": consolidado.rendas,
-            "ganhos_realizados": consolidado.ganhos_realizados,
-            "desempenhos": _desempenhos(consolidado),
-            "links_de_secao": consolidado.secoes,
-            "qualidade_v2": consolidado.qualidade,
-            "composicao_destaque": composicao_destaque,
-            "variacao_patrimonio": _variacao(patrimonio_atual, pontos[:-1], "patrimonio"),
-            "variacao_investimentos": _variacao(
-                investimentos_atuais, pontos[:-1], "investimentos"
-            ),
-            "cartoes_por_sistema": _cartoes(por_sistema, data_da_tela, ROTULOS_DO_PAPEL),
-            "cartoes_por_instituicao": _cartoes(por_instituicao, data_da_tela),
-            "composicoes": (
-                [
-                    ("Por moeda", _composicao(
-                        [
-                            {"nome": total["moeda"], "totais_por_moeda": [total]}
-                            for total in consolidado.totais_por_moeda
-                        ],
-                        data_da_tela,
-                        conversao.total,
-                    )),
-                    ("Por sistema", _composicao(por_sistema, data_da_tela, conversao.total)),
-                    ("Por instituição", _composicao(
-                        por_instituicao, data_da_tela, conversao.total
-                    )),
-                    ("Por mercado", _composicao(por_mercado, data_da_tela, conversao.total)),
-                    ("Por classe", _composicao(por_classe, data_da_tela, conversao.total)),
-                ]
-                if conversao.possivel
-                else []
-            ),
-        },
-    )
-
-
-@login_required
-def historico_view(request):
-    """As duas curvas, a partir das fotos gravadas. Nenhuma fonte é consultada."""
-    chave = request.GET.get("periodo") or "tudo"
-    if chave not in PERIODOS:
-        chave = "tudo"
-    inicio = PERIODOS[chave][1]
-    if inicio == "12m":
-        inicio = timezone.localdate() - timedelta(days=365)
-
-    pontos = fotos.curvas(desde=inicio)
-    desenho = grafico.montar(
-        pontos,
-        (
-            ("patrimonio", "Patrimônio", "curva-patrimonio"),
-            ("investimentos", "Investimentos", "curva-investimentos"),
-        ),
-    )
-    mensais = grafico.ultimo_de_cada_mes(pontos)
-    linhas = []
-    for indice, ponto in enumerate(mensais):
-        anterior = mensais[indice + 1] if indice + 1 < len(mensais) else None
-        linhas.append(
-            {
-                "ponto": ponto,
-                "variacao_investimentos": grafico.variacao(
-                    ponto.investimentos, anterior.investimentos if anterior else None
-                ),
-                "variacao_patrimonio": grafico.variacao(
-                    ponto.patrimonio, anterior.patrimonio if anterior else None
-                ),
-            }
-        )
-    return render(
-        request,
-        "consolidado/historico.html",
-        {
-            "grafico": desenho,
-            "primeira_data": pontos[0].data if pontos else None,
-            "ultima_data": pontos[-1].data if pontos else None,
-            # Desde o início do caixa, patrimônio vazio só pode ser falta de taxa.
-            "sem_taxa": sum(
-                1
-                for ponto in pontos
-                if ponto.data >= fotos.INICIO_DO_PATRIMONIO and ponto.patrimonio is None
-            ),
-            "mensais": linhas,
-            "moeda_base": MOEDA_BASE,
-            "periodos": [(valor, rotulo) for valor, (rotulo, _inicio) in PERIODOS.items()],
-            "periodo": chave,
-            "inicio_do_patrimonio": fotos.INICIO_DO_PATRIMONIO,
-        },
-    )
