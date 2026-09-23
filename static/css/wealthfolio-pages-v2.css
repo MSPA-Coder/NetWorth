@@ -364,3 +364,35 @@ body:has(.wf2p-reference-page) .wf2-topbar__actions { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .wf2-page *, .wf2-page *::before, .wf2-page *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Patrimônio projetado (NetWorth; sem equivalente no Wealthfolio). */
+.wf2p-proj-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.wf2p-proj-metrics .is-positive { color: var(--wf2-positive); }
+.wf2p-proj-metrics .is-negative { color: var(--wf2-negative); }
+.wf2p-proj-chart { margin: 0; }
+.wf2p-proj-chart svg { display: block; width: 100%; height: auto; }
+.wf2p-proj-grid { stroke: var(--wf2-border); stroke-width: 1; }
+/* Unidades do viewBox (960 de largura): 15 vira ~11px num painel de 700px. */
+.wf2p-proj-axis { fill: var(--wf2-muted); font-size: 15px; }
+.wf2p-proj-mark { stroke: var(--wf2-muted); stroke-width: 1; stroke-dasharray: 3 4; }
+.wf2p-proj-line { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.wf2p-proj-line.curva-patrimonio, .wf2p-proj-legend .curva-patrimonio i { stroke: var(--wf2-accent); border-color: var(--wf2-accent); }
+.wf2p-proj-line.curva-projetada, .wf2p-proj-legend .curva-projetada i { stroke: var(--wf2-accent); border-color: var(--wf2-accent); stroke-dasharray: 7 5; border-top-style: dashed; }
+.wf2p-proj-line.curva-caixa, .wf2p-proj-legend .curva-caixa i { stroke: var(--wf2-green); border-color: var(--wf2-green); stroke-dasharray: 7 5; border-top-style: dashed; stroke-width: 1.5; }
+.wf2p-proj-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; color: var(--wf2-muted); font-size: .68rem; }
+.wf2p-proj-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.wf2p-proj-legend i { display: inline-block; width: 18px; border-top: 2px solid; }
+.wf2p-proj-heading { padding: 14px 14px 0; }
+.wf2p-proj-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.wf2p-proj-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--wf2-border); font-size: .73rem; }
+.wf2p-proj-list li:first-child { border-top: 0; }
+.wf2p-proj-list small { display: block; margin-top: 2px; color: var(--wf2-muted); font-size: .64rem; }
+.wf2p-proj-list b { white-space: nowrap; }
+.wf2p-proj-list b.is-positive { color: var(--wf2-positive); }
+.wf2p-proj-notes { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--wf2-muted); font-size: .71rem; line-height: 1.45; }
+@media (max-width: 860px) {
+  .wf2p-proj-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .wf2p-proj-metrics { grid-template-columns: 1fr; }
+}

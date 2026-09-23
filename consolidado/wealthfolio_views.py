@@ -499,6 +499,7 @@ def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> 
         "holdings_url": reverse("consolidado:holdings"),
         "accounts_url": reverse("consolidado:accounts"),
         "activities_url": reverse("consolidado:activities"),
+        "projection_url": reverse("consolidado:projecao"),
         "goals_url": reverse("consolidado:goals"),
         "assistant_url": reverse("consolidado:assistant"),
         "settings_url": reverse("consolidado:settings"),
@@ -515,6 +516,7 @@ def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> 
             "insights": "Análises",
             "holdings": "Posições",
             "activities": "Atividades",
+            "projection": "Projeção",
             "goals": "Metas",
             "assistant": "Assistente",
             "settings": "Configurações",
@@ -1275,6 +1277,11 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
             "wf_dashboard": _dashboard_vm(request, context, tab),
         }
     )
+    if tab == "net-worth":
+        # Import tardio: projecao_views importa este módulo.
+        from consolidado.projecao_views import cartao_do_painel
+
+        context["wf_projection_card"] = cartao_do_painel(context, date.today())
     return render(request, "consolidado/wealthfolio_dashboard_v2.html", context)
 
 

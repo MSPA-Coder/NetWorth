@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
 from django.urls import path, reverse
 
-from . import wealthfolio_views
+from . import projecao_views, wealthfolio_views
 
 app_name = "consolidado"
 
@@ -61,6 +61,7 @@ urlpatterns = [
     path("accounts/", wealthfolio_views.accounts_view, name="accounts"),
     path("accounts/<path:account_id>/", wealthfolio_views.account_detail_view, name="account_detail"),
     path("activities/", wealthfolio_views.activities_view, name="activities"),
+    path("projecao/", projecao_views.projecao_view, name="projecao"),
     path("goals/", wealthfolio_views.goals_view, name="goals"),
     path("goals/new/", wealthfolio_views.goal_new_view, name="goal_new"),
     path("spending/insights/", wealthfolio_views.spending_insights_view, name="spending_insights"),

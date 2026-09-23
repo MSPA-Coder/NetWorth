@@ -1,0 +1,74 @@
+{% comment %}
+  Patrimônio projetado. Contrato montado por consolidado.projecao_views.pagina:
+  wf_page.horizontes, metricas, grafico (geometria de consolidado.grafico),
+  contas_negativas, meses, proximos, premissas. Valores já vêm formatados;
+  este template não calcula nada.
+{% endcomment %}
+{% load l10n %}
+<nav class="wf2p-segmented" aria-label="Horizonte da projeção">
+  {% for item in wf_page.horizontes %}<a href="{{ item.url }}"{% if item.ativo %} class="is-active" aria-current="page"{% endif %}>{{ item.rotulo }}</a>{% endfor %}
+</nav>
+
+{% if wf_page.state == 'ready' %}
+  {% if wf_page.sem_patrimonio_motivo %}<aside class="wf2p-warning" role="status"><strong>Só o caixa</strong><span>{{ wf_page.sem_patrimonio_motivo }}</span></aside>{% endif %}
+
+  <section class="wf2p-proj-metrics" aria-label="Resumo da projeção">
+    <div class="wf2p-insight-metric"><span>Hoje</span><strong class="wf2p-sensitive">{{ wf_page.metricas.hoje }}</strong><small>patrimônio atual</small></div>
+    <div class="wf2p-insight-metric"><span>{{ wf_page.metricas.final_rotulo }}</span><strong class="wf2p-sensitive">{{ wf_page.metricas.final }}</strong><small>{% if wf_page.metricas.final_e_caixa %}caixa projetado{% else %}patrimônio projetado{% endif %}</small></div>
+    <div class="wf2p-insight-metric"><span>Variação prevista</span><strong class="wf2p-sensitive{% if wf_page.metricas.variacao_positiva %} is-positive{% endif %}">{{ wf_page.metricas.variacao }}</strong><small>entre hoje e o fim do horizonte</small></div>
+    <div class="wf2p-insight-metric"><span>Menor caixa no período</span>{% for item in wf_page.metricas.menor_caixa %}<strong class="wf2p-sensitive{% if item.negativo %} is-negative{% endif %}">{{ item.valor }}</strong><small>{{ item.moeda }} · em {{ item.data }}</small>{% endfor %}</div>
+  </section>
+
+  {% if wf_page.contas_negativas %}
+    <aside class="wf2p-warning" role="status"><strong>Conta no negativo</strong><span>{% for conta in wf_page.contas_negativas %}{% if conta.link %}<a href="{{ conta.link }}">{{ conta.nome }}</a>{% else %}{{ conta.nome }}{% endif %} chega a <b class="wf2p-sensitive">{{ conta.valor }}</b> em {{ conta.data }}{% if not forloop.last %}; {% endif %}{% endfor %}.</span></aside>
+  {% endif %}
+
+  <section class="wf2p-panel" aria-labelledby="wf2p-proj-grafico">
+    <header class="wf2p-panel__heading"><h3 id="wf2p-proj-grafico">Curva</h3><span class="wf2p-muted">linha cheia: histórico · tracejada: projeção</span></header>
+    {% with g=wf_page.grafico %}
+      {% if g %}
+        <figure class="wf2p-proj-chart" role="img" aria-label="Patrimônio histórico e projetado">
+          {% comment %}Sem localização: em pt-BR "120,3" viraria uma LISTA de coordenadas no SVG.{% endcomment %}
+          {% localize off %}<svg viewBox="0 0 {{ g.largura }} {{ g.altura }}" aria-hidden="true">
+            {% for marca in g.eixo_y %}<line class="wf2p-proj-grid" x1="{{ g.esquerda }}" x2="{{ g.direita }}" y1="{{ marca.posicao }}" y2="{{ marca.posicao }}"></line><text class="wf2p-proj-axis" x="{{ g.esquerda|add:'-8' }}" y="{{ marca.posicao }}" text-anchor="end" dominant-baseline="middle">{{ marca.rotulo }}</text>{% endfor %}
+            {% for marca in g.eixo_x %}<text class="wf2p-proj-axis" x="{{ marca.posicao }}" y="{{ g.altura|add:'-8' }}" text-anchor="middle">{{ marca.rotulo }}</text>{% endfor %}
+            {% for marca in g.destaques %}<line class="wf2p-proj-mark" x1="{{ marca.posicao }}" x2="{{ marca.posicao }}" y1="{{ g.topo }}" y2="{{ g.base }}"></line><text class="wf2p-proj-axis" x="{{ marca.posicao }}" y="{{ g.topo|add:'10' }}" dx="4">{{ marca.rotulo }}</text>{% endfor %}
+            {% for curva in g.curvas %}<path class="wf2p-proj-line {{ curva.classe }}" d="{{ curva.caminho }}"></path>{% endfor %}
+          </svg>{% endlocalize %}
+          <figcaption class="wf2p-proj-legend">{% for curva in g.curvas %}<span class="{{ curva.classe }}"><i aria-hidden="true"></i>{{ curva.rotulo }}</span>{% endfor %}</figcaption>
+        </figure>
+      {% else %}
+        <p class="wf2p-muted">Não há pontos suficientes para desenhar a curva.</p>
+      {% endif %}
+    {% endwith %}
+  </section>
+
+  <section class="wf2p-table-panel" aria-labelledby="wf2p-proj-meses">
+    <header class="wf2p-panel__heading wf2p-proj-heading"><h3 id="wf2p-proj-meses">Por mês</h3><span class="wf2p-muted">para investir: aportes menos resgates programados</span></header>
+    <div class="wf2p-table-scroll"><table class="wf2p-table">
+      <thead><tr><th>Mês</th><th>Moeda</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Para investir</th><th class="num">Caixa no fim</th><th class="num">Patrimônio no fim</th></tr></thead>
+      <tbody>{% for linha in wf_page.meses %}<tr>
+        <td>{% if linha.link %}<a class="wf2p-inline-link" href="{{ linha.link }}">{{ linha.mes }}</a>{% else %}{{ linha.mes }}{% endif %}</td><td>{{ linha.moeda }}</td>
+        <td class="num wf2p-sensitive">{{ linha.entradas }}</td><td class="num wf2p-sensitive">{{ linha.saidas }}</td><td class="num wf2p-sensitive">{{ linha.para_investir }}</td>
+        <td class="num wf2p-sensitive">{{ linha.caixa }}</td><td class="num wf2p-sensitive">{{ linha.patrimonio }}</td>
+      </tr>{% empty %}<tr><td colspan="7" class="wf2p-muted">Nenhum mês no horizonte.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+
+  <section class="wf2p-panel" aria-labelledby="wf2p-proj-proximos">
+    <header class="wf2p-panel__heading"><h3 id="wf2p-proj-proximos">Próximos lançamentos</h3><span class="wf2p-muted">próximos 30 dias, a vencer</span></header>
+    {% if wf_page.proximos.disponivel %}
+      <ul class="wf2p-proj-list">{% for item in wf_page.proximos.itens %}<li>
+        <span><time>{{ item.data }}</time> · {% if item.link %}<a href="{{ item.link }}">{{ item.descricao }}</a>{% else %}{{ item.descricao }}{% endif %}<small>{{ item.conta }}{% if item.categoria %} · {{ item.categoria }}{% endif %}{% if item.investimento %} · para investir{% endif %}</small></span>
+        <b class="wf2p-sensitive{% if item.entrada %} is-positive{% endif %}">{% if item.entrada %}+{% else %}−{% endif %}{{ item.valor }}</b>
+      </li>{% empty %}<li class="wf2p-muted">Nenhum lançamento a vencer nos próximos 30 dias.</li>{% endfor %}</ul>
+    {% else %}
+      <p class="wf2p-muted">Lançamentos indisponíveis: {{ wf_page.proximos.motivo|default:'a fonte não respondeu' }}.</p>
+    {% endif %}
+  </section>
+
+  <section class="wf2p-panel" aria-labelledby="wf2p-proj-premissas">
+    <header class="wf2p-panel__heading"><h3 id="wf2p-proj-premissas">Premissas</h3></header>
+    <ul class="wf2p-proj-notes">{% for linha in wf_page.premissas %}<li>{{ linha }}</li>{% endfor %}</ul>
+  </section>
+{% endif %}

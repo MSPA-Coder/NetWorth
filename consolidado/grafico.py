@@ -60,6 +60,8 @@ class Grafico:
     direita: int
     topo: int
     base: int
+    #: Linhas verticais de referência ("hoje", "fim da projeção"), já na escala.
+    destaques: tuple[Marca, ...] = ()
 
 
 def _passo_redondo(maximo: float, divisoes: int = 5) -> float:
@@ -108,8 +110,15 @@ def _rotulo_de_data(dia: date, longa: bool) -> str:
     return str(dia.year) if longa else f"{MESES[dia.month - 1]}/{dia.year % 100:02d}"
 
 
-def montar(pontos, series: tuple[tuple[str, str, str], ...]) -> Grafico | None:
+def montar(
+    pontos,
+    series: tuple[tuple[str, str, str], ...],
+    destaques: tuple[tuple[date, str], ...] = (),
+) -> Grafico | None:
     """Monta o gráfico. `series` é uma sequência de (atributo, rótulo, classe CSS).
+
+    `destaques` são datas marcadas com uma linha vertical e um rótulo; as que
+    caem fora do intervalo desenhado são ignoradas.
 
     Um valor `None` interrompe a linha: o buraco aparece, em vez de uma reta
     ligando os dois lados como se o intervalo tivesse existido.
@@ -189,6 +198,11 @@ def montar(pontos, series: tuple[tuple[str, str, str], ...]) -> Grafico | None:
         direita=direita,
         topo=topo,
         base=base,
+        destaques=tuple(
+            Marca(posicao=round(x(dia), 1), rotulo=rotulo)
+            for dia, rotulo in destaques
+            if inicio <= dia <= fim
+        ),
     )
 
 

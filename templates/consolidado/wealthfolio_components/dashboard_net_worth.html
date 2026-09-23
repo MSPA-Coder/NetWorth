@@ -17,6 +17,17 @@
       {% for row in wf_dashboard.net_worth.details %}<div class="wf2-detail-row{% if row.total %} is-total{% endif %}"><span><i aria-hidden="true"></i>{{ row.label }}</span><span>{{ row.percent|default:'—' }}</span><b class="wf2-sensitive">{{ row.value|default:'—' }}</b><span class="{% if row.positive %}is-positive{% endif %}">{{ row.delta|default:'—' }}</span></div>{% empty %}<p class="wf2-list__empty">Nenhum ativo publicado.</p>{% endfor %}
     </div>
   </section>
+  <div class="wf2-side-stack">
+  {% if wf_projection_card %}
+  <section aria-labelledby="wf2-projection-heading">
+    <header class="wf2-section-heading"><h2 id="wf2-projection-heading">Projeção</h2><span>se o lançado acontecer</span></header>
+    <a class="wf2-pace-card wf2-projection-card" href="{{ wf_projection_card.url }}">
+      <small>{{ wf_projection_card.rotulo }}</small>
+      <strong class="wf2-sensitive">{{ wf_projection_card.valor }}</strong>
+      <span>Ver patrimônio projetado</span>
+    </a>
+  </section>
+  {% endif %}
   <section aria-labelledby="wf2-pace-heading">
     <header class="wf2-section-heading"><h2 id="wf2-pace-heading">Ritmo mensal</h2><span>{{ wf_dashboard.period_label }}</span></header>
     <div class="wf2-pace-card">
@@ -26,4 +37,5 @@
       {% else %}<div class="wf2-inline-empty"><strong>Ritmo indisponível</strong><span>{{ wf_dashboard.net_worth.monthly_pace.reason|default:'Ainda não há histórico suficiente.' }}</span></div>{% endif %}
     </div>
   </section>
+  </div>
 </div>

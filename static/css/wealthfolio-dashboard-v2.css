@@ -132,3 +132,10 @@
     padding-inline: 12px;
   }
 }
+
+/* Coluna direita da aba Patrimônio líquido: projeção acima do ritmo mensal. */
+.wf2-side-stack { display: grid; align-content: start; gap: 28px; min-width: 0; }
+.wf2-projection-card { display: grid; min-height: 0 !important; gap: 4px; color: inherit; text-decoration: none; }
+.wf2-projection-card > strong { font-size: 18px; }
+.wf2-projection-card > span { color: var(--wf2-accent); font-size: .72rem; font-weight: 750; }
+.wf2-projection-card:hover > span, .wf2-projection-card:focus-visible > span { text-decoration: underline; }
