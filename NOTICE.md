@@ -6,9 +6,13 @@ Public License v3.0 (AGPL-3.0). O texto da licença e o código-fonte
 correspondente devem acompanhar ou ser disponibilizados com qualquer
 distribuição coberta pela licença.
 
-Código-fonte correspondente usado no desenvolvimento local:
+Código-fonte correspondente, na revisão acima (tag `v3.8.0`):
 
-`CodexTemp/wealthfolio-src-3.8.0`
+<https://github.com/wealthfolio/wealthfolio/tree/8f6f9898d30e84d7215e01d3d06cd65e02c9ab1b>
+
+O repositório antes se chamava `afadil/wealthfolio`; o endereço antigo
+redireciona para o atual. O código-fonte do próprio NetWorth, incluindo estas
+adaptações, fica em <https://github.com/MSPA-Coder/NetWorth>.
 
 Alterações gerais no NetWorth:
 

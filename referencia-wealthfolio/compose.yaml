@@ -1,0 +1,33 @@
+# Instância de REFERÊNCIA do Wealthfolio 3.8.0, só para comparar telas com o
+# NetWorth. Não é parte do NetWorth nem vai para produção.
+#
+#   docker compose -f referencia-wealthfolio/compose.yaml up -d
+#   http://127.0.0.1:8088
+#
+# Imagem fixada pelo digest auditado em docs/plano-shell-wealthfolio.md.
+# O volume `wealthfolio-data` é externo de propósito: `down -v` não o apaga.
+# Cópia de segurança feita em 22/09/2026: volume `wealthfolio-data-backup-20260922`.
+#
+# `WF_SECRET_KEY` fica em `.env` (ignorado pelo Git). Ela cifra só os segredos
+# guardados pelo app (chaves de provedores); contas e atividades não dependem dela.
+name: wealthfolio-referencia
+
+services:
+  wealthfolio:
+    image: afadil/wealthfolio@sha256:3c6f117828949204029c2b4a391f039e62987b4e091139e11b04e6764b5f6866
+    restart: "no"
+    env_file: .env
+    environment:
+      WF_LISTEN_ADDR: 0.0.0.0:8088
+      WF_DB_PATH: /data/wealthfolio.db
+      # Sem senha própria: a porta só é publicada no loopback do host (abaixo),
+      # e é isso que protege a instância. Nunca publicar em 0.0.0.0 assim.
+      WF_AUTH_REQUIRED: "false"
+    ports:
+      - "127.0.0.1:8088:8088"
+    volumes:
+      - wealthfolio-data:/data
+
+volumes:
+  wealthfolio-data:
+    external: true
