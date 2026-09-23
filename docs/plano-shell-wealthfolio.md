@@ -64,7 +64,7 @@ login único e das permissões por titular que o CB já tem.
 | 0. Referência | Instância 3.8.0 restaurada em `referencia-wealthfolio/`; NOTICE aponta ao código-fonte público. **Feito em 23/09/2026.** |
 | 1. Meta revisada | Esta seção. **Feito em 23/09/2026.** |
 | 2. Limpeza | Um só caminho de dados: `leitor.consolidar_v2` → `Consolidado` → `consolidado/contexto.py` → view-models → templates. O caminho paralelo (`adapters`/`normalize`/`contracts`/`SnapshotDTO`), que só os testes usavam, foi retirado; `views.py` e os templates `patrimonio.html`/`historico.html`, sem rota, também. **Feito em 23/09/2026.** |
-| 3. Diferencial | Tela de fluxo de caixa e patrimônio projetado, sobre os lançamentos futuros do CB (v3) e os proventos do CRV. Desenho aprovado pelo usuário antes do código. |
+| 3. Diferencial | Patrimônio projetado em `/projecao/` e cartão na aba Patrimônio líquido. O CB publica `GET /patrimonio/v3/projection` (PR sistema-financeiro#76, em produção desde 23/09/2026); o NetWorth soma os investimentos de hoje, trata aporte como neutro, converte pela taxa de hoje e lista as premissas na tela. Proventos anunciados ficam para quando o CRV os publicar. |
 | 4. Experiência única | Login único, barra comum para trocar de aplicativo e visual base no SharedAuth; os três atualizados para a mesma versão do SharedAuth. |
 | 5. Horizonte | Metas e Assistente; lançamento rápido pelo NetWorth gravando pela API da fonte; fusão CB + NetWorth. Cada um por decisão própria. |
 

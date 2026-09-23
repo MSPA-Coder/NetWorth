@@ -7,7 +7,7 @@
   Contract supplied by the route adapter:
     wf_shell: the shared shell view-model documented in wealthfolio_shell.html
     wf_page.kind: holdings|holding-detail|accounts|account-detail|activities|
-      spending-insights|budget|goals|assistant|settings
+      projection|spending-insights|budget|goals|assistant|settings
     wf_page.title, subtitle, kicker, as_of_label, state, meta, breadcrumbs,
       actions and the fields documented by the selected page_*.html component.
 
@@ -48,6 +48,8 @@
         {% include "consolidado/wealthfolio_components/page_goal_new.html" %}
       {% elif kind == 'assistant' %}
         {% include "consolidado/wealthfolio_components/page_assistant.html" %}
+      {% elif kind == 'projection' %}
+        {% include "consolidado/wealthfolio_components/page_projection.html" %}
       {% elif kind == 'settings' %}
         {% include "consolidado/wealthfolio_components/page_settings.html" %}
       {% else %}

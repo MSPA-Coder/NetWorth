@@ -17,6 +17,13 @@
       <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
       <span>{{ wf_shell.labels.dashboard|default:'Painel' }}</span>
     </a>
+    <a class="wf2-sidebar__link{% if wf_shell.active_route == 'projection' %} is-active{% endif %}"
+       href="{{ wf_shell.projection_url|default:'/projecao/' }}"
+       {% if wf_shell.active_route == 'projection' %}aria-current="page"{% endif %}
+       data-wf2-nav="projection">
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 18l5-6 4 3 3-4"/><path d="M16 11l4-5" stroke-dasharray="2 2"/><path d="M4 21h16"/></svg>
+      <span>{{ wf_shell.labels.projection|default:'Projeção' }}</span>
+    </a>
     <a class="wf2-sidebar__link{% if wf_shell.active_route == 'insights' %} is-active{% endif %}"
        href="{{ wf_shell.insights_url|default:'/insights/' }}"
        {% if wf_shell.active_route == 'insights' %}aria-current="page"{% endif %}
