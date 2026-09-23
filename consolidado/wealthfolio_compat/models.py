@@ -1,12 +1,14 @@
-"""DTOs imutáveis e seguros para dados publicados pelas fontes."""
+"""DTOs imutáveis para os recursos v3 lidos direto das fontes (atividades e analíticos).
+
+A foto patrimonial não passa por aqui: ela é lida e validada por
+`consolidado.leitor`, que produz o `Consolidado`.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
-from math import isfinite
 from typing import Any
 
 
@@ -95,61 +97,6 @@ class Coverage:
 
 
 @dataclass(frozen=True, slots=True)
-class Capabilities:
-    source: str = ""
-    contract: str = ""
-    accounts: bool = False
-    positions: bool = False
-    flows: bool = False
-    performance: bool = False
-    income: bool = False
-    realized_gains: bool = False
-    quality: bool = False
-    individual_activities: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class AccountDTO:
-    id: str
-    owner: str
-    institution: str
-    name: str
-    balance: Money
-    source: str
-    link: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class PositionDTO:
-    id: str
-    owner: str
-    institution: str
-    instrument: str
-    value: Money
-    source: str
-    asset_class: str = ""
-    market: str = ""
-    quantity: Decimal | None = None
-    price: Decimal | None = None
-    cost: Money | None = None
-    unrealized_gain: Money | None = None
-    link: str = ""
-    price_quality: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class FlowDTO:
-    date: date
-    value: Money
-    inflow: Money
-    outflow: Money
-    nature: str
-    source: str
-    lines: int = 0
-    link: str = ""
-
-
-@dataclass(frozen=True, slots=True)
 class ActivityDTO:
     """Lançamento individual publicado por uma fonte v3.
 
@@ -185,112 +132,3 @@ class ActivityDTO:
             _text(getattr(self, field_name), field_name=field_name)
         if self.realized_value is not None and self.realized_value.currency != self.value.currency:
             raise DTOError("activity: moedas divergentes")
-
-
-@dataclass(frozen=True, slots=True)
-class IncomeDTO:
-    value: Money
-    source: str
-    by_type: tuple[tuple[str, Money], ...] = ()
-    link: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class GainDTO:
-    value: Money
-    source: str
-    instrument: str = ""
-    transactions: int = 0
-    link: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class PerformanceDTO:
-    currency: str
-    method: str
-    source: str
-    points: tuple[tuple[date, Decimal], ...] = ()
-    link: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotDTO:
-    source: str
-    contract: str
-    as_of: date
-    generated_at: str | None
-    totals: tuple[Money, ...]
-    accounts: tuple[AccountDTO, ...]
-    positions: tuple[PositionDTO, ...]
-    flows: tuple[FlowDTO, ...]
-    performance: tuple[PerformanceDTO, ...]
-    income: tuple[IncomeDTO, ...]
-    realized_gains: tuple[GainDTO, ...]
-    coverage: Coverage
-    capabilities: Capabilities
-    omissions: tuple[str, ...] = ()
-    quality: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "quality", dict(self.quality))
-
-    @property
-    def complete(self) -> bool:
-        return self.coverage.complete and not self.omissions
-
-    @property
-    def status(self) -> str:
-        """Estado normalizado da fotografia, útil para templates e APIs."""
-        return self.coverage.status
-
-    @property
-    def currencies(self) -> tuple[str, ...]:
-        return tuple(sorted({money.currency for money in self.totals}))
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serializa sem floats, objetos mutáveis ou referências ao payload."""
-        return {
-            "source": self.source,
-            "contract": self.contract,
-            "as_of": self.as_of.isoformat(),
-            "generated_at": self.generated_at,
-            "totals": [item.to_wire() for item in self.totals],
-            "accounts": [_asdict(item) for item in self.accounts],
-            "positions": [_asdict(item) for item in self.positions],
-            "flows": [_asdict(item) for item in self.flows],
-            "performance": [_asdict(item) for item in self.performance],
-            "income": [_asdict(item) for item in self.income],
-            "realized_gains": [_asdict(item) for item in self.realized_gains],
-            "coverage": _asdict(self.coverage),
-            "capabilities": _asdict(self.capabilities),
-            "omissions": list(self.omissions),
-            "quality": _safe_json(self.quality),
-        }
-
-
-def _asdict(value: Any) -> Any:
-    if isinstance(value, Money):
-        return value.to_wire()
-    if hasattr(value, "__dataclass_fields__"):
-        return {name: _asdict(getattr(value, name)) for name in value.__dataclass_fields__}
-    return _safe_json(value)
-
-
-def _safe_json(value: Any) -> Any:
-    if isinstance(value, Decimal):
-        return format(value, "f")
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if isinstance(value, Mapping):
-        return {str(key): _safe_json(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_safe_json(item) for item in value]
-    if isinstance(value, list):
-        return [_safe_json(item) for item in value]
-    if isinstance(value, float):
-        if not isfinite(value):
-            raise DTOError("serialização: float não finito")
-        return format(value, ".15g")
-    if value is None or isinstance(value, (str, int, bool)):
-        return value
-    raise DTOError(f"serialização: tipo não suportado {type(value).__name__}")

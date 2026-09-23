@@ -63,7 +63,7 @@ login único e das permissões por titular que o CB já tem.
 | --- | --- |
 | 0. Referência | Instância 3.8.0 restaurada em `referencia-wealthfolio/`; NOTICE aponta ao código-fonte público. **Feito em 23/09/2026.** |
 | 1. Meta revisada | Esta seção. **Feito em 23/09/2026.** |
-| 2. Limpeza | Lote A: um só caminho de dados (adapters → DTOs → view-model); retirar das views o uso direto de `Consolidado` e os templates `patrimonio.html` e `historico.html`. |
+| 2. Limpeza | Um só caminho de dados: `leitor.consolidar_v2` → `Consolidado` → `consolidado/contexto.py` → view-models → templates. O caminho paralelo (`adapters`/`normalize`/`contracts`/`SnapshotDTO`), que só os testes usavam, foi retirado; `views.py` e os templates `patrimonio.html`/`historico.html`, sem rota, também. **Feito em 23/09/2026.** |
 | 3. Diferencial | Tela de fluxo de caixa e patrimônio projetado, sobre os lançamentos futuros do CB (v3) e os proventos do CRV. Desenho aprovado pelo usuário antes do código. |
 | 4. Experiência única | Login único, barra comum para trocar de aplicativo e visual base no SharedAuth; os três atualizados para a mesma versão do SharedAuth. |
 | 5. Horizonte | Metas e Assistente; lançamento rápido pelo NetWorth gravando pela API da fonte; fusão CB + NetWorth. Cada um por decisão própria. |
@@ -430,6 +430,10 @@ Estado do repositório na revisão `8768aa1`:
 | QA visual | Testes de modelo, rota e contrato existem | Fixtures iguais nas fontes, screenshots lado a lado, diff, geometria, mobile e acessibilidade. |
 
 #### Lotes obrigatórios a partir do estado atual
+
+> **Redefinido em 23/09/2026 (seção 0, fase 2).** O caminho que ficou é o
+> que a produção já usava, o `Consolidado` do `leitor`, e não o `SnapshotDTO`;
+> o `leitor` já tinha a validação e os testes das regras de cobertura e moeda.
 
 **Lote A — consolidar o caminho de dados.** Separar o uso interno de
 `Consolidado` da superfície Wealthfolio: adapters HTTP normalizam cada fonte em

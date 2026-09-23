@@ -1,9 +1,10 @@
 """Views for the single Wealthfolio-compatible surface.
 
-All financial values are assembled from the same ``Consolidado`` object and
-keep the currency/coverage warnings that are part of NetWorth's contract.
-Legacy URLs are translated to this surface in :mod:`consolidado.urls`; the
-retired templates are never rendered by a public route.
+All financial values are assembled from the same ``Consolidado`` object
+(``leitor.consolidar_v2``), shaped by :mod:`consolidado.contexto` and then by
+the view-models, and keep the currency/coverage warnings that are part of
+NetWorth's contract.  Legacy URLs are translated to this surface in
+:mod:`consolidado.urls`.
 """
 
 from __future__ import annotations
@@ -21,9 +22,8 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 
-from consolidado import dashboard, fotos, grafico
+from consolidado import contexto, dashboard, fotos, grafico, leitor
 from consolidado import insights as insights_builder
-from consolidado import views as legacy_views
 from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.fontes import fontes_configuradas
 from consolidado.templatetags.dinheiro import dinheiro
@@ -39,7 +39,7 @@ from consolidado.wealthfolio_compat.view_models import (
     build_view_models,
 )
 
-PERIODS = legacy_views.PERIODOS_DASHBOARD
+PERIODS = contexto.PERIODOS_DASHBOARD
 
 
 def _date_and_period(request: HttpRequest, *, dashboard_default: bool = False) -> tuple[date, str, date]:
@@ -63,26 +63,26 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
     """Build one request snapshot shared by every Wealthfolio route."""
 
     reference, period, period_anchor = _date_and_period(request, dashboard_default=dashboard_default)
-    inicio = legacy_views._inicio_do_periodo(period, reference)
-    consolidado = legacy_views.consolidar_v2(
+    inicio = contexto.inicio_do_periodo(period, reference)
+    consolidado = leitor.consolidar_v2(
         inicio=inicio,
         data=reference,
         periodo="all",
     )
     conversion = converter_totais(consolidado.totais_por_moeda, reference)
     by_role = consolidado.por("papel")
-    cash = legacy_views._valor_do_papel(by_role, "caixa", reference)
-    investments = legacy_views._valor_do_papel(by_role, "investimento", reference)
+    cash = contexto.valor_do_papel(by_role, "caixa", reference)
+    investments = contexto.valor_do_papel(by_role, "investimento", reference)
     flows = dashboard.resumo_fluxos_por_natureza(consolidado)
     pontos = [item for item in fotos.curvas(desde=inicio) if item.data <= reference]
     total_now = conversion.total if consolidado.completo and conversion.possivel else None
     investments_now = investments if consolidado.completo else None
-    pontos = legacy_views._incluir_foto_atual(pontos, reference, total_now, investments_now)
+    pontos = contexto.incluir_foto_atual(pontos, reference, total_now, investments_now)
     chart = grafico.montar(
         pontos,
         (("patrimonio", "Patrimônio", "curva-patrimonio"), ("investimentos", "Investimentos", "curva-investimentos")),
     )
-    tree = legacy_views._arvore_de_contas(
+    tree = contexto.arvore_de_contas(
         consolidado.linhas,
         referencia=reference,
         visao=visao,
@@ -94,14 +94,14 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
     detail = []
     if conversion.possivel:
         for role, label in (("investimento", "Investimentos"), ("caixa", "Caixa")):
-            value = legacy_views._valor_do_papel(by_role, role, reference)
+            value = contexto.valor_do_papel(by_role, role, reference)
             if value is not None:
                 detail.append({"nome": label, "valor": value, "percentual": value * 100 / conversion.total if conversion.total else Decimal("0")})
     # Keep both series available to the client.  The Investments and Net Worth
     # tabs differ only in the selected metric; recomputing one from the other
     # in JavaScript would incorrectly hide a missing/partial source.
-    variacao_investimentos = legacy_views._variacao(investments_now, pontos[:-1], "investimentos")
-    variacao_patrimonio = legacy_views._variacao(total_now, pontos[:-1], "patrimonio")
+    variacao_investimentos = contexto.variacao(investments_now, pontos[:-1], "investimentos")
+    variacao_patrimonio = contexto.variacao(total_now, pontos[:-1], "patrimonio")
     insights_context = None
     insights_overview = []
     if visao == "insights":
@@ -172,8 +172,8 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
         "investments_total": investments,
         "cash_investments_total": total,
         "fluxos_por_natureza": flows,
-        "resumo_gastos": legacy_views._resumo_gastos(flows),
-        "ritmo_mensal": legacy_views._ritmo_mensal(consolidado.fluxos),
+        "resumo_gastos": contexto.resumo_gastos(flows),
+        "ritmo_mensal": contexto.ritmo_mensal(consolidado.fluxos),
         "holdings": dashboard.top_posicoes(consolidado, limite=100),
         "top_posicoes": dashboard.top_posicoes(consolidado, limite=10),
         "grafico": chart,
@@ -190,12 +190,12 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
         "variacao_patrimonio": variacao_patrimonio,
         "insights": insights_context,
         "insights_overview": insights_overview,
-        "desempenhos": legacy_views._desempenhos(consolidado),
+        "desempenhos": contexto.desempenhos(consolidado),
         "rendas": consolidado.rendas,
         "ganhos_realizados": consolidado.ganhos_realizados,
         "rendas_resumo": dashboard.resumo_renda(consolidado),
         "ganhos_resumo": dashboard.resumo_ganhos(consolidado),
-        "fluxos_mensais": legacy_views._ritmo_mensal(consolidado.fluxos),
+        "fluxos_mensais": contexto.ritmo_mensal(consolidado.fluxos),
         "links_de_secao": consolidado.secoes,
         "qualidade_v2": consolidado.qualidade,
         "is_partial": not consolidado.completo,
@@ -219,10 +219,9 @@ def _percent_label(value: Decimal | None, *, signed: bool = False) -> str:
 def _view_model(request: HttpRequest, context: dict[str, Any], *, active: str):
     """Return the immutable compatibility tree used by a public surface.
 
-    The legacy consolidator remains the transport boundary for now, but the
+    ``leitor.consolidar_v2`` is the only transport for the snapshot; the
     templates do not need to know that.  Keeping one cached tree per active
-    surface prevents each partial from reinterpreting the source payload and
-    gives the migration to the DTO transport a single seam.
+    surface prevents each partial from reinterpreting the source payload.
     """
 
     cache = context.setdefault("_wealthfolio_view_models", {})
@@ -247,7 +246,7 @@ def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
     fontes = fontes_configuradas()
     if not fontes:
         return {}
-    inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
+    inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
     fim = context["data_da_tela"]
     result: dict[str, Any] = {}
     for resource in ("income", "performance", "events"):
@@ -1436,7 +1435,7 @@ def activities_view(request: HttpRequest) -> HttpResponse:
             page_limit = min(500, max(1, int(page_size)))
         except (TypeError, ValueError):
             page_limit = 100
-        inicio = legacy_views._inicio_do_periodo(context["periodo"], context["data_da_tela"])
+        inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
         activity_filters = {
             key: (request.GET.get(key) or "").strip()
             for key in ("conta", "categoria", "status", "natureza", "instrumento")

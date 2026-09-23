@@ -14,10 +14,6 @@ from datetime import datetime
 from typing import Any, Protocol
 
 
-class TransportError(RuntimeError):
-    """Falha de transporte, sem confundir com payload inválido."""
-
-
 @dataclass(frozen=True, slots=True)
 class TransportResponse:
     """Resposta já lida pelo cliente injetado, sem guardar credenciais."""
@@ -51,14 +47,4 @@ class ReadOnlyTransport(Protocol):
         ...
 
 
-def response_from_payload(
-    payload: Mapping[str, Any],
-    *,
-    status_code: int = 200,
-    fetched_at: datetime | None = None,
-) -> TransportResponse:
-    """Cria resposta para fixtures e para adapters sem acoplar HTTP ao domínio."""
-    return TransportResponse(status_code, payload, fetched_at)
-
-
-__all__ = ["ReadOnlyTransport", "TransportError", "TransportResponse", "response_from_payload"]
+__all__ = ["ReadOnlyTransport", "TransportResponse"]

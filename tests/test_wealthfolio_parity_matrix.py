@@ -103,7 +103,7 @@ def logged_client(monkeypatch):
     client.force_login(get_user_model().objects.get(username="parity-matrix"))
     snapshot = _complete_snapshot()
     monkeypatch.setattr(
-        wealthfolio_views.legacy_views,
+        wealthfolio_views.leitor,
         "consolidar_v2",
         lambda **_kwargs: snapshot,
     )
@@ -197,7 +197,7 @@ def test_partial_snapshot_is_never_presented_as_complete_across_surface(logged_c
     partial.leituras[1].motivo = "fonte indisponível no teste"
     partial.leituras[1].linhas.clear()
     monkeypatch.setattr(
-        wealthfolio_views.legacy_views,
+        wealthfolio_views.leitor,
         "consolidar_v2",
         lambda **_kwargs: partial,
     )
@@ -218,7 +218,7 @@ def test_empty_snapshot_has_explicit_empty_or_unavailable_states(logged_client, 
     client, _snapshot = logged_client
     empty = leitor.Consolidado()
     monkeypatch.setattr(
-        wealthfolio_views.legacy_views,
+        wealthfolio_views.leitor,
         "consolidar_v2",
         lambda **_kwargs: empty,
     )
