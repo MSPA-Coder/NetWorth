@@ -106,6 +106,57 @@ def variacao(atual: Decimal | None, pontos: list[fotos.Ponto], atributo: str) ->
     }
 
 
+#: Abaixo disso, "por mês" seria extrapolar poucos dias.
+DIAS_MINIMOS_DO_RITMO = 28
+DIAS_POR_MES = Decimal("30.4375")
+
+
+def ritmo_mensal_do_patrimonio(
+    variacao_do_patrimonio: dict | None,
+    fluxos: list[dict],
+    referencia: date,
+    moeda_base: str,
+) -> dict:
+    """Quanto o patrimônio andou por mês, e de onde veio.
+
+    A variação vem das fotos (da primeira com valor até a tela). O que sobrou
+    das receitas depois dos gastos vem dos fluxos gerenciais **da mesma
+    janela** -- depois do dia da primeira foto, que já os contém, e até a
+    tela. O resto é mercado, câmbio e ajustes de saldo: é diferença, não
+    medida, e a tela diz isso.
+    """
+    if not variacao_do_patrimonio:
+        return {"disponivel": False, "motivo": "Sem histórico de patrimônio no período."}
+    desde = variacao_do_patrimonio["desde"]
+    dias = (referencia - desde).days
+    if dias < DIAS_MINIMOS_DO_RITMO:
+        return {"disponivel": False, "motivo": "Período curto demais para um ritmo mensal: escolha 3 meses ou mais."}
+    sobra = Decimal("0")
+    for fluxo in fluxos:
+        dia = fluxo.get("data")
+        if fluxo.get("natureza") != NATUREZA_GERENCIAL or not isinstance(dia, date) or not desde < dia <= referencia:
+            continue
+        if fluxo.get("moeda") != moeda_base and fluxo.get("liquido"):
+            return {
+                "disponivel": False,
+                "motivo": f"Há receitas ou gastos em {fluxo.get('moeda')} no período, e eles não são convertidos aqui.",
+            }
+        sobra += fluxo.get("liquido", Decimal("0"))
+    meses = Decimal(dias) / DIAS_POR_MES
+    total = variacao_do_patrimonio["absoluto"]
+    return {
+        "disponivel": True,
+        "ritmo": total / meses,
+        "desde": desde,
+        "meses": meses,
+        "variacao": total,
+        "fatores": (
+            ("Receitas menos gastos", sobra / meses, "Resultado gerencial do Controle Bancário"),
+            ("Mercado, câmbio e ajustes", (total - sobra) / meses, "O restante da variação"),
+        ),
+    }
+
+
 def incluir_foto_atual(
     pontos: list[fotos.Ponto],
     data_da_tela: date,

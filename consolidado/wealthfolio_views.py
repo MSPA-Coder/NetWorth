@@ -35,7 +35,6 @@ from consolidado.wealthfolio_compat.analytics import (
     fetch_all_analytics,
 )
 from consolidado.wealthfolio_compat.view_models import (
-    UnavailableVM,
     build_view_models,
 )
 
@@ -607,6 +606,39 @@ def _delta_vm(metric: Any, period_label: str) -> dict[str, Any]:
     }
 
 
+def _monthly_pace_vm(context: dict[str, Any]) -> dict[str, Any]:
+    currency = context["moeda_base"]
+    pace = contexto.ritmo_mensal_do_patrimonio(
+        context["variacao_patrimonio"],
+        context["consolidado"].fluxos,
+        context["data_da_tela"],
+        currency,
+    )
+    if not pace["disponivel"]:
+        return {"available": False, "reason": pace["motivo"], "factors": ()}
+    largest = max((abs(value) for _label, value, _detail in pace["fatores"]), default=Decimal("0"))
+    return {
+        "available": True,
+        "value": dinheiro(pace["ritmo"], currency),
+        "positive": pace["ritmo"] >= 0,
+        "detail": (
+            f"{dinheiro(pace['variacao'], currency)} de {pace['desde']:%d/%m/%Y} a "
+            f"{context['data_da_tela']:%d/%m/%Y}, em {f'{pace["meses"]:.1f}'.replace('.', ',')} {'mês' if pace['meses'] < 2 else 'meses'}"
+        ),
+        "reason": "",
+        "factors": [
+            {
+                "label": label,
+                "value": f"{dinheiro(value, currency)}/mês",
+                "positive": value >= 0,
+                "percent_number": (abs(value) * 100 / largest).quantize(Decimal("0.1")) if largest else Decimal("0"),
+                "detail": detail,
+            }
+            for label, value, detail in pace["fatores"]
+        ],
+    }
+
+
 def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> dict[str, Any]:
     all_vm = _view_model(request, context, active="dashboard")
     period_label = next(
@@ -797,14 +829,7 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
             "delta": _delta_vm(net_worth.hero, period_label),
             "chart": {**investment_chart, "series_class": "curva-patrimonio", "aria_label": "Evolução do patrimônio líquido"},
             "details": details,
-            "monthly_pace": {
-                "available": not isinstance(net_worth.monthly_pace, UnavailableVM),
-                "value": _money_label(getattr(net_worth.monthly_pace, "values", ())),
-                "positive": bool(getattr(net_worth.monthly_pace, "values", ())) and net_worth.monthly_pace.values[0].amount >= 0,
-                "detail": getattr(net_worth.monthly_pace, "detail", ""),
-                "reason": getattr(net_worth.monthly_pace, "reason", ""),
-                "factors": (),
-            },
+            "monthly_pace": _monthly_pace_vm(context),
         },
         "spending": {
             "hero_value": _money_label(spending.hero.values),

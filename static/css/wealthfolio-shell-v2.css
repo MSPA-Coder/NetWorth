@@ -141,6 +141,7 @@ body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-widt
 .wf2-pace-card h3 { margin: 0 0 10px; color: #999a92; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .wf2-pace-factor { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 0; }
 .wf2-pace-factor i { display: block; height: 2px; background: var(--wf2-green); }
+.wf2-pace-factor b:not(.is-positive) ~ i { background: #a4553f; }
 .wf2-pace-factor small { color: var(--wf2-muted); font-size: 9px; text-align: right; }
 
 .wf2-spending-hero { display: flex; min-height: 92px; align-items: flex-start; justify-content: space-between; padding: 14px 17px 0; }

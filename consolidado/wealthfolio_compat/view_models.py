@@ -152,7 +152,7 @@ class NetWorthVM:
     periods: tuple[PeriodVM, ...]
     chart: ChartVM
     detail_assets: tuple[BreakdownItemVM, ...]
-    monthly_pace: MetricVM | UnavailableVM
+    # O ritmo mensal junta fotos e fluxos: vive em `contexto.ritmo_mensal_do_patrimonio`.
     coverage: CoverageVM
     empty_state: str | None = None
 
@@ -353,12 +353,7 @@ def _net_worth(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: Co
             if lines:
                 detail.append(BreakdownItemVM(role, label, _values_by_currency(lines)))
     detail.append(BreakdownItemVM("total", "Patrimônio líquido", values, Decimal("100") if values else None)) if detail else None
-    # Variação do período não é ritmo mensal. Até as fontes publicarem os
-    # fatores necessários (aportes, mercado e capital), mostre indisponível.
-    monthly = UnavailableVM(
-        reason="As fontes ainda não publicam os fatores do ritmo mensal."
-    )
-    return NetWorthVM(hero, _periods(context, str(context.get("periodo") or "1a")), _chart_from_context(context, "net_worth", ("Patrimônio",)), tuple(detail), monthly, coverage, "Nenhum ativo publicado." if not obj.linhas else None)
+    return NetWorthVM(hero, _periods(context, str(context.get("periodo") or "1a")), _chart_from_context(context, "net_worth", ("Patrimônio",)), tuple(detail), coverage, "Nenhum ativo publicado." if not obj.linhas else None)
 
 
 def _spending(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: CoverageVM) -> SpendingVM:

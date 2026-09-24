@@ -61,14 +61,12 @@ def test_shell_e_dashboard_investimentos_preservam_periodo_moeda_e_posicoes():
     assert vm.investments.positions[0].classification == "acao"
 
 
-def test_net_worth_tem_detalhamento_e_ritmo_mensal_indisponivel_sem_fatores_publicados():
+def test_net_worth_tem_detalhamento():
     vm = build_view_models(context_for(consolidated()))
 
     assert vm.net_worth.hero.delta[0].amount == Decimal("100")
     assert vm.net_worth.detail_assets[0].label == "Investimentos"
     assert vm.net_worth.detail_assets[-1].label == "Patrimônio líquido"
-    assert isinstance(vm.net_worth.monthly_pace, UnavailableVM)
-    assert "fatores" in vm.net_worth.monthly_pace.reason
 
 
 def test_spending_expone_fluxos_mas_nao_inventa_categorias_ou_atividades():
