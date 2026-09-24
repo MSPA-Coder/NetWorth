@@ -1,11 +1,14 @@
 from decimal import Decimal
 
+import pytest
+
 from consolidado.fontes import Fonte
 from consolidado.wealthfolio_compat.activities import (
     compose_activities,
     fetch_activities,
     normalize_activities_payload,
 )
+from consolidado.wealthfolio_compat.models import DTOError
 from consolidado.wealthfolio_compat.transport import TransportResponse
 
 
@@ -42,6 +45,17 @@ def test_normalize_activities_is_immutable_and_prefixes_untrusted_ids():
     assert result.activities[0].category_kind == "gerencial"
     original["itens"][0]["descricao"] = "alterado"
     assert result.activities[0].description == "Salário"
+
+
+def test_descricao_vazia_vira_rotulo_e_descricao_ausente_continua_erro():
+    vazia = payload()
+    vazia["itens"][0]["descricao"] = "  "
+    ausente = payload()
+    del ausente["itens"][0]["descricao"]
+
+    assert normalize_activities_payload(vazia).activities[0].description == "(sem descrição)"
+    with pytest.raises(DTOError):
+        normalize_activities_payload(ausente)
 
 
 def test_compose_activities_orders_sources_without_mixing_currencies():

@@ -297,6 +297,12 @@ body:has(.wf2p-reference-page) .wf2-topbar__actions { visibility: hidden; }
 .wf2p-plan-filters button b { margin-left: 5px; font-weight: 700; }
 .wf2p-plan-filters button.is-active { border-color: var(--wf2-ink); background: var(--wf2-ink); color: var(--wf2-surface); }
 .wf2p-spending-table { min-width: 600px; }
+.wf2p-progress { display: inline-block; width: 110px; height: 7px; overflow: hidden; border-radius: 4px; background: var(--wf2-border); vertical-align: middle; }
+.wf2p-progress i { display: block; height: 100%; background: #ad6e4e; }
+.wf2p-delta small { color: var(--wf2-muted); }
+/* Em gastos, subir é o sinal ruim. */
+.wf2p-delta.is-up { color: #a4553f; }
+.wf2p-delta.is-down { color: #5f7f4f; }
 .wf2p-spending-plan > footer { display: flex; justify-content: space-between; gap: 12px; color: var(--wf2-muted); font-size: .68rem; }
 .wf2p-budget-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(270px, 320px); gap: 17px; }
 .wf2p-budget-layout main, .wf2p-budget-layout aside { display: grid; align-content: start; gap: 13px; }

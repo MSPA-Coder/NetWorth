@@ -12,7 +12,7 @@ import logging
 import urllib.error
 import urllib.request
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, TypeVar
@@ -29,6 +29,9 @@ TIMEOUT_SECONDS = 8
 MAX_BYTES = 8 * 1024 * 1024
 PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
+#: O maior tamanho de página que CB e CRV aceitam no contrato v3.
+PAGE_SIZE_SOURCE = 100
+MAX_PAGES = 50
 
 STATUS_OK = "ok"
 STATUS_PARTIAL = "partial"
@@ -343,6 +346,33 @@ def fetch_analytics(
         return AnalyticsSourceResult(_source_name(None, fonte.apelido), resource, STATUS_ERROR, error=str(exc), fetched_at=response.fetched_at)
 
 
+def fetch_all_analytics(
+    fonte: Fonte,
+    *,
+    resource: str,
+    inicio: date | None = None,
+    fim: date | None = None,
+    fetch=fetch_analytics,
+) -> AnalyticsSourceResult[Any]:
+    """Todas as páginas de um recurso, ou erro: meia série não vira série.
+
+    As fontes aceitam no máximo ``PAGE_SIZE_SOURCE`` itens por página; pedir
+    mais devolve 400, e era por isso que a renda do CRV nunca aparecia.
+    """
+    items: list[Any] = []
+    for page in range(1, MAX_PAGES + 1):
+        result = fetch(fonte, resource=resource, inicio=inicio, fim=fim, page=page, page_size=PAGE_SIZE_SOURCE)
+        if result.status in {STATUS_ERROR, STATUS_UNSUPPORTED}:
+            return result
+        items.extend(result.items)
+        if not result.items or len(items) >= result.total:
+            return replace(result, items=tuple(items), total=len(items))
+    return AnalyticsSourceResult(
+        _source_name(None, fonte.apelido), resource, STATUS_ERROR,
+        error=f"{fonte.nome}: mais de {MAX_PAGES * PAGE_SIZE_SOURCE} itens de {resource} no período",
+    )
+
+
 def compose_analytics[T](resource: str, results: Iterable[AnalyticsSourceResult[T]]) -> AnalyticsComposition[T]:
     normalized = tuple(results)
     items = tuple(sorted((item for result in normalized for item in result.items), key=lambda item: (getattr(item, "date", date.min), getattr(item, "id", "")), reverse=True))
@@ -371,6 +401,7 @@ __all__ = [
     "STATUS_STALE",
     "STATUS_UNSUPPORTED",
     "compose_analytics",
+    "fetch_all_analytics",
     "fetch_analytics",
     "normalize_analytics_payload",
 ]

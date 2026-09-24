@@ -3,9 +3,12 @@ from decimal import Decimal
 from consolidado.fontes import Fonte
 from consolidado.wealthfolio_compat.analytics import (
     STATUS_EMPTY,
+    STATUS_ERROR,
     STATUS_PARTIAL,
     STATUS_UNSUPPORTED,
+    AnalyticsSourceResult,
     compose_analytics,
+    fetch_all_analytics,
     fetch_analytics,
     normalize_analytics_payload,
 )
@@ -121,3 +124,36 @@ def test_empty_payload_has_explicit_empty_state():
         resource="income",
     )
     assert result.status == STATUS_EMPTY
+
+
+def _pagina_de_renda(total, tamanho, pagina):
+    inicio = (pagina - 1) * tamanho
+    itens = [
+        {**income_payload()["itens"][0], "id": f"controle-renda-variavel:renda:{n}"}
+        for n in range(inicio, min(total, inicio + tamanho))
+    ]
+    return income_payload(itens=itens, paginacao={"total": total, "pagina": pagina, "tamanho": tamanho})
+
+
+def test_fetch_all_analytics_pede_paginas_de_100_ate_o_total():
+    pedidos = []
+
+    def fetch(fonte_, *, resource, inicio, fim, page, page_size):
+        pedidos.append((page, page_size))
+        return normalize_analytics_payload(_pagina_de_renda(230, page_size, page), resource=resource)
+
+    result = fetch_all_analytics(fonte(), resource="income", fetch=fetch)
+
+    assert pedidos == [(1, 100), (2, 100), (3, 100)]
+    assert len(result.items) == result.total == 230
+
+
+def test_fetch_all_analytics_devolve_erro_quando_uma_pagina_falha():
+    def fetch(fonte_, *, resource, inicio, fim, page, page_size):
+        if page == 2:
+            return AnalyticsSourceResult("controle-renda-variavel", resource, STATUS_ERROR, error="a fonte respondeu HTTP 400")
+        return normalize_analytics_payload(_pagina_de_renda(150, page_size, page), resource=resource)
+
+    result = fetch_all_analytics(fonte(), resource="income", fetch=fetch)
+
+    assert result.status == STATUS_ERROR and not result.items

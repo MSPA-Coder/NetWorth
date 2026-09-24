@@ -152,7 +152,7 @@ class NetWorthVM:
     periods: tuple[PeriodVM, ...]
     chart: ChartVM
     detail_assets: tuple[BreakdownItemVM, ...]
-    monthly_pace: MetricVM | UnavailableVM
+    # O ritmo mensal junta fotos e fluxos: vive em `contexto.ritmo_mensal_do_patrimonio`.
     coverage: CoverageVM
     empty_state: str | None = None
 
@@ -353,12 +353,7 @@ def _net_worth(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: Co
             if lines:
                 detail.append(BreakdownItemVM(role, label, _values_by_currency(lines)))
     detail.append(BreakdownItemVM("total", "Patrimônio líquido", values, Decimal("100") if values else None)) if detail else None
-    # Variação do período não é ritmo mensal. Até as fontes publicarem os
-    # fatores necessários (aportes, mercado e capital), mostre indisponível.
-    monthly = UnavailableVM(
-        reason="As fontes ainda não publicam os fatores do ritmo mensal."
-    )
-    return NetWorthVM(hero, _periods(context, str(context.get("periodo") or "1a")), _chart_from_context(context, "net_worth", ("Patrimônio",)), tuple(detail), monthly, coverage, "Nenhum ativo publicado." if not obj.linhas else None)
+    return NetWorthVM(hero, _periods(context, str(context.get("periodo") or "1a")), _chart_from_context(context, "net_worth", ("Patrimônio",)), tuple(detail), coverage, "Nenhum ativo publicado." if not obj.linhas else None)
 
 
 def _spending(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: CoverageVM) -> SpendingVM:
@@ -393,6 +388,29 @@ def _composition(context: Mapping[str, Any], dimension: str, limit: int = 4) -> 
     return tuple(result)
 
 
+def _cost_basis(obj: leitor.Consolidado) -> MetricVM:
+    """O custo das posições, por moeda, só quando TODAS o publicaram.
+
+    Custo de parte da carteira ao lado do valor da carteira inteira faria o
+    ganho parecer maior do que é. E fica por moeda: custo em dólar é histórico,
+    e convertê-lo pela taxa de hoje daria um custo que nunca existiu.
+    """
+    lines = [line for line in obj.linhas if line.papel == "investimento"]
+    if not lines:
+        return _metric("cost_basis", "Custo de aquisição", (), state="unavailable", detail="Nenhuma posição publicada.")
+    missing = sum(1 for line in lines if line.custo is None)
+    if missing:
+        return _metric(
+            "cost_basis", "Custo de aquisição", (), state="unavailable",
+            detail=f"{missing} de {len(lines)} posições sem custo publicado (a fonte não publica custo de datas passadas).",
+        )
+    grouped: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for line in lines:
+        grouped[line.moeda] += line.custo
+    values = tuple(_money(value, currency) for currency, value in sorted(grouped.items()))
+    return _metric("cost_basis", "Custo de aquisição", values, detail=f"{len(lines)} posições, por moeda")
+
+
 def _insights_summary(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: CoverageVM) -> InsightsSummaryVM:
     currency = str(context.get("moeda_base") or "BRL")
     total = context.get("total")
@@ -400,7 +418,7 @@ def _insights_summary(context: Mapping[str, Any], obj: leitor.Consolidado, cover
         _metric("portfolio_value", "Valor da carteira", (_money(total, currency),) if total is not None else _values_from_totals(obj.totais_por_moeda)),
         _metric("cash", "Caixa", (_money(context["cash_total"], currency),) if context.get("cash_total") is not None else ()),
         _metric("invested", "Investido", (_money(context["investments_total"], currency),) if context.get("investments_total") is not None else ()),
-        _metric("cost_basis", "Custo de aquisição", (), state="unavailable", detail="A fonte não publica custo consolidado para toda a carteira."),
+        _cost_basis(obj),
     )
     cards = []
     for dimension in ("classe", "moeda", "instituicao", "mercado"):

@@ -22,7 +22,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 
-from consolidado import contexto, dashboard, fotos, grafico, leitor
+from consolidado import contexto, dashboard, fotos, gastos, grafico, leitor
 from consolidado import insights as insights_builder
 from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.fontes import fontes_configuradas
@@ -32,10 +32,9 @@ from consolidado.wealthfolio_compat.analytics import (
     IncomeRecord,
     PerformanceRecord,
     compose_analytics,
-    fetch_analytics,
+    fetch_all_analytics,
 )
 from consolidado.wealthfolio_compat.view_models import (
-    UnavailableVM,
     build_view_models,
 )
 
@@ -252,7 +251,9 @@ def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
     como lacuna, nunca como zero ou série inventada.
     """
 
-    fontes = fontes_configuradas()
+    # Renda, desempenho e eventos são de carteira: perguntar ao CB, que é
+    # caixa, só produzia "não publica" e deixava a tela sempre como parcial.
+    fontes = [fonte for fonte in fontes_configuradas() if fonte.papel == "investimento"]
     if not fontes:
         return {}
     inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
@@ -262,14 +263,7 @@ def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
         result[resource] = compose_analytics(
             resource,
             (
-                fetch_analytics(
-                    fonte,
-                    resource=resource,
-                    inicio=inicio,
-                    fim=fim,
-                    page=1,
-                    page_size=500,
-                )
+                fetch_all_analytics(fonte, resource=resource, inicio=inicio, fim=fim)
                 for fonte in fontes
             ),
         )
@@ -612,6 +606,39 @@ def _delta_vm(metric: Any, period_label: str) -> dict[str, Any]:
     }
 
 
+def _monthly_pace_vm(context: dict[str, Any]) -> dict[str, Any]:
+    currency = context["moeda_base"]
+    pace = contexto.ritmo_mensal_do_patrimonio(
+        context["variacao_patrimonio"],
+        context["consolidado"].fluxos,
+        context["data_da_tela"],
+        currency,
+    )
+    if not pace["disponivel"]:
+        return {"available": False, "reason": pace["motivo"], "factors": ()}
+    largest = max((abs(value) for _label, value, _detail in pace["fatores"]), default=Decimal("0"))
+    return {
+        "available": True,
+        "value": dinheiro(pace["ritmo"], currency),
+        "positive": pace["ritmo"] >= 0,
+        "detail": (
+            f"{dinheiro(pace['variacao'], currency)} de {pace['desde']:%d/%m/%Y} a "
+            f"{context['data_da_tela']:%d/%m/%Y}, em {f'{pace["meses"]:.1f}'.replace('.', ',')} {'mês' if pace['meses'] < 2 else 'meses'}"
+        ),
+        "reason": "",
+        "factors": [
+            {
+                "label": label,
+                "value": f"{dinheiro(value, currency)}/mês",
+                "positive": value >= 0,
+                "percent_number": (abs(value) * 100 / largest).quantize(Decimal("0.1")) if largest else Decimal("0"),
+                "detail": detail,
+            }
+            for label, value, detail in pace["fatores"]
+        ],
+    }
+
+
 def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> dict[str, Any]:
     all_vm = _view_model(request, context, active="dashboard")
     period_label = next(
@@ -736,7 +763,11 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
     weekly_totals: dict[date, Decimal] = {}
     for row in context["consolidado"].fluxos:
         day = row.get("data")
-        if not isinstance(day, date) or row.get("moeda") != context["moeda_base"]:
+        if (
+            not isinstance(day, date)
+            or row.get("moeda") != context["moeda_base"]
+            or row.get("natureza") != contexto.NATUREZA_GERENCIAL
+        ):
             continue
         # O Wealthfolio ancora os buckets semanais no domingo.
         week = day - timedelta(days=(day.weekday() + 1) % 7)
@@ -753,6 +784,24 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         }
         for day, value in weekly
     ]
+    # Os lançamentos só são lidos na aba que os mostra: a leitura é paginada e
+    # inclui o período anterior, e as outras abas não precisam dela.
+    spending_detail = (
+        gastos.detalhe(
+            fontes_configuradas(),
+            gastos.Periodo(
+                contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"]),
+                context["data_da_tela"],
+            ),
+            chave=context["periodo"],
+        )
+        if tab == "spending" and context["consolidado"].leituras
+        else {"disponivel": False, "motivo": ""}
+    )
+    comparison = spending_detail.get("comparacao") or {
+        "label": spending_detail["motivo"] or "Comparação com o período anterior indisponível.",
+        "positive": False,
+    }
     state = "ready" if context["consolidado"].leituras else "empty"
     return {
         "state": state,
@@ -780,24 +829,25 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
             "delta": _delta_vm(net_worth.hero, period_label),
             "chart": {**investment_chart, "series_class": "curva-patrimonio", "aria_label": "Evolução do patrimônio líquido"},
             "details": details,
-            "monthly_pace": {
-                "available": not isinstance(net_worth.monthly_pace, UnavailableVM),
-                "value": _money_label(getattr(net_worth.monthly_pace, "values", ())),
-                "positive": bool(getattr(net_worth.monthly_pace, "values", ())) and net_worth.monthly_pace.values[0].amount >= 0,
-                "detail": getattr(net_worth.monthly_pace, "detail", ""),
-                "reason": getattr(net_worth.monthly_pace, "reason", ""),
-                "factors": (),
-            },
+            "monthly_pace": _monthly_pace_vm(context),
         },
         "spending": {
             "hero_value": _money_label(spending.hero.values),
-            "comparison": {"label": getattr(spending.comparison, "reason", "Indisponível")},
+            "comparison": comparison,
             "stats": stats,
             "chart": {"bars": bars, "empty_message": spending.empty_state},
-            "categories": (),
-            "activities": (),
+            "categories": spending_detail.get("categorias", ()),
+            "activities": spending_detail.get("recentes", ()),
+            "detail_reason": spending_detail["motivo"],
             "insights_url": reverse("consolidado:spending_insights"),
             "activities_url": reverse("consolidado:activities"),
+            "recent_url": _query_url(
+                "consolidado:activities",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+                natureza=gastos.NATUREZA_GERENCIAL,
+                status=gastos.STATUS_REALIZADO,
+            ),
             "budget": {"reason": spending.budget.reason},
             "events": {"reason": spending.events.reason},
         },
@@ -848,6 +898,23 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         "back_url": reverse("consolidado:dashboard"),
     }
     if kind == "settings":
+        # A taxa é a mesma que converteu o patrimônio desta tela: a do dia da
+        # posição (ou a última antes dele), nunca uma buscada para enfeitar.
+        page["fx_rates"] = [
+            {
+                "pair": f"{rate.moeda} / {MOEDA_BASE}",
+                "rate": f"{rate.taxa:.4f}".replace(".", ","),
+                "date": rate.data.strftime("%d/%m/%Y"),
+                "source": {"yahoo": "Yahoo Finance", "ptax": "PTAX (Banco Central)"}.get(rate.fonte, rate.fonte),
+                "lag": (
+                    "do próprio dia"
+                    if rate.dias_de_defasagem == 0
+                    else f"{rate.dias_de_defasagem} {'dia' if rate.dias_de_defasagem == 1 else 'dias'} antes da posição"
+                ),
+                "stale": rate.defasada,
+            }
+            for rate in (*context["conversao"].taxas, *context["conversao"].defasadas)
+        ]
         # Settings is a read-only projection of the Wealthfolio navigation.
         # Keep the selected section in the URL while carrying the caller's
         # other query scope (date/period/source filters) to every item.
@@ -1153,6 +1220,10 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                     if busca and busca not in searchable:
                         continue
                     value = activity.realized_value or activity.value
+                    # O CB publica valores positivos e o tipo dá o sinal: sem
+                    # isto, um estorno e uma tarifa de mesmo valor saíam iguais.
+                    amount = -abs(value.amount) if activity.kind == gastos.TIPO_DESPESA else value.amount
+                    value = type(value)(amount, value.currency)
                     positive = value.amount >= 0
                     fonte = fontes.get(activity.source.casefold())
                     url = fonte.link(activity.link) if fonte and activity.link else activity.link
@@ -1193,10 +1264,37 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                         empty_message="A fonte não publicou um registro correspondente aos filtros selecionados.",
                     )
     elif kind == "spending-insights":
+        stage = request.GET.get("stage", "where")
+        if stage not in {"where", "changed", "when"}:
+            stage = "where"
         page["stages"] = [
-            {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": request.GET.get("stage", "where") == key}
+            {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": stage == key}
             for key, label in (("where", "Onde"), ("changed", "O que mudou"), ("when", "Quando"))
         ]
+        analysis = context.get("analise_gastos") or {"disponivel": False, "motivo": "", "categorias": [], "meses": []}
+        categories = list(analysis["categorias"])
+        if stage == "changed":
+            categories.sort(key=lambda row: -abs(row["delta"].get("amount") or Decimal("0")))
+        page["stage"] = stage
+        page["categories"] = categories
+        page["months"] = analysis["meses"]
+        page["analysis_reason"] = analysis["motivo"]
+        page["category_counts"] = {
+            "all": len(categories),
+            "up": sum(1 for row in categories if row["delta"]["direction"] == "up"),
+            "down": sum(1 for row in categories if row["delta"]["direction"] == "down"),
+        }
+        previous = analysis.get("anterior")
+        page["previous_label"] = (
+            f"{previous.inicio:%d/%m/%Y} a {previous.fim:%d/%m/%Y}"
+            if previous is not None and analysis.get("comparavel")
+            else ""
+        )
+        page["spending_detail"] = (
+            f"{len(analysis['categorias'])} categorias · {analysis.get('lancamentos', 0)} lançamentos"
+            if analysis["disponivel"]
+            else analysis["motivo"]
+        )
         metrics = []
         for row in context["resumo_gastos"]:
             metrics.extend(
@@ -1207,8 +1305,12 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 )
             )
         page["metrics"] = metrics
-        page["categories"] = ()
-        page["report_url"] = ""
+        page["report_url"] = _query_url(
+            "consolidado:activities",
+            periodo=context["periodo"],
+            natureza=gastos.NATUREZA_GERENCIAL,
+            status=gastos.STATUS_REALIZADO,
+        )
     else:
         page["unavailable_title"] = titles.get(kind, "Funcionalidade")
         page["unavailable_message"] = "Ainda não disponível nesta fase"
@@ -1500,6 +1602,14 @@ def goal_new_view(request: HttpRequest) -> HttpResponse:
 def spending_insights_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="gastos")
     context["stage"] = request.GET.get("stage") or "where"
+    context["analise_gastos"] = gastos.analise(
+        fontes_configuradas(),
+        gastos.Periodo(
+            contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"]),
+            context["data_da_tela"],
+        ),
+        chave=context["periodo"],
+    )
     context["page_type"] = "spending-insights"
     context["wf_shell"] = _shell_vm(request, context, active="spending")
     context["wf_page"] = _page_vm(context, kind="spending-insights", request=request)
