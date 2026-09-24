@@ -178,8 +178,12 @@ com `~/deploy.sh networth`.
 2. Criar `.env.vps` a partir de `.env.vps.example`.
 3. Criar `.secrets/`, com modo `700` e arquivos com modo `644`. O PostgreSQL e
    o Django rodam com usuários diferentes, e o Compose sem Swarm monta cada
-   arquivo com as permissões do host. São quatro arquivos:
-   - `django_secret_key` e `postgres_password`: gerados na hora;
+   arquivo com as permissões do host. São cinco arquivos:
+   - `django_secret_key`, `postgres_password` e `postgres_app_password`:
+     gerados na hora. O segundo é do papel administrativo (`POSTGRES_USER`,
+     superusuário, dono das tabelas), que só o banco, o `db-provision` e o
+     `migrate` recebem; o terceiro é do papel restrito `networth_app`, com que
+     o `web` conecta — só DML, e a aplicação recusa rodar como superusuário;
    - `fonte_cb_token`: **o mesmo valor** do `.secrets/patrimonio_token` do
      Controle Bancário (lá ele pertence ao usuário do contêiner, então a
      leitura exige `sudo`);

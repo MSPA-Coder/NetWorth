@@ -9,12 +9,18 @@ x-app-build: &app-build
     context: .
     target: runtime
 
+# O runtime conecta com o papel restrito (só DML), provisionado pelo serviço
+# `db-provision`. O papel administrativo `POSTGRES_USER` -- superusuário, dono
+# das tabelas -- só aparece no `postgres`, no `db-provision`, no `migrate` e na
+# suíte. `DB_EXIGIR_PAPEL_RESTRITO` faz a aplicação recusar uma conexão
+# superusuária (ver `consolidado/papel_do_banco.py`).
 x-app-environment: &app-environment
   DJANGO_SETTINGS_MODULE: networth.settings
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
-  POSTGRES_USER: ${POSTGRES_USER:-networth}
-  POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+  POSTGRES_USER: ${POSTGRES_APP_USER:-networth_app}
+  POSTGRES_PASSWORD_FILE: /run/secrets/postgres_app_password
+  DB_EXIGIR_PAPEL_RESTRITO: "1"
   POSTGRES_DB: ${POSTGRES_DB:-networth}
   DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
   # Os tokens das fontes seguem o mesmo contrato dos outros segredos: arquivo
@@ -32,7 +38,7 @@ x-app-environment: &app-environment
 x-app-secrets: &app-secrets
   secrets:
     - django_secret_key
-    - postgres_password
+    - postgres_app_password
     - fonte_cb_token
     - fonte_crv_token
 
@@ -93,14 +99,62 @@ services:
   # arquivos estáticos com hash no volume que o `web` consome. O `web` só sobe
   # depois que esta etapa termina com sucesso -- sem ela, a primeira tela a
   # usar `{% static %}` responde 500 por falta do manifesto.
-  migrate:
-    <<: [*app-build, *app-hardening, *app-secrets]
+  # Cria ou atualiza, de forma idempotente, o papel restrito da aplicação. Roda
+  # a cada `up`, antes do `migrate`: concede acesso às tabelas existentes, e os
+  # privilégios padrão cobrem as que o `migrate` criar depois.
+  db-provision:
+    image: postgres:17-alpine
+    user: postgres
+    read_only: true
+    cpus: 0.5
+    mem_limit: 256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:mode=1777,rw,nosuid,nodev,noexec,size=16m
+      - /var/run/postgresql:mode=1777,rw,nosuid,nodev,noexec,size=16m
+    pids_limit: 64
     logging: *service-logging
     environment:
-      <<: *app-environment
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-networth}
+      DB_ADMIN_USER: ${POSTGRES_USER:-networth}
+      DB_ADMIN_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_APP_USER: ${POSTGRES_APP_USER:-networth_app}
+      DB_APP_PASSWORD_FILE: /run/secrets/postgres_app_password
+    secrets:
+      - postgres_password
+      - postgres_app_password
+    volumes:
+      - ./scripts/provision-db-runtime.sh:/usr/local/bin/provision-db-runtime.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
+    command: ["sh", "/usr/local/bin/provision-db-runtime.sh"]
+    restart: "no"
+
+  # Único serviço de aplicação com a credencial administrativa: migration é DDL.
+  migrate:
+    <<: [*app-build, *app-hardening]
+    logging: *service-logging
+    environment:
+      <<: *app-environment
+      POSTGRES_USER: ${POSTGRES_USER:-networth}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_EXIGIR_PAPEL_RESTRITO: "0"
+    secrets:
+      - django_secret_key
+      - postgres_password
+      - fonte_cb_token
+      - fonte_crv_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-provision:
+        condition: service_completed_successfully
     # `--clear` é necessário: sem ele, um arquivo removido do código continua
     # sendo servido a partir do volume indefinidamente.
     command:
@@ -177,14 +231,22 @@ services:
   # `docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality`
   # O `--build` faz parte do comando: este serviço não monta o código do host, e
   # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
+  # A suíte cria e destrói o banco de teste, então usa o papel administrativo.
   quality:
-    <<: *app-secrets
+    secrets:
+      - django_secret_key
+      - postgres_password
+      - fonte_cb_token
+      - fonte_crv_token
     build:
       context: .
       target: quality
     environment:
       <<: *app-environment
       POSTGRES_HOST: postgres-teste
+      POSTGRES_USER: ${POSTGRES_USER:-networth}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_EXIGIR_PAPEL_RESTRITO: "0"
     depends_on:
       postgres-teste:
         condition: service_healthy
@@ -203,6 +265,10 @@ secrets:
     file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/django_secret_key
   postgres_password:
     file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/postgres_password
+  # Senha do papel restrito da aplicação. Precisa ser legível pelo uid 70 (o
+  # `db-provision` roda como `postgres`) e pelo usuário do `web`: modo 644.
+  postgres_app_password:
+    file: ${COMPOSE_SECRETS_DIRECTORY:-.secrets}/postgres_app_password
   # Os tokens que este aplicativo APRESENTA às fontes. Cada fonte tem o seu:
   # um vazamento não abre as duas, e a rotação de um não derruba o outro.
   fonte_cb_token:
