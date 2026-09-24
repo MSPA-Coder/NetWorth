@@ -1,7 +1,10 @@
-"""Contratos visuais das páginas derivadas do shell Wealthfolio.
+"""Páginas derivadas do shell Wealthfolio: drill-down, estados e abas.
 
-Estes testes não validam valores financeiros. Eles travam a arquitetura visual:
-controles de navegação, tabelas, estados somente leitura e links de drill-down.
+Rótulos, cabeçalhos e a estrutura visual copiada do Wealthfolio não são
+testados aqui (docs/TESTES.md, T5): mudam por decisão de tela e se conferem
+olhando a tela. Fica o que o servidor decide -- o nome com espaço e acento
+chega ao detalhe, a posição inexistente tem estado próprio, a aba vem da
+query. Somente leitura (405) está em `test_wealthfolio_parity_matrix.py`.
 """
 
 from decimal import Decimal
@@ -63,71 +66,19 @@ def pages_client(monkeypatch):
     return client
 
 
-@pytest.mark.parametrize(
-    ("path", "markers"),
-    [
-        ("/accounts/", ("Contas conectadas", "Lista", "Mapa", "Buscar")),
-        ("/holdings/", ("Todas as posições", "Investimentos", "Ativos", "Passivos", "Colunas")),
-        ("/activities/", ("Atividades publicadas", "Adicionar", "Modo de visualização")),
-        ("/goals/", ("Metas", "Acompanhe e planeje suas metas financeiras", "Ainda não há metas", "Crie sua primeira meta")),
-        ("/assistant/", ("Nenhum provedor de IA configurado", "Configurar provedores de IA")),
-        ("/spending/insights/", ("Análise de gastos", "Onde estou", "O que mudou", "Quando e onde", "Gasto por categoria")),
-        ("/spending/budget/", ("Orçamento", "Plano mensal", "Receitas", "Needs", "Copiar o plano de outro mês")),
-        ("/settings/", ("Configurações", "PREFERÊNCIAS", "FINANÇAS", "CONEXÕES")),
-    ],
-)
-def test_derived_pages_expose_wealthfolio_structure(pages_client, path, markers):
-    response = pages_client.get(path)
-    body = response.content.decode()
-    assert response.status_code == 200
-    for marker in markers:
-        assert marker in body
-
-
 def test_account_detail_keeps_unicode_drilldown_and_read_only(pages_client):
     response = pages_client.get("/accounts/Mercado%20Pago/")
-    body = response.content.decode()
     assert response.status_code == 200
-    assert "Linhas publicadas" in body
-    assert "Somente leitura" in body
+    assert "conta 01" in response.content.decode()
     assert pages_client.post("/accounts/Mercado%20Pago/").status_code == 405
 
 
 def test_holding_detail_and_state_contracts_remain_present(pages_client):
     detail = pages_client.get("/holdings/ETF%20Brasil/")
     assert detail.status_code == 200
-    assert "Indicadores da posição" in detail.content.decode()
     missing = pages_client.get("/holdings/Não%20existe/")
     assert missing.status_code == 200
     assert "Posição não encontrada" in missing.content.decode()
-
-
-def test_holdings_and_activities_start_with_reference_toolbar(pages_client):
-    for path, first_marker in (("/holdings/", "Tipo de carteira"), ("/activities/", "Adicionar atividade")):
-        body = pages_client.get(path).content.decode()
-        assert first_marker in body
-        assert '<header class="wf2p-header">' not in body
-
-
-def test_settings_matches_general_read_only_structure(pages_client):
-    body = pages_client.get("/settings/").content.decode()
-    for marker in ("Configurações", "PREFERÊNCIAS", "FINANÇAS", "DADOS", "CONEXÕES", "Acesso de agentes de IA", "EXTENSÕES", "SOBRE", "Geral", "Moeda base", "Idioma e região", "Taxas de câmbio", "Atualizações automáticas"):
-        assert marker in body
-    assert 'data-settings-section="geral"' in body
-    assert 'class="wf2p-settings-nav"' in body
-
-
-def test_settings_general_detail_is_read_only_and_has_stable_back_link(pages_client):
-    response = pages_client.get("/settings/", {"secao": "geral", "periodo": "1a"})
-    body = response.content.decode()
-    assert response.status_code == 200
-    assert 'data-settings-section="geral"' in body
-    for marker in ("Geral", "Moeda base", "Idioma e região", "Taxas de câmbio", "Atualizações automáticas", "Indisponível"):
-        assert marker in body
-    assert 'disabled>Salvar moeda</button>' in body
-    assert 'aria-label="Idioma" disabled' in body
-    assert 'class="wf2p-settings-nav"' in body
-    assert 'href="/settings/?periodo=1a"' in body
 
 
 def test_settings_section_and_holdings_tab_are_query_driven(pages_client):

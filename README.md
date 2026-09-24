@@ -225,11 +225,14 @@ $env:POSTGRES_PASSWORD = "dev-only"
 O filtro `-m "not django_db"` não é opcional aqui: **não há PostgreSQL no
 host**. Sem ele, os testes marcados com `django_db` não falham por defeito —
 eles erram com `django.db.utils.OperationalError`, e a mensagem não aponta
-para a causa. São 90 testes nesta camada.
+para a causa.
 
 **No Docker — o portão de verdade.** A camada com banco roda no perfil
-`quality`, que sobe o `postgres-teste` efêmero junto. São 228 testes, e é o
-que precisa passar antes de publicar.
+`quality`, que sobe o `postgres-teste` efêmero junto, e é o que precisa passar
+antes de publicar. O que merece teste, em que camada e em que forma está em
+`docs/TESTES.md`, comum aos repositórios: leia antes de escrever ou remover um
+teste. Diante de vermelho, decida de quem é o defeito antes de mexer; nunca
+escreva código para o teste passar.
 
 ```powershell
 docker compose --env-file .env.docker --profile quality run --build --rm quality
