@@ -201,6 +201,14 @@ com `~/deploy.sh networth`.
    fontes e leva alguns minutos; repetir o comando preenche o que tiver
    faltado.
 
+**Login sem trava por conta, por decisão (24/09/2026).** O login é o do
+Django, sem bloqueio depois de N erros como o do Controle Bancário. O que
+contém força bruta é o limite do nginx (`zone=login`: 10 tentativas por
+minuto por IP), junto com a política de senha. Com dois usuários, isso basta.
+Revisitar quando entrar mais gente ou quando o login for exposto a terceiros;
+a trava do CB é o modelo, e ela depende do IP do cliente resolvido atrás do
+proxy.
+
 **Trocar um token** é uma operação dos dois lados ao mesmo tempo. Se só o
 publicador mudar, a fonte passa a responder 401. A tela diz qual fonte falhou
 e avisa, antes do número, que aquele total não é o patrimônio inteiro.
