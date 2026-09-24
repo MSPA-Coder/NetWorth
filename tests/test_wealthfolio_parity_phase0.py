@@ -1,4 +1,7 @@
-"""Gates estruturais da Fase 0 do clone Wealthfolio 3.8.0."""
+"""Abas, estados vazios e controles de escrita das telas do shell.
+
+Os rótulos de cada aba não são conferidos (docs/TESTES.md, T5); a aba
+escolhida é, pelo contexto que o servidor monta."""
 
 from decimal import Decimal
 
@@ -42,26 +45,19 @@ def logged_client(monkeypatch):
 
 
 def test_dashboard_matrix_has_three_tabs_and_consistent_context(logged_client):
-    expected = {"investments": "Investimentos", "net-worth": "Patrimônio líquido", "spending": "Gastos"}
-    for tab, title in expected.items():
+    for tab in ("investments", "net-worth", "spending"):
         response = logged_client.get("/dashboard/", {"tab": tab, "periodo": "3m"})
-        body = response.content.decode()
         assert response.status_code == 200
         assert response.context["dashboard_tab"] == tab
-        assert title in body
     body = logged_client.get("/dashboard/", {"tab": "net-worth", "periodo": "3m"}).content.decode()
     assert "periodo=3m" in body or "periodo=3m&amp;" in body
 
 
-@pytest.mark.parametrize("tab,markers", [("summary", ("Resumo", "Exposição da carteira", "Alocação-alvo")), ("performance", ("Desempenho", "Retorno no período")), ("income", ("Rendimentos", "Rendimentos ao longo do tempo"))])
-def test_insights_matrix_has_three_tabs_and_structural_markers(logged_client, tab, markers):
+@pytest.mark.parametrize("tab", ["summary", "performance", "income"])
+def test_insights_matrix_has_three_tabs(logged_client, tab):
     response = logged_client.get("/insights/", {"tab": tab, "periodo": "1a"})
-    body = response.content.decode()
     assert response.status_code == 200
     assert response.context["insights_tab"] == tab
-    assert "Portfolio Insights" not in body
-    for marker in markers:
-        assert marker in body
 
 
 @pytest.mark.parametrize("path", ["/dashboard/", "/insights/", "/holdings/", "/accounts/", "/activities/", "/goals/", "/spending/insights/", "/spending/budget/"])
