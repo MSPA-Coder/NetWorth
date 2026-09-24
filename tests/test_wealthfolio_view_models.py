@@ -109,3 +109,30 @@ def test_cobertura_parcial_e_estados_vazios_sao_explicitos():
     assert partial.investments.hero.state == "partial"
     assert empty.investments.empty_state == "Nenhuma posição publicada."
     assert empty.spending.empty_state == "Sem fluxos publicados."
+
+
+def _com_custos(*custos):
+    linhas = [
+        leitor.Linha(CRV.nome, "investimento", "Pessoa", "Corretora", f"Ativo {n}", moeda, Decimal("200"), custo=custo)
+        for n, (moeda, custo) in enumerate(custos)
+    ]
+    return leitor.Consolidado(leituras=[leitor.Leitura(fonte=CRV, estado=leitor.OK, linhas=linhas)])
+
+
+def test_custo_de_aquisicao_soma_por_moeda_quando_todas_as_posicoes_publicam():
+    obj = _com_custos(("BRL", Decimal("150")), ("BRL", Decimal("50")), ("USD", Decimal("70")))
+
+    metric = build_view_models(context_for(obj)).insights_summary.metrics[3]
+
+    assert metric.state == "ok"
+    assert [(v.currency, v.amount) for v in metric.values] == [("BRL", Decimal("200")), ("USD", Decimal("70"))]
+
+
+def test_custo_de_aquisicao_parcial_fica_indisponivel():
+    """Custo de parte da carteira ao lado do valor dela inteira inflaria o ganho."""
+    obj = _com_custos(("BRL", Decimal("150")), ("BRL", None))
+
+    metric = build_view_models(context_for(obj)).insights_summary.metrics[3]
+
+    assert metric.state == "unavailable" and not metric.values
+    assert "1 de 2" in metric.detail

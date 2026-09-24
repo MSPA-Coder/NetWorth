@@ -388,6 +388,29 @@ def _composition(context: Mapping[str, Any], dimension: str, limit: int = 4) -> 
     return tuple(result)
 
 
+def _cost_basis(obj: leitor.Consolidado) -> MetricVM:
+    """O custo das posições, por moeda, só quando TODAS o publicaram.
+
+    Custo de parte da carteira ao lado do valor da carteira inteira faria o
+    ganho parecer maior do que é. E fica por moeda: custo em dólar é histórico,
+    e convertê-lo pela taxa de hoje daria um custo que nunca existiu.
+    """
+    lines = [line for line in obj.linhas if line.papel == "investimento"]
+    if not lines:
+        return _metric("cost_basis", "Custo de aquisição", (), state="unavailable", detail="Nenhuma posição publicada.")
+    missing = sum(1 for line in lines if line.custo is None)
+    if missing:
+        return _metric(
+            "cost_basis", "Custo de aquisição", (), state="unavailable",
+            detail=f"{missing} de {len(lines)} posições sem custo publicado (a fonte não publica custo de datas passadas).",
+        )
+    grouped: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for line in lines:
+        grouped[line.moeda] += line.custo
+    values = tuple(_money(value, currency) for currency, value in sorted(grouped.items()))
+    return _metric("cost_basis", "Custo de aquisição", values, detail=f"{len(lines)} posições, por moeda")
+
+
 def _insights_summary(context: Mapping[str, Any], obj: leitor.Consolidado, coverage: CoverageVM) -> InsightsSummaryVM:
     currency = str(context.get("moeda_base") or "BRL")
     total = context.get("total")
@@ -395,7 +418,7 @@ def _insights_summary(context: Mapping[str, Any], obj: leitor.Consolidado, cover
         _metric("portfolio_value", "Valor da carteira", (_money(total, currency),) if total is not None else _values_from_totals(obj.totais_por_moeda)),
         _metric("cash", "Caixa", (_money(context["cash_total"], currency),) if context.get("cash_total") is not None else ()),
         _metric("invested", "Investido", (_money(context["investments_total"], currency),) if context.get("investments_total") is not None else ()),
-        _metric("cost_basis", "Custo de aquisição", (), state="unavailable", detail="A fonte não publica custo consolidado para toda a carteira."),
+        _cost_basis(obj),
     )
     cards = []
     for dimension in ("classe", "moeda", "instituicao", "mercado"):
