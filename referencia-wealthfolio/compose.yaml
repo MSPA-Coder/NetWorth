@@ -4,7 +4,7 @@
 #   docker compose -f referencia-wealthfolio/compose.yaml up -d
 #   http://127.0.0.1:8088
 #
-# Imagem fixada pelo digest auditado em docs/plano-shell-wealthfolio.md.
+# Imagem fixada pelo digest registrado em docs/plano-shell-wealthfolio.md (Referência).
 # O volume `wealthfolio-data` é externo de propósito: `down -v` não o apaga.
 # Cópia de segurança feita em 22/09/2026: volume `wealthfolio-data-backup-20260922`.
 #

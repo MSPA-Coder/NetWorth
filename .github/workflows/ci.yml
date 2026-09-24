@@ -42,8 +42,42 @@ jobs:
         run: docker compose --profile quality build --no-cache quality
       - name: Executar quality
         run: docker compose --profile quality run --rm quality
+      # O Dependabot cobre atualizações; o pip-audit responde se a versão
+      # INSTALADA tem vulnerabilidade conhecida. Roda na imagem `quality`, que
+      # instala o mesmo lock da imagem servida. Reprova em qualquer achado; sem
+      # correção publicada, a saída é `--ignore-vuln ID` com o motivo ao lado.
+      # `--cache-dir` em /tmp porque a imagem é somente leitura fora dele.
+      - name: Auditar dependências instaladas (CVE conhecido)
+        run: docker compose --profile quality run --rm quality pip-audit --progress-spinner=off --cache-dir /tmp/pip-audit-cache
       - name: Construir runtime
         run: docker compose -f compose.yaml build --no-cache web
+      # Os pacotes do sistema operacional da imagem, que o pip-audit não vê.
+      # Como contêiner e com `docker save` + `--input`, igual ao Controle
+      # Bancário: action de terceiro é barrada pela política do repositório, e
+      # montar o socket do Docker seria dar root. `--ignore-unfixed` porque CVE
+      # sem correção publicada não é acionável.
+      - name: Varredura de vulnerabilidade da imagem servida
+        run: |
+          set -euo pipefail
+          docker save networth:local -o "$RUNNER_TEMP/imagem.tar"
+          chmod 644 "$RUNNER_TEMP/imagem.tar"
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          chmod 777 "$RUNNER_TEMP/trivy-cache"
+          docker run --rm \
+            --read-only \
+            --cap-drop=ALL \
+            --security-opt=no-new-privileges:true \
+            --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            -v "$RUNNER_TEMP:/varredura:ro" \
+            -v "$RUNNER_TEMP/trivy-cache:/tmp/trivy-cache:rw" \
+            aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            --cache-dir /tmp/trivy-cache \
+            image --input /varredura/imagem.tar \
+                  --scanners vuln \
+                  --severity HIGH,CRITICAL \
+                  --ignore-unfixed \
+                  --exit-code 1 \
+                  --format table
       - name: Smoke com o papel restrito
         # Sobe banco, provisionamento, migrate e web como no VPS. O /health só
         # passa se o web conectar sem ser superusuário (consolidado/papel_do_banco.py),
