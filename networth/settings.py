@@ -91,6 +91,9 @@ DATABASES = {
     }
 }
 
+# So pega o NOME, no boot. A garantia de verdade e `consolidado.papel_do_banco`,
+# que pergunta `is_superuser` ao servidor em cada conexao: o POSTGRES_USER da
+# imagem nasce superusuario com qualquer nome.
 if DATABASES["default"]["USER"] == "postgres":
     raise RuntimeError(
         "POSTGRES_USER nao pode ser 'postgres': e o superusuario administrativo do "

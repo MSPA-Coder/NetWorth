@@ -32,9 +32,10 @@ jobs:
           mkdir -p .secrets
           printf '%s\n' 'ci-django-secret-key-not-for-production-networth' > .secrets/django_secret_key
           printf '%s\n' 'ci-postgres-password-not-for-production' > .secrets/postgres_password
+          printf '%s\n' 'ci-postgres-app-password-not-for-production' > .secrets/postgres_app_password
           : > .secrets/fonte_cb_token
           : > .secrets/fonte_crv_token
-          chmod 0644 .secrets/postgres_password
+          chmod 0644 .secrets/postgres_password .secrets/postgres_app_password
       - name: Validar Compose
         run: docker compose config --quiet
       - name: Construir quality sem cache
@@ -43,6 +44,21 @@ jobs:
         run: docker compose --profile quality run --rm quality
       - name: Construir runtime
         run: docker compose -f compose.yaml build --no-cache web
+      - name: Smoke com o papel restrito
+        # Sobe banco, provisionamento, migrate e web como no VPS. O /health só
+        # passa se o web conectar sem ser superusuário (consolidado/papel_do_banco.py),
+        # e a consulta confere o outro lado no próprio servidor.
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker compose down --remove-orphans' EXIT
+          docker compose up --detach --wait --wait-timeout 120 web
+          curl --fail --silent --show-error --max-time 10 \
+            -H 'X-Forwarded-Proto: https' http://127.0.0.1:5701/health/
+          papel="$(docker compose exec -T postgres psql -U networth -d networth -tAc \
+            "select string_agg(distinct a.usename || ':' || r.rolsuper, ',') from pg_stat_activity a join pg_roles r on r.rolname = a.usename where a.datname = current_database() and a.application_name <> 'psql'")"
+          echo "conexões da aplicação: $papel"
+          test "$papel" = "networth_app:false"
       - name: Verificar fronteira do runtime
         # A imagem servida não pode levar segredo, arquivo de ambiente nem
         # certificado: o `.dockerignore` e os COPY explícitos do estágio
