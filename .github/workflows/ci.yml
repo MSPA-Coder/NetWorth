@@ -51,7 +51,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          trap 'docker compose down --remove-orphans' EXIT
+          # Os valores são sintéticos; o contêiner da aplicação roda com outro
+          # uid e precisa lê-los (o Compose sem Swarm preserva o modo do host).
+          chmod 0644 .secrets/*
+          trap 'docker compose logs db-provision migrate web | tail -60; docker compose down --remove-orphans' EXIT
           docker compose up --detach --wait --wait-timeout 120 web
           curl --fail --silent --show-error --max-time 10 \
             -H 'X-Forwarded-Proto: https' http://127.0.0.1:5701/health/
