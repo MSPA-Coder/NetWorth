@@ -235,32 +235,159 @@ def _comparacao(
     return {"label": f"{' · '.join(partes)} que no período anterior ({datas})", "positive": gastou_menos}
 
 
+@dataclass(frozen=True, slots=True)
+class Leitura:
+    atuais: tuple[ActivityDTO, ...]
+    #: None quando o período não tem anterior (Tudo); vazio quando tem e não
+    #: há lançamento nele.
+    anteriores: tuple[ActivityDTO, ...] | None
+    anterior: Periodo | None
+    links: dict[str, str]
+
+
+def ler(
+    fontes: list[Fonte], periodo: Periodo, *, chave: str = "", buscar: Buscar = fetch_activities
+) -> Leitura:
+    """Os lançamentos gerenciais do período e do anterior, de todas as fontes de caixa."""
+    caixa = [fonte for fonte in fontes if fonte.papel == "caixa"]
+    if not caixa:
+        raise LeituraIncompletaError("Nenhuma fonte de caixa configurada")
+    anterior = periodo_anterior(periodo, chave)
+    atuais: list[ActivityDTO] = []
+    anteriores: list[ActivityDTO] = []
+    links: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=LEITURAS_SIMULTANEAS) as executor:
+        for fonte in caixa:
+            lidas = _ler_periodo(executor, buscar, fonte, periodo)
+            atuais.extend(lidas)
+            links.update({item.id: fonte.link(item.link) for item in lidas if item.link})
+            if anterior is not None:
+                anteriores.extend(_ler_periodo(executor, buscar, fonte, anterior))
+    return Leitura(tuple(atuais), tuple(anteriores) if anterior is not None else None, anterior, links)
+
+
+def _motivo(exc: LeituraIncompletaError) -> str:
+    return f"Lançamentos indisponíveis: {exc}."
+
+
 def detalhe(
     fontes: list[Fonte], periodo: Periodo, *, chave: str = "", buscar: Buscar = fetch_activities
 ) -> dict:
-    """Categorias, recentes e comparação; ou indisponível, com o motivo."""
-    caixa = [fonte for fonte in fontes if fonte.papel == "caixa"]
-    if not caixa:
+    """Categorias, recentes e comparação da aba; ou indisponível, com o motivo."""
+    if not any(fonte.papel == "caixa" for fonte in fontes):
         return {"disponivel": False, "motivo": "Nenhuma fonte de caixa configurada."}
-    anterior = periodo_anterior(periodo, chave)
     try:
-        with ThreadPoolExecutor(max_workers=LEITURAS_SIMULTANEAS) as executor:
-            atuais: list[ActivityDTO] = []
-            anteriores: list[ActivityDTO] = []
-            links: dict[str, str] = {}
-            for fonte in caixa:
-                lidas = _ler_periodo(executor, buscar, fonte, periodo)
-                atuais.extend(lidas)
-                links.update({item.id: fonte.link(item.link) for item in lidas if item.link})
-                if anterior is not None:
-                    anteriores.extend(_ler_periodo(executor, buscar, fonte, anterior))
+        leitura = ler(fontes, periodo, chave=chave, buscar=buscar)
     except LeituraIncompletaError as exc:
-        return {"disponivel": False, "motivo": f"Lançamentos indisponíveis: {exc}."}
-    atual = tuple(atuais)
+        return {"disponivel": False, "motivo": _motivo(exc)}
     return {
         "disponivel": True,
         "motivo": "",
-        "categorias": _categorias(atual),
-        "recentes": _recentes(atual, links),
-        "comparacao": _comparacao(atual, tuple(anteriores) if anterior is not None else None, anterior),
+        "categorias": _categorias(leitura.atuais),
+        "recentes": _recentes(leitura.atuais, leitura.links),
+        "comparacao": _comparacao(leitura.atuais, leitura.anteriores, leitura.anterior),
+    }
+
+
+def _variacao(agora: Decimal, antes: Decimal | None, moeda: str) -> dict:
+    if antes is None:
+        return {"label": "—", "percent": "", "direction": ""}
+    diferenca = agora - antes
+    sinal = "+" if diferenca > 0 else "−" if diferenca < 0 else ""
+    percentual = abs(_percentual(diferenca, antes)) if antes else None
+    if percentual is None:
+        rotulo = "novo"
+    elif percentual > 999:
+        # Sair de R$ 20 para R$ 16 mil daria "+80691,7%": o valor já diz tudo.
+        rotulo = f"> {sinal}999%"
+    else:
+        rotulo = f"{sinal}{_rotulo_percentual(percentual)}"
+    return {
+        "label": f"{sinal}{dinheiro(abs(diferenca), moeda)}",
+        "percent": rotulo,
+        "direction": "up" if diferenca > 0 else "down" if diferenca < 0 else "",
+        "amount": diferenca,
+    }
+
+
+def analise(
+    fontes: list[Fonte], periodo: Periodo, *, chave: str = "", buscar: Buscar = fetch_activities
+) -> dict:
+    """Todas as categorias com a variação, e o gasto mês a mês, para a tela de análise."""
+    try:
+        leitura = ler(fontes, periodo, chave=chave, buscar=buscar)
+    except LeituraIncompletaError as exc:
+        return {"disponivel": False, "motivo": _motivo(exc), "categorias": [], "meses": []}
+    atual: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    lancamentos: dict[tuple[str, str], int] = defaultdict(int)
+    for item in leitura.atuais:
+        if item.kind == TIPO_DESPESA:
+            chave_categoria = (item.value.currency, item.category or "Sem categoria")
+            atual[chave_categoria] += _valor(item)
+            lancamentos[chave_categoria] += 1
+    anterior: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    for item in leitura.anteriores or ():
+        if item.kind == TIPO_DESPESA:
+            anterior[(item.value.currency, item.category or "Sem categoria")] += _valor(item)
+    # Sem lançamento nenhum no anterior (antes de a fonte existir) não há base
+    # de comparação: a variação fica em branco, e não "+100%".
+    comparavel = bool(leitura.anteriores)
+    totais = _despesas_por_moeda(leitura.atuais)
+    categorias = []
+    for (moeda, nome), valor in sorted(atual.items(), key=lambda par: (par[0][0], -par[1], par[0][1])):
+        percentual = _percentual(valor, totais[moeda])
+        categorias.append(
+            {
+                "label": nome if len(totais) == 1 else f"{nome} · {moeda}",
+                "value": dinheiro(valor, moeda),
+                "lines": lancamentos[(moeda, nome)],
+                "percent": _rotulo_percentual(percentual),
+                "percent_number": percentual,
+                "delta": _variacao(valor, anterior.get((moeda, nome), Decimal("0")) if comparavel else None, moeda),
+            }
+        )
+    # Categoria que só existiu no período anterior também é mudança.
+    if comparavel:
+        for (moeda, nome), valor in sorted(anterior.items()):
+            if (moeda, nome) not in atual:
+                categorias.append(
+                    {
+                        "label": nome if len(totais) <= 1 else f"{nome} · {moeda}",
+                        "value": dinheiro(Decimal("0"), moeda),
+                        "lines": 0,
+                        "percent": _rotulo_percentual(Decimal("0")),
+                        "percent_number": Decimal("0"),
+                        "delta": _variacao(Decimal("0"), valor, moeda),
+                    }
+                )
+    por_mes: dict[tuple[str, date], Decimal] = defaultdict(Decimal)
+    for item in leitura.atuais:
+        if item.kind == TIPO_DESPESA:
+            por_mes[(item.value.currency, item.date.replace(day=1))] += _valor(item)
+    maior = {moeda: max(v for (m, _d), v in por_mes.items() if m == moeda) for moeda, _d in por_mes}
+    meses = []
+    anterior_do_mes: dict[str, Decimal] = {}
+    for (moeda, mes), valor in sorted(por_mes.items()):
+        fim_do_mes = mes.replace(day=_ultimo_dia(mes.year, mes.month))
+        # O 6M começa em 23/03: março só tem 9 dias no período e pareceria
+        # um mês de pouco gasto.
+        parcial = (periodo.inicio is not None and mes < periodo.inicio) or fim_do_mes > periodo.fim
+        rotulo = f"{mes:%m/%Y}" if len(maior) == 1 else f"{mes:%m/%Y} · {moeda}"
+        meses.append(
+            {
+                "label": f"{rotulo} (parcial)" if parcial else rotulo,
+                "value": dinheiro(valor, moeda),
+                "percent_number": _percentual(valor, maior[moeda]),
+                "delta": _variacao(valor, anterior_do_mes.get(moeda), moeda),
+            }
+        )
+        anterior_do_mes[moeda] = valor
+    return {
+        "disponivel": True,
+        "motivo": "",
+        "categorias": categorias,
+        "meses": meses,
+        "lancamentos": sum(1 for item in leitura.atuais if item.kind == TIPO_DESPESA),
+        "anterior": leitura.anterior,
+        "comparavel": comparavel,
     }

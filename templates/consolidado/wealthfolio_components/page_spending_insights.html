@@ -10,13 +10,26 @@
   <section class="wf2p-metric-strip" aria-label="Resumo do período">
     <article class="wf2p-insight-metric wf2p-budget-empty-card"><span>Sem orçamento definido</span><strong>Defina uma meta mensal para ver como está seu ritmo.</strong><small>Um orçamento ativo habilita os sinais de ritmo, projeção e saldo restante.</small><span class="wf2p-inline-link wf2p-inline-link--disabled" aria-disabled="true">Criar um orçamento →</span></article>
     {% with spending=wf_page.metrics.1 cashflow=wf_page.metrics.2 %}
-      <article class="wf2p-insight-metric"><span>{{ spending.label|default:'Gasto no período' }}</span><strong class="wf2p-sensitive">{{ spending.value|default:'—' }}</strong><small>{{ spending.detail|default:'Nenhum gasto categorizado neste período.' }}</small></article>
+      <article class="wf2p-insight-metric"><span>{{ spending.label|default:'Gasto no período' }}</span><strong class="wf2p-sensitive">{{ spending.value|default:'—' }}</strong><small>{{ wf_page.spending_detail|default:'Nenhum gasto categorizado neste período.' }}</small></article>
       <article class="wf2p-insight-metric wf2p-cashflow-card"><span>Fluxo de caixa líquido</span><strong class="wf2p-positive-value wf2p-sensitive">{{ cashflow.value|default:'—' }}</strong><div><small>Receitas</small><b class="wf2p-sensitive">{{ wf_page.metrics.0.value|default:'—' }}</b></div><div><small>Gasto</small><b class="wf2p-sensitive">{{ spending.value|default:'—' }}</b></div></article>
     {% endwith %}
   </section>
-  <section class="wf2p-spending-plan" aria-labelledby="wf2p-spending-plan-title"><header><div><h2 id="wf2p-spending-plan-title">Plano de gastos</h2><p>Gasto orçado por categoria para o período selecionado.</p></div><span class="wf2p-muted">Ordenar por&nbsp; <button class="wf2p-select-button" type="button" disabled>gasto⌄</button></span></header>
-    <nav class="wf2p-plan-filters" aria-label="Filtros do plano"><button class="is-active" type="button" disabled>Todas <b>0</b></button><button type="button" disabled>Orçamento excedido <b>0</b></button><button type="button" disabled>Maiores variações <b>0</b></button><button type="button" disabled>Sem orçamento definido <b>0</b></button></nav>
-    <div class="wf2p-table-scroll"><table class="wf2p-table wf2p-spending-table"><thead><tr><th>Categoria</th><th>Gasto / orçamento</th><th>Progresso</th><th>Δ vs anterior</th></tr></thead><tbody><tr><td colspan="4" class="wf2p-empty-row">Nenhuma categoria publicada para esta consulta.</td></tr></tbody></table></div>
-    <footer><span>0 de 0 categoria mostrada</span><a class="wf2p-inline-link" data-wf2-preserve-query href="{{ wf_shell.activities_url|default:'/activities/' }}?tab=spending">Abrir transações →</a></footer>
+  {% if wf_page.stage == "when" %}
+  <section class="wf2p-spending-plan" aria-labelledby="wf2p-spending-plan-title"><header><div><h2 id="wf2p-spending-plan-title">Gasto mês a mês</h2><p>Despesas gerenciais realizadas em cada mês do período, contra o mês anterior.</p></div></header>
+    <div class="wf2p-table-scroll"><table class="wf2p-table wf2p-spending-table"><thead><tr><th>Mês</th><th>Gasto</th><th>Proporção</th><th>Δ vs mês anterior</th></tr></thead><tbody>
+      {% for row in wf_page.months %}<tr><td>{{ row.label }}</td><td class="wf2p-sensitive">{{ row.value }}</td><td><span class="wf2p-progress" aria-hidden="true"><i data-wf2-width-percent="{{ row.percent_number }}"></i></span></td><td class="wf2p-delta{% if row.delta.direction %} is-{{ row.delta.direction }}{% endif %}"><span class="wf2p-sensitive">{{ row.delta.label }}</span> <small>{{ row.delta.percent }}</small></td></tr>
+      {% empty %}<tr><td colspan="4" class="wf2p-empty-row">{{ wf_page.analysis_reason|default:'Nenhuma despesa gerencial realizada no período.' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <footer><span>{{ wf_page.months|length }} {{ wf_page.months|length|pluralize:"mês,meses" }}</span><a class="wf2p-inline-link" href="{{ wf_page.report_url }}">Abrir transações →</a></footer>
   </section>
+  {% else %}
+  <section class="wf2p-spending-plan" aria-labelledby="wf2p-spending-plan-title"><header><div><h2 id="wf2p-spending-plan-title">{% if wf_page.stage == "changed" %}O que mais mudou{% else %}Gasto por categoria{% endif %}</h2><p>{% if wf_page.previous_label %}Despesas gerenciais realizadas, contra o período anterior ({{ wf_page.previous_label }}).{% else %}Despesas gerenciais realizadas. Sem lançamentos no período anterior para comparar.{% endif %}</p></div><span class="wf2p-muted">Ordenado por {% if wf_page.stage == "changed" %}variação{% else %}gasto{% endif %}</span></header>
+    <nav class="wf2p-plan-filters" aria-label="Resumo das categorias"><button class="is-active" type="button" disabled>Todas <b>{{ wf_page.category_counts.all }}</b></button><button type="button" disabled>Subiram <b>{{ wf_page.category_counts.up }}</b></button><button type="button" disabled>Caíram <b>{{ wf_page.category_counts.down }}</b></button></nav>
+    <div class="wf2p-table-scroll"><table class="wf2p-table wf2p-spending-table"><thead><tr><th>Categoria</th><th>Gasto</th><th>Fatia do total</th><th>Δ vs anterior</th></tr></thead><tbody>
+      {% for row in wf_page.categories %}<tr><td>{{ row.label }} <small class="wf2p-muted">{{ row.lines }} lanç.</small></td><td class="wf2p-sensitive">{{ row.value }}</td><td><span class="wf2p-progress" aria-hidden="true"><i data-wf2-width-percent="{{ row.percent_number }}"></i></span> <small>{{ row.percent }}</small></td><td class="wf2p-delta{% if row.delta.direction %} is-{{ row.delta.direction }}{% endif %}"><span class="wf2p-sensitive">{{ row.delta.label }}</span> <small>{{ row.delta.percent }}</small></td></tr>
+      {% empty %}<tr><td colspan="4" class="wf2p-empty-row">{{ wf_page.analysis_reason|default:'Nenhuma despesa gerencial realizada no período.' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <footer><span>{{ wf_page.categories|length }} {{ wf_page.categories|length|pluralize:"categoria,categorias" }}</span><a class="wf2p-inline-link" href="{{ wf_page.report_url }}">Abrir transações →</a></footer>
+  </section>
+  {% endif %}
 </div>

@@ -178,3 +178,51 @@ def test_sem_fonte_de_caixa_o_detalhe_diz_o_motivo():
     resultado = gastos.detalhe([CRV], TRIMESTRE, buscar=FonteFalsa({}))
 
     assert resultado == {"disponivel": False, "motivo": "Nenhuma fonte de caixa configurada."}
+
+
+def test_analise_traz_todas_as_categorias_com_variacao_e_o_gasto_por_mes():
+    anterior = gastos.periodo_anterior(TRIMESTRE, "3m")
+    fonte = FonteFalsa(
+        {
+            TRIMESTRE.inicio: [
+                atividade(1, date(2026, 7, 5), "300", categoria="Saúde"),
+                atividade(2, date(2026, 8, 5), "100", categoria="Saúde"),
+                atividade(3, date(2026, 8, 9), "50", categoria="Lazer"),
+            ],
+            anterior.inicio: [
+                atividade(4, date(2026, 5, 1), "500", categoria="Saúde"),
+                atividade(5, date(2026, 5, 2), "80", categoria="Viagem"),
+            ],
+        }
+    )
+
+    resultado = gastos.analise([CB], TRIMESTRE, chave="3m", buscar=fonte)
+
+    linhas = {linha["label"]: linha for linha in resultado["categorias"]}
+    assert linhas["Saúde"]["value"] == "R$ 400,00" and linhas["Saúde"]["lines"] == 2
+    assert linhas["Saúde"]["delta"]["label"] == "−R$ 100,00" and linhas["Saúde"]["delta"]["percent"] == "−20,0%"
+    assert linhas["Lazer"]["delta"]["percent"] == "novo"
+    # Categoria que sumiu no período também é mudança.
+    assert linhas["Viagem"]["value"] == "R$ 0,00" and linhas["Viagem"]["delta"]["direction"] == "down"
+    # O trimestre vai até 28/09: setembro seria parcial, julho e agosto não.
+    assert [(m["label"], m["value"]) for m in resultado["meses"]] == [("07/2026", "R$ 300,00"), ("08/2026", "R$ 150,00")]
+    assert resultado["meses"][1]["delta"]["label"] == "−R$ 150,00"
+
+
+def test_analise_sem_anterior_com_lancamento_deixa_a_variacao_em_branco():
+    fonte = FonteFalsa({TRIMESTRE.inicio: [atividade(1, date(2026, 7, 5), "300")]})
+
+    [linha] = gastos.analise([CB], TRIMESTRE, chave="3m", buscar=fonte)["categorias"]
+
+    assert linha["delta"] == {"label": "—", "percent": "", "direction": ""}
+
+
+def test_mes_que_o_periodo_corta_aparece_como_parcial():
+    periodo = gastos.Periodo(date(2026, 3, 23), date(2026, 9, 23))
+    fonte = FonteFalsa(
+        {periodo.inicio: [atividade(1, date(2026, 3, 25), "10"), atividade(2, date(2026, 4, 5), "10"), atividade(3, date(2026, 9, 5), "10")]}
+    )
+
+    meses = gastos.analise([CB], periodo, chave="6m", buscar=fonte)["meses"]
+
+    assert [m["label"] for m in meses] == ["03/2026 (parcial)", "04/2026", "09/2026 (parcial)"]

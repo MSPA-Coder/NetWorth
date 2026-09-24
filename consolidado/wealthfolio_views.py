@@ -32,7 +32,7 @@ from consolidado.wealthfolio_compat.analytics import (
     IncomeRecord,
     PerformanceRecord,
     compose_analytics,
-    fetch_analytics,
+    fetch_all_analytics,
 )
 from consolidado.wealthfolio_compat.view_models import (
     UnavailableVM,
@@ -252,7 +252,9 @@ def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
     como lacuna, nunca como zero ou série inventada.
     """
 
-    fontes = fontes_configuradas()
+    # Renda, desempenho e eventos são de carteira: perguntar ao CB, que é
+    # caixa, só produzia "não publica" e deixava a tela sempre como parcial.
+    fontes = [fonte for fonte in fontes_configuradas() if fonte.papel == "investimento"]
     if not fontes:
         return {}
     inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
@@ -262,14 +264,7 @@ def _analytics_context(context: dict[str, Any]) -> dict[str, Any]:
         result[resource] = compose_analytics(
             resource,
             (
-                fetch_analytics(
-                    fonte,
-                    resource=resource,
-                    inicio=inicio,
-                    fim=fim,
-                    page=1,
-                    page_size=500,
-                )
+                fetch_all_analytics(fonte, resource=resource, inicio=inicio, fim=fim)
                 for fonte in fontes
             ),
         )
@@ -1227,10 +1222,37 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                         empty_message="A fonte não publicou um registro correspondente aos filtros selecionados.",
                     )
     elif kind == "spending-insights":
+        stage = request.GET.get("stage", "where")
+        if stage not in {"where", "changed", "when"}:
+            stage = "where"
         page["stages"] = [
-            {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": request.GET.get("stage", "where") == key}
+            {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": stage == key}
             for key, label in (("where", "Onde"), ("changed", "O que mudou"), ("when", "Quando"))
         ]
+        analysis = context.get("analise_gastos") or {"disponivel": False, "motivo": "", "categorias": [], "meses": []}
+        categories = list(analysis["categorias"])
+        if stage == "changed":
+            categories.sort(key=lambda row: -abs(row["delta"].get("amount") or Decimal("0")))
+        page["stage"] = stage
+        page["categories"] = categories
+        page["months"] = analysis["meses"]
+        page["analysis_reason"] = analysis["motivo"]
+        page["category_counts"] = {
+            "all": len(categories),
+            "up": sum(1 for row in categories if row["delta"]["direction"] == "up"),
+            "down": sum(1 for row in categories if row["delta"]["direction"] == "down"),
+        }
+        previous = analysis.get("anterior")
+        page["previous_label"] = (
+            f"{previous.inicio:%d/%m/%Y} a {previous.fim:%d/%m/%Y}"
+            if previous is not None and analysis.get("comparavel")
+            else ""
+        )
+        page["spending_detail"] = (
+            f"{len(analysis['categorias'])} categorias · {analysis.get('lancamentos', 0)} lançamentos"
+            if analysis["disponivel"]
+            else analysis["motivo"]
+        )
         metrics = []
         for row in context["resumo_gastos"]:
             metrics.extend(
@@ -1241,8 +1263,12 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 )
             )
         page["metrics"] = metrics
-        page["categories"] = ()
-        page["report_url"] = ""
+        page["report_url"] = _query_url(
+            "consolidado:activities",
+            periodo=context["periodo"],
+            natureza=gastos.NATUREZA_GERENCIAL,
+            status=gastos.STATUS_REALIZADO,
+        )
     else:
         page["unavailable_title"] = titles.get(kind, "Funcionalidade")
         page["unavailable_message"] = "Ainda não disponível nesta fase"
@@ -1534,6 +1560,14 @@ def goal_new_view(request: HttpRequest) -> HttpResponse:
 def spending_insights_view(request: HttpRequest) -> HttpResponse:
     context = _base_context(request, visao="gastos")
     context["stage"] = request.GET.get("stage") or "where"
+    context["analise_gastos"] = gastos.analise(
+        fontes_configuradas(),
+        gastos.Periodo(
+            contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"]),
+            context["data_da_tela"],
+        ),
+        chave=context["periodo"],
+    )
     context["page_type"] = "spending-insights"
     context["wf_shell"] = _shell_vm(request, context, active="spending")
     context["wf_page"] = _page_vm(context, kind="spending-insights", request=request)
