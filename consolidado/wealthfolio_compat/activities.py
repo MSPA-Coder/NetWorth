@@ -30,6 +30,7 @@ TIMEOUT_SECONDS = 8
 MAX_BYTES = 8 * 1024 * 1024
 PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
+SEM_DESCRICAO = "(sem descrição)"
 
 STATUS_OK = "ok"
 STATUS_PARTIAL = "partial"
@@ -146,6 +147,15 @@ def _optional_amount(item: Mapping[str, Any], currency: str, index: int) -> Mone
     return Money(_decimal(value, field_name=f"itens[{index}].valor_realizado"), currency)
 
 
+def _description(item: Mapping[str, Any], index: int) -> str:
+    # O CB aceita lançamento sem descrição. Texto vazio é dado legítimo e vira
+    # rótulo; campo ausente ou que não é texto continua sendo resposta estranha.
+    raw = item.get("descricao", item.get("description"))
+    if isinstance(raw, str) and not raw.strip():
+        return SEM_DESCRICAO
+    return _text(raw, field_name=f"itens[{index}].descricao")
+
+
 def _activity(source: str, item: Mapping[str, Any], index: int) -> ActivityDTO:
     if not isinstance(item, Mapping):
         raise DTOError(f"itens[{index}]: esperado objeto")
@@ -159,7 +169,7 @@ def _activity(source: str, item: Mapping[str, Any], index: int) -> ActivityDTO:
     return ActivityDTO(
         id=_id(source, item.get("id"), index),
         date=_date(item.get("data", item.get("date")), f"itens[{index}].data"),
-        description=_text(item.get("descricao", item.get("description")), field_name=f"itens[{index}].descricao"),
+        description=_description(item, index),
         kind=_text(item.get("tipo", item.get("kind", "atividade")), field_name=f"itens[{index}].tipo"),
         status=_text(item.get("status", "publicado"), field_name=f"itens[{index}].status"),
         value=_amount(item, currency, index),

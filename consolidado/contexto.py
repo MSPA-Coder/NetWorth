@@ -33,6 +33,9 @@ PERIODOS_DASHBOARD = {
     "tudo": ("Tudo", None),
 }
 
+#: A única natureza de fluxo que é receita ou gasto (ver `resumo_gastos`).
+NATUREZA_GERENCIAL = "gerencial"
+
 
 def inicio_do_periodo(chave: str, referencia: date) -> date | None:
     if chave == "este_mes":
@@ -153,14 +156,18 @@ def desempenhos(consolidado) -> list[dict]:
 
 
 def resumo_gastos(fluxos: list[dict]) -> list[dict]:
-    """Resume entradas e saídas por moeda, sem inventar categorias.
+    """Resume receitas e gastos gerenciais por moeda, sem inventar categorias.
 
-    O contrato v2 publica fluxos agregados por natureza; portanto a visão de
-    gastos apresenta o mesmo nível de detalhe, mantendo transferências e
-    ajustes separados do dinheiro gerencial.
+    Só a natureza gerencial é receita ou gasto. Transferência entre contas
+    próprias, movimentação (aplicação, liquidação de bolsa) e ajuste de base
+    só mudam o dinheiro de bolso ou de forma: somadas, as saídas mostravam o
+    dinheiro que circulou (três vezes o gasto real num trimestre), e as
+    entradas quase o igualavam.
     """
     grupos: dict[str, dict[str, Decimal | int]] = {}
     for fluxo in fluxos:
+        if fluxo.get("natureza") != NATUREZA_GERENCIAL:
+            continue
         moeda = str(fluxo.get("moeda") or "")
         grupo = grupos.setdefault(
             moeda,

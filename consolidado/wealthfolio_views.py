@@ -22,7 +22,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 
-from consolidado import contexto, dashboard, fotos, grafico, leitor
+from consolidado import contexto, dashboard, fotos, gastos, grafico, leitor
 from consolidado import insights as insights_builder
 from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.fontes import fontes_configuradas
@@ -736,7 +736,11 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
     weekly_totals: dict[date, Decimal] = {}
     for row in context["consolidado"].fluxos:
         day = row.get("data")
-        if not isinstance(day, date) or row.get("moeda") != context["moeda_base"]:
+        if (
+            not isinstance(day, date)
+            or row.get("moeda") != context["moeda_base"]
+            or row.get("natureza") != contexto.NATUREZA_GERENCIAL
+        ):
             continue
         # O Wealthfolio ancora os buckets semanais no domingo.
         week = day - timedelta(days=(day.weekday() + 1) % 7)
@@ -753,6 +757,24 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         }
         for day, value in weekly
     ]
+    # Os lançamentos só são lidos na aba que os mostra: a leitura é paginada e
+    # inclui o período anterior, e as outras abas não precisam dela.
+    spending_detail = (
+        gastos.detalhe(
+            fontes_configuradas(),
+            gastos.Periodo(
+                contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"]),
+                context["data_da_tela"],
+            ),
+            chave=context["periodo"],
+        )
+        if tab == "spending" and context["consolidado"].leituras
+        else {"disponivel": False, "motivo": ""}
+    )
+    comparison = spending_detail.get("comparacao") or {
+        "label": spending_detail["motivo"] or "Comparação com o período anterior indisponível.",
+        "positive": False,
+    }
     state = "ready" if context["consolidado"].leituras else "empty"
     return {
         "state": state,
@@ -791,13 +813,21 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         },
         "spending": {
             "hero_value": _money_label(spending.hero.values),
-            "comparison": {"label": getattr(spending.comparison, "reason", "Indisponível")},
+            "comparison": comparison,
             "stats": stats,
             "chart": {"bars": bars, "empty_message": spending.empty_state},
-            "categories": (),
-            "activities": (),
+            "categories": spending_detail.get("categorias", ()),
+            "activities": spending_detail.get("recentes", ()),
+            "detail_reason": spending_detail["motivo"],
             "insights_url": reverse("consolidado:spending_insights"),
             "activities_url": reverse("consolidado:activities"),
+            "recent_url": _query_url(
+                "consolidado:activities",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+                natureza=gastos.NATUREZA_GERENCIAL,
+                status=gastos.STATUS_REALIZADO,
+            ),
             "budget": {"reason": spending.budget.reason},
             "events": {"reason": spending.events.reason},
         },
@@ -1153,6 +1183,10 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                     if busca and busca not in searchable:
                         continue
                     value = activity.realized_value or activity.value
+                    # O CB publica valores positivos e o tipo dá o sinal: sem
+                    # isto, um estorno e uma tarifa de mesmo valor saíam iguais.
+                    amount = -abs(value.amount) if activity.kind == gastos.TIPO_DESPESA else value.amount
+                    value = type(value)(amount, value.currency)
                     positive = value.amount >= 0
                     fonte = fontes.get(activity.source.casefold())
                     url = fonte.link(activity.link) if fonte and activity.link else activity.link

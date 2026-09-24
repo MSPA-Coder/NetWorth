@@ -158,8 +158,20 @@ body.wf-canonical-shell:has(.wf2-shell) .wf2-shell__main { width: 100%; max-widt
 .wf2-spending-main, .wf2-spending-side { display: grid; align-content: start; gap: 22px; }
 .wf2-category-card, .wf2-activity-card { min-height: 80px; padding: 12px 15px; }
 .wf2-category-strip { display: flex; height: 10px; margin: 0 0 10px; overflow: hidden; border-radius: 7px; background: var(--wf2-border); }
-.wf2-category-strip i { display: block; background: #ad6e4e; }
+.wf2-category-strip i { display: block; background: var(--wf2-category-color, #ad6e4e); }
 .wf2-category-row { display: grid; grid-template-columns: 1fr 70px 110px; gap: 12px; padding: 7px 0; font-size: 10px; }
+.wf2-category-row > span { display: flex; align-items: center; gap: 7px; }
+.wf2-category-swatch { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--wf2-category-color, #ad6e4e); }
+/* A cor é a posição: o n-ésimo segmento da barra e a n-ésima linha usam a mesma. */
+.wf2-category-strip i:nth-child(1), .wf2-category-card > .wf2-category-row:nth-of-type(2) { --wf2-category-color: #ad6e4e; }
+.wf2-category-strip i:nth-child(2), .wf2-category-card > .wf2-category-row:nth-of-type(3) { --wf2-category-color: #4f7a8a; }
+.wf2-category-strip i:nth-child(3), .wf2-category-card > .wf2-category-row:nth-of-type(4) { --wf2-category-color: #c2a14a; }
+.wf2-category-strip i:nth-child(4), .wf2-category-card > .wf2-category-row:nth-of-type(5) { --wf2-category-color: #7a8f5a; }
+.wf2-category-strip i:nth-child(5), .wf2-category-card > .wf2-category-row:nth-of-type(6) { --wf2-category-color: #8a6a9a; }
+.wf2-category-strip i:nth-child(6), .wf2-category-card > .wf2-category-row:nth-of-type(7) { --wf2-category-color: #b98474; }
+.wf2-category-strip i:nth-child(n+7), .wf2-category-card > .wf2-category-row:nth-of-type(n+8) { --wf2-category-color: #9a9488; }
+.wf2-activity-card a { color: inherit; text-decoration: none; }
+.wf2-activity-card a:hover strong { text-decoration: underline; }
 .wf2-category-row b, .wf2-category-row strong { text-align: right; }
 .wf2-activity-card > div:not(.wf2-inline-empty) { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--wf2-border); }
 .wf2-activity-card > div:first-child { border-top: 0; }

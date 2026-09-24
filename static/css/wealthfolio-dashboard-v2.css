@@ -97,6 +97,15 @@
     padding-inline: 24px;
   }
 
+  /* As duas colunas acima vencem, pela especificidade do :has(), a coluna
+     única do shell; sem repetir aqui, a principal encolhia a 42px no celular
+     e a lateral se sobrepunha a ela. */
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--investments,
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--net-worth,
+  .wf2-shell:has(.wf2-dashboard) .wf2-dashboard-grid--spending {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .wf2-shell:has(.wf2-dashboard) .wf2-hero__summary {
     left: 24px;
   }
