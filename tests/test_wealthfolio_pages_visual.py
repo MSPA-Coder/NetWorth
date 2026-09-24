@@ -71,7 +71,7 @@ def pages_client(monkeypatch):
         ("/activities/", ("Atividades publicadas", "Adicionar", "Modo de visualização")),
         ("/goals/", ("Metas", "Acompanhe e planeje suas metas financeiras", "Ainda não há metas", "Crie sua primeira meta")),
         ("/assistant/", ("Nenhum provedor de IA configurado", "Configurar provedores de IA")),
-        ("/spending/insights/", ("Análise de gastos", "Onde estou", "O que mudou", "Quando e onde", "Plano de gastos")),
+        ("/spending/insights/", ("Análise de gastos", "Onde estou", "O que mudou", "Quando e onde", "Gasto por categoria")),
         ("/spending/budget/", ("Orçamento", "Plano mensal", "Receitas", "Needs", "Copiar o plano de outro mês")),
         ("/settings/", ("Configurações", "PREFERÊNCIAS", "FINANÇAS", "CONEXÕES")),
     ],

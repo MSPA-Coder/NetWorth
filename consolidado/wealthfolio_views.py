@@ -873,6 +873,23 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         "back_url": reverse("consolidado:dashboard"),
     }
     if kind == "settings":
+        # A taxa é a mesma que converteu o patrimônio desta tela: a do dia da
+        # posição (ou a última antes dele), nunca uma buscada para enfeitar.
+        page["fx_rates"] = [
+            {
+                "pair": f"{rate.moeda} / {MOEDA_BASE}",
+                "rate": f"{rate.taxa:.4f}".replace(".", ","),
+                "date": rate.data.strftime("%d/%m/%Y"),
+                "source": {"yahoo": "Yahoo Finance", "ptax": "PTAX (Banco Central)"}.get(rate.fonte, rate.fonte),
+                "lag": (
+                    "do próprio dia"
+                    if rate.dias_de_defasagem == 0
+                    else f"{rate.dias_de_defasagem} {'dia' if rate.dias_de_defasagem == 1 else 'dias'} antes da posição"
+                ),
+                "stale": rate.defasada,
+            }
+            for rate in (*context["conversao"].taxas, *context["conversao"].defasadas)
+        ]
         # Settings is a read-only projection of the Wealthfolio navigation.
         # Keep the selected section in the URL while carrying the caller's
         # other query scope (date/period/source filters) to every item.
