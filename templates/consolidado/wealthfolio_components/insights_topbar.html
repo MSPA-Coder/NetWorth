@@ -1,11 +1,11 @@
 <nav class="wf2-dashboard-tabs" aria-label="Seções de análises">
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'summary' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=summary&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'summary' %} is-active{% endif %}" href="{{ wf_insights.tab_urls.summary }}">
     <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Resumo</span>
   </a>
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'performance' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=performance&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'performance' %} is-active{% endif %}" href="{{ wf_insights.tab_urls.performance }}">
     <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 17l5-5 4 3 7-8"/><path d="M16 7h4v4"/></svg><span>Desempenho</span>
   </a>
-  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'income' %} is-active{% endif %}" href="{% url 'consolidado:insights' %}?tab=income&amp;periodo={{ wf_insights.period|default:'1a' }}" data-wf2-preserve-query>
+  <a class="wf2-dashboard-tabs__link{% if wf_insights.tab == 'income' %} is-active{% endif %}" href="{{ wf_insights.tab_urls.income }}">
     <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M7 13h10M8 9h8M9 17h6"/><path d="M8 5h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Rendimentos</span>
   </a>
 </nav>

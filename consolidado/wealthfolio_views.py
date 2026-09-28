@@ -446,11 +446,54 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         for item in analytics_values
         for warning in getattr(item, "warnings", ())
     )
+    tab_params = {
+        "periodo": context["periodo"],
+        "data": context["data_da_tela"].isoformat(),
+    }
+    for key, value in (
+        ("grupo", context.get("grupo_selecionado")),
+        ("conta", context.get("conta_selecionada")),
+        ("busca", (context.get("insights") or {}).get("busca")),
+    ):
+        if value:
+            tab_params[key] = value
+    dimension = request.GET.get("dimensao")
+    if dimension and insights_builder.dimensao_valida(dimension) == dimension:
+        tab_params["dimensao"] = dimension
+    normalized_insights = context.get("insights") or {}
+    filter_dimension = normalized_insights.get("filtro_dimensao")
+    filter_id = normalized_insights.get("filtro")
+    if filter_dimension and filter_id and insights_builder.dimensao_valida(filter_dimension) == filter_dimension:
+        tab_params.update(filtro_dimensao=filter_dimension, filtro=filter_id)
+    ordering = request.GET.get("ordenar")
+    if ordering in insights_builder.ORDENACOES:
+        tab_params["ordenar"] = ordering
+        direction = request.GET.get("direcao")
+        if direction in {"asc", "desc"}:
+            tab_params["direcao"] = direction
+    tab_urls = {
+        tab: _query_url("consolidado:insights", tab=tab, **tab_params)
+        for tab in ("summary", "performance", "income")
+    }
     return {
         "tab": context.get("insights_tab") or "summary",
         "partial": not vm.shell.coverage.complete or analytics_partial,
         "warnings": analytics_warnings,
         "period": context["periodo"],
+        "tab_urls": tab_urls,
+        "periods": [
+            {
+                "key": key,
+                "label": label,
+                "active": key == context["periodo"],
+                "url": _query_url(
+                    "consolidado:insights",
+                    tab="performance",
+                    **{**tab_params, "periodo": key},
+                ),
+            }
+            for key, label in context.get("periodos_dashboard") or ()
+        ],
         "currency": context["moeda_base"],
         "account_options": account_options,
         "summary": {

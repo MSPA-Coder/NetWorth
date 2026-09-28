@@ -1,4 +1,6 @@
+from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -8,6 +10,8 @@ from django.test import Client
 
 from consolidado import leitor, wealthfolio_views
 from consolidado.fontes import Fonte
+from consolidado.wealthfolio_compat.analytics import IncomeRecord, PerformanceRecord
+from consolidado.wealthfolio_compat.models import Money
 
 pytestmark = pytest.mark.django_db
 
@@ -76,6 +80,72 @@ def test_dashboard_and_insights_routes_render(logged_client):
     insights_body = insights.content.decode()
     assert "Exposição da carteira" in insights_body
     assert "Portfolio Insights" not in insights_body
+
+
+def test_insights_performance_periods_match_supported_periods_and_selection(logged_client):
+    response = logged_client.get(
+        "/insights/",
+        {
+            "tab": "performance",
+            "periodo": "5a",
+            "data": "2026-09-20",
+            "dimensao": "moeda",
+            "busca": "dólar",
+            "ordenar": "nome",
+            "direcao": "asc",
+            "categoria": "unsupported-here",
+        },
+    )
+
+    assert response.status_code == 200
+    periods = response.context["wf_insights"]["periods"]
+    assert "3a" not in {item["key"] for item in periods}
+    assert [item["key"] for item in periods if item["active"]] == ["5a"]
+    assert all("periodo=3a" not in item["url"] for item in periods)
+    period_query = parse_qs(urlsplit(next(item["url"] for item in periods if item["active"])).query)
+    assert period_query["periodo"] == ["5a"]
+    assert period_query["data"] == ["2026-09-20"]
+    assert period_query["dimensao"] == ["moeda"]
+    assert period_query["busca"] == ["dólar"]
+    assert period_query["ordenar"] == ["nome"]
+    assert period_query["direcao"] == ["asc"]
+    assert "categoria" not in period_query
+
+
+def test_insights_tab_links_drop_unknown_filter_id(logged_client):
+    response = logged_client.get(
+        "/insights/",
+        {"tab": "summary", "dimensao": "classe", "filtro_dimensao": "classe", "filtro": "unknown-id"},
+    )
+
+    assert response.status_code == 200
+    tab_url = response.context["wf_insights"]["tab_urls"]["performance"]
+    tab_query = parse_qs(urlsplit(tab_url).query)
+    assert "filtro" not in tab_query
+    assert "filtro_dimensao" not in tab_query
+
+
+@pytest.mark.parametrize("tab", ["performance", "income"])
+def test_published_insight_resource_is_not_hidden_by_empty_summary(logged_client, monkeypatch, tab):
+    monkeypatch.setattr(wealthfolio_views.insights_builder, "montar", lambda *_args, **_kwargs: {})
+    record = (
+        PerformanceRecord("series", "BRL", "TWR", "CRV", points=((date(2026, 9, 1), Decimal("0.02")),))
+        if tab == "performance"
+        else IncomeRecord("income", date(2026, 9, 1), "Dividendo", Money(Decimal("12"), "BRL"), "CRV")
+    )
+    resource = "performance" if tab == "performance" else "income"
+    monkeypatch.setattr(
+        wealthfolio_views,
+        "_analytics_context",
+        lambda _context: {resource: SimpleNamespace(items=(record,), status="ok", warnings=())},
+    )
+
+    response = logged_client.get("/insights/", {"tab": tab})
+
+    assert response.status_code == 200
+    assert response.context["wf_insights"]["summary"]["available"] is False
+    assert response.context["wf_insights"][resource]["available"] is True
+    assert "Insights indisponíveis" not in response.content.decode()
 
 
 def test_account_detail_resolves_groups_and_published_account_filter(logged_client):
