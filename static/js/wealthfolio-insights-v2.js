@@ -98,6 +98,7 @@
     var widgets = Array.prototype.slice.call(grid.querySelectorAll("[data-insights-widget]"));
     var allowed = widgets.map(function (widget) { return widget.getAttribute("data-insights-widget"); });
     var state = { order: allowed.slice(), hidden: [] };
+    var draggedKey = null;
 
     function readState() {
       try {
@@ -159,6 +160,11 @@
       resetButton.hidden = !editing;
       grid.classList.toggle("is-customizing", editing);
       area.querySelectorAll("[data-widget-controls]").forEach(function (controls) { controls.hidden = !editing; });
+      widgets.forEach(function (widget) {
+        widget.draggable = editing;
+        if (editing) widget.setAttribute("aria-grabbed", "false");
+        else widget.removeAttribute("aria-grabbed");
+      });
       if (editing) announce("Altere a ordem ou marque os widgets que deseja exibir.");
     }
 
@@ -214,6 +220,55 @@
       saveState();
       var movedHeading = moving.querySelector("h2");
       announce((movedHeading ? movedHeading.textContent : "Widget") + " reordenado.");
+    });
+
+    // Wealthfolio's layout editor is pointer-oriented. Keep the existing
+    // keyboard move buttons, and add native drag-and-drop as a dependency-free
+    // equivalent that persists the same order preference.
+    grid.addEventListener("dragstart", function (event) {
+      if (editButton.getAttribute("aria-expanded") !== "true") return;
+      if (event.target.closest("button, a, input")) {
+        event.preventDefault();
+        return;
+      }
+      var widget = event.target.closest("[data-insights-widget]");
+      if (!widget) return;
+      draggedKey = widget.getAttribute("data-insights-widget");
+      widget.setAttribute("aria-grabbed", "true");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", draggedKey);
+      }
+    });
+
+    grid.addEventListener("dragover", function (event) {
+      if (!draggedKey || editButton.getAttribute("aria-expanded") !== "true") return;
+      var target = event.target.closest("[data-insights-widget]");
+      if (!target || target.getAttribute("data-insights-widget") === draggedKey) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    });
+
+    grid.addEventListener("drop", function (event) {
+      if (!draggedKey || editButton.getAttribute("aria-expanded") !== "true") return;
+      var target = event.target.closest("[data-insights-widget]");
+      if (!target) return;
+      var targetKey = target.getAttribute("data-insights-widget");
+      if (!targetKey || targetKey === draggedKey) return;
+      event.preventDefault();
+      var from = state.order.indexOf(draggedKey);
+      var to = state.order.indexOf(targetKey);
+      if (from < 0 || to < 0) return;
+      state.order.splice(from, 1);
+      state.order.splice(to, 0, draggedKey);
+      applyState();
+      saveState();
+      announce("Widget reordenado.");
+    });
+
+    grid.addEventListener("dragend", function () {
+      widgets.forEach(function (widget) { widget.setAttribute("aria-grabbed", "false"); });
+      draggedKey = null;
     });
   });
 }());

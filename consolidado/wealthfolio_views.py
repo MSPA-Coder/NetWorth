@@ -681,16 +681,37 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         if item.get("id")
     }
 
+    def fallback_filter_url(filter_id: str, dimension: str | None = None) -> str:
+        dimension = insights_builder.dimensao_valida(dimension or raw.get("dimensao") or "classe")
+        params: dict[str, Any] = {
+            "tab": "summary",
+            "periodo": context["periodo"],
+            "data": context["data_da_tela"].isoformat(),
+            "dimensao": dimension,
+            "filtro_dimensao": dimension,
+            "filtro": filter_id,
+        }
+        for source_key, target_key in (
+            ("grupo_selecionado", "grupo"),
+            ("conta_selecionada", "conta"),
+        ):
+            if context.get(source_key):
+                params[target_key] = context[source_key]
+        return _query_url("consolidado:insights", **params)
+
     def breakdown(item: Any) -> dict[str, Any]:
         published = raw_items_by_key.get(getattr(item, "key", ""), {})
+        item_name = item.label or "Não classificado"
         return {
             "key": item.key,
-            "name": item.label,
+            "name": item_name,
             "value": _money_label(item.values),
             "percent": _percent_label(item.percent),
             "percent_number": item.percent,
             "classified": item.classified,
-            "url": _insights_href(published.get("url")) or "",
+            "url": _insights_href(published.get("url")) or fallback_filter_url(
+                str(published.get("id") or insights_builder.id_item(raw.get("dimensao") or "classe", item_name)),
+            ),
             "selected": bool(published.get("selecionado")),
         }
 
@@ -734,10 +755,12 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
     detail_rows = []
     for item in raw.get("itens") or ():
         conversion = item.get("conversao")
+        item_name = item.get("nome") or "Não classificado"
+        item_id = str(item.get("id") or insights_builder.id_item(raw.get("dimensao") or "classe", item_name))
         detail_rows.append(
             {
-                "name": item.get("nome") or "Não classificado",
-                "url": _insights_href(item.get("url")) or "",
+                "name": item_name,
+                "url": _insights_href(item.get("url")) or fallback_filter_url(item_id),
                 "institutions": item.get("instituicoes") or (),
                 "lines": item.get("linhas", 0),
                 "percent": _percent_label(item.get("percentual")),

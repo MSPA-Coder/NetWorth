@@ -331,6 +331,13 @@
 .wf-insights-v2__breakdown { order: 6; }
 
 .wf-insights-v2__widget-area { margin: 1.1rem 0; }
+/* The canonical widget catalog replaces the earlier stacked compatibility
+   blocks below. Their view-model data remains available to the API, but the
+   screen must not render duplicate cards/tables. */
+.wf-insights-v2__value-strip,
+.wf-insights-v2__semicircles,
+.wf-insights-v2__summary-grid,
+.wf-insights-v2__breakdown { display:none; }
 .wf-insights-v2__widget-toolbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.7rem; }
 .wf-insights-v2__widget-actions,.wf-insights-v2__widget-controls { display:flex; align-items:center; gap:.35rem; }
 .wf-insights-v2__widget-actions button,.wf-insights-v2__widget-controls button { min-height:32px; padding:.35rem .6rem; border:1px solid var(--w2-line); border-radius:7px; background:var(--w2-surface); color:var(--w2-ink); font:inherit; font-size:.72rem; cursor:pointer; }
@@ -362,5 +369,7 @@
 .wf-insights-v2__widget-manager label { display:inline-flex; align-items:center; gap:.4rem; color:var(--w2-ink); font-size:.74rem; cursor:pointer; }
 .wf-insights-v2__widget-manager input { accent-color:var(--w2-accent); }
 .wf-insights-v2__widget-grid.is-customizing .wf-insights-v2__widget { outline:1px dashed #b9bea6; outline-offset:2px; }
+.wf-insights-v2__widget-grid.is-customizing .wf-insights-v2__widget { cursor:grab; }
+.wf-insights-v2__widget-grid.is-customizing .wf-insights-v2__widget:active { cursor:grabbing; }
 @media(max-width:1050px){.wf-insights-v2__widget-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.wf-insights-v2__widget-grid{grid-template-columns:1fr}.wf-insights-v2__widget-toolbar{align-items:flex-start;flex-direction:column}}
