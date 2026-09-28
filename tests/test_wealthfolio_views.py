@@ -169,7 +169,7 @@ def test_dashboard_account_children_keep_account_drilldown(logged_client):
     groups = response.context["wf_dashboard"]["investments"]["accounts"]
     child = groups[0]["children"][0]
     assert child["url"].startswith("/accounts/Banco/")
-    assert "account=Conta" in child["url"]
+    assert "account_id=conta-" in child["url"]
     detail = logged_client.get(child["url"])
     assert detail.status_code == 200
     assert detail.context["wf_page"]["account"]["name"] == "Banco · Conta"
@@ -197,7 +197,7 @@ def test_dashboard_group_account_drilldown_targets_exact_published_lines(logged_
     parsed_url = urlsplit(child["url"])
 
     assert parsed_url.path == "/accounts/Mercado%20Pago/"
-    assert parse_qs(parsed_url.query)["account"] == ["Conta Á 01"]
+    assert parse_qs(parsed_url.query)["account_id"][0].startswith("conta-")
 
     group_id = parse_qs(urlsplit(group["url"]).query)["grupo"][0]
     expanded = logged_client.get("/dashboard/", {"tab": "investments", "grupo": group_id})
@@ -214,6 +214,77 @@ def test_dashboard_group_account_drilldown_targets_exact_published_lines(logged_
         invalid = logged_client.get("/accounts/Mercado%20Pago/", {filter_key: "Conta 02"})
         assert invalid.context["wf_page"]["state"] == "empty"
         assert invalid.context["wf_page"]["rows"] == ()
+
+
+def test_dashboard_account_identity_keeps_homonyms_separate_by_owner_and_source(logged_client, monkeypatch):
+    other_source = Fonte(
+        apelido="CB2",
+        nome="Banco Espelho",
+        papel="caixa",
+        url="http://cb2.teste",
+        token="t",
+    )
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(
+                fonte=CB,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(CB.nome, "caixa", "Ana", "Mercado Pago", "Conta conjunta", "BRL", Decimal("100")),
+                ],
+            ),
+            leitor.Leitura(
+                fonte=other_source,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(other_source.nome, "caixa", "Bia", "Mercado Pago", "Conta conjunta", "BRL", Decimal("200")),
+                ],
+            ),
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: snapshot)
+
+    dashboard = logged_client.get("/dashboard/", {"tab": "investments"})
+    accounts = dashboard.context["wf_dashboard"]["investments"]["accounts"]
+    child_urls = {
+        owner: next(child["url"] for child in group["children"])
+        for owner in ("Ana", "Bia")
+        for group in accounts
+        if group["name"] == owner
+    }
+    opaque_ids = {
+        owner: parse_qs(urlsplit(url).query)["account_id"][0]
+        for owner, url in child_urls.items()
+    }
+
+    assert opaque_ids["Ana"] != opaque_ids["Bia"]
+    for owner, url in child_urls.items():
+        detail = logged_client.get(url)
+        assert detail.status_code == 200
+        account = detail.context["wf_page"]["account"]
+        assert account["owner"] == owner
+        assert [row["source"] for row in detail.context["wf_page"]["rows"]] == [
+            CB.nome if owner == "Ana" else other_source.nome
+        ]
+        assert len(detail.context["wf_page"]["rows"]) == 1
+
+    legacy = logged_client.get("/accounts/Mercado%20Pago/", {"account": "Conta conjunta"})
+    assert legacy.context["wf_page"]["state"] == "empty"
+
+
+def test_investment_account_detail_uses_published_owner_instead_of_synthetic_group(logged_client):
+    dashboard = logged_client.get("/dashboard/", {"tab": "investments"})
+    investment_group = next(
+        item
+        for item in dashboard.context["wf_dashboard"]["investments"]["accounts"]
+        if item["name"] == "Renda variável"
+    )
+
+    detail = logged_client.get(investment_group["children"][0]["url"])
+
+    assert detail.status_code == 200
+    assert detail.context["wf_page"]["account"]["owner"] == "Pessoa"
+    assert detail.context["wf_page"]["account"]["owner"] != investment_group["name"]
 
 
 def test_dashboard_api_keeps_currency_and_coverage(logged_client):

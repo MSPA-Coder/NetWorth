@@ -708,9 +708,8 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         query: dict[str, str] = {
             "periodo": context["periodo"],
             "data": context["data_da_tela"].isoformat(),
+            "account_id": child["id"],
         }
-        if line.get("papel") != "investimento" and line.get("descricao"):
-            query["account"] = line["descricao"]
         return f"{reverse('consolidado:account_detail', kwargs={'account_id': account_id})}?{urlencode(query)}"
 
     accounts = []
@@ -1145,6 +1144,7 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 page["account"] = {
                     "name": account.get("nome") or account["instituicao"],
                     "institution": account["instituicao"],
+                    "owner": account.get("titular") or "",
                     "type": "Conta publicada",
                     "currency": account.get("moeda") or "",
                     "value": account_value,
@@ -1500,84 +1500,107 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
     context["accounts"] = context["consolidado"].por_instituicao()
     context["account_id"] = account_id
 
-    # A dashboard group is a first-class Wealthfolio drill-down (for example
-    # ``Esposita``), while the legacy page historically resolved institutions
-    # only (for example ``Mercado Pago``).  Resolve both surfaces against the
-    # same published tree so a click never lands on a technically valid but
-    # empty detail page.
-    account = next(
-        (item for item in context["accounts"] if item["instituicao"] == account_id),
-        None,
-    )
-    if account is None:
-        group = next(
-            (item for item in context["arvore_drilldown"] if item["nome"] == account_id),
+    def line_value(line: Any, name: str, default: Any = "") -> Any:
+        if isinstance(line, dict):
+            return line.get(name, default)
+        return getattr(line, name, default)
+
+    def single_published_owner(lines: Any) -> str:
+        owners = {
+            str(line_value(line, "titular")).strip()
+            for line in lines or ()
+            if str(line_value(line, "titular") or "").strip()
+        }
+        return next(iter(owners)) if len(owners) == 1 else ""
+
+    def account_from_node(group: dict[str, Any], child: dict[str, Any]) -> dict[str, Any]:
+        lines = child.get("linhas") or ()
+        totals = child.get("totais_por_moeda") or ()
+        currency = totals[0].get("moeda") or "" if len(totals) == 1 else ""
+        total = totals[0].get("total") if len(totals) == 1 else None
+        institution = next(
+            (str(line_value(line, "instituicao")).strip() for line in lines if line_value(line, "instituicao")),
+            child.get("nome") or "",
+        )
+        return {
+            "nome": child.get("nome") or institution,
+            "instituicao": institution,
+            "titular": single_published_owner(lines),
+            "moeda": currency,
+            "total": total,
+            "totais_por_moeda": totals,
+            "linhas": lines,
+        }
+
+    groups = context["arvore_drilldown"]
+    account = None
+    opaque_account_id = (request.GET.get("account_id") or "").strip()
+    if opaque_account_id:
+        # Dashboard child links carry the opaque ID already resolved by the
+        # published tree. It includes titular, source, institution, name and
+        # currency without exposing any source credentials in the URL.
+        account = next(
+            (
+                account_from_node(group, child)
+                for group in groups
+                for child in group.get("contas") or ()
+                if child.get("id") == opaque_account_id
+                and (
+                    any(line_value(line, "instituicao") == account_id for line in child.get("linhas") or ())
+                    or group.get("nome") == account_id
+                )
+            ),
             None,
         )
-        if group is not None:
+    else:
+        # Old institution and group URLs remain usable. A legacy account label
+        # is accepted only when it identifies one child in that route's scope.
+        account_filter = (request.GET.get("account") or request.GET.get("conta") or "").strip()
+        institution_accounts = [
+            item for item in context["accounts"] if item["instituicao"] == account_id
+        ]
+        matching_groups = [item for item in groups if item["nome"] == account_id]
+        if account_filter:
+            needle = account_filter.casefold()
+            scoped_children = [
+                (group, child)
+                for group in groups
+                if (
+                    any(line_value(line, "instituicao") == account_id for child in group.get("contas") or () for line in child.get("linhas") or ())
+                    if institution_accounts
+                    else group.get("nome") == account_id
+                )
+                for child in group.get("contas") or ()
+            ]
+            matches = [
+                (group, child)
+                for group, child in scoped_children
+                if any(
+                    needle == str(line_value(line, "descricao")).strip().casefold()
+                    for line in child.get("linhas") or ()
+                )
+            ]
+            if len(matches) == 1:
+                account = account_from_node(*matches[0])
+        elif institution_accounts:
+            account = institution_accounts[0]
+        elif len(matching_groups) == 1:
+            group = matching_groups[0]
             totals = group.get("totais_por_moeda") or ()
             group_lines = [
                 line
                 for child in group.get("contas") or ()
                 for line in child.get("linhas") or ()
             ]
-            if len(totals) == 1:
-                currency = totals[0].get("moeda") or "BRL"
-                total = totals[0].get("total")
-            else:
-                currency = ""
-                total = None
             account = {
                 "nome": group["nome"],
                 "instituicao": group["nome"],
-                "moeda": currency,
-                "total": total,
+                "titular": single_published_owner(group_lines),
+                "moeda": totals[0].get("moeda") or "" if len(totals) == 1 else "",
+                "total": totals[0].get("total") if len(totals) == 1 else None,
                 "totais_por_moeda": totals,
                 "linhas": group_lines,
             }
-
-    # A source can publish multiple accounts under one institution.  Preserve
-    # the optional account label from the clicked URL instead of silently
-    # displaying the institution aggregate again.
-    account_filter = (request.GET.get("account") or request.GET.get("conta") or "").strip()
-    if account and account_filter:
-        needle = account_filter.casefold()
-
-        def line_value(line: Any, name: str, default: Any = "") -> Any:
-            if isinstance(line, dict):
-                return line.get(name, default)
-            return getattr(line, name, default)
-
-        matching = [
-            line
-            for line in account.get("linhas") or ()
-            if needle == str(line_value(line, "descricao")).strip().casefold()
-        ]
-        if matching:
-            currencies = {str(line_value(line, "moeda")) for line in matching}
-            if len(currencies) == 1:
-                currency = next(iter(currencies))
-                total = sum(
-                    (line_value(line, "valor", Decimal("0")) for line in matching),
-                    Decimal("0"),
-                )
-            else:
-                currency = account.get("moeda") or "BRL"
-                total = account.get("total")
-            account = {
-                **account,
-                "nome": f"{account.get('nome') or account['instituicao']} · {account_filter}",
-                "moeda": currency,
-                "total": total,
-                "totais_por_moeda": [
-                    {"moeda": currency, "total": total}
-                ] if len(currencies) == 1 else account.get("totais_por_moeda") or (),
-                "linhas": matching,
-            }
-        else:
-            # A stale or mistyped account filter must not quietly show the
-            # institution aggregate as if it were the requested account.
-            account = None
     context["account"] = account
     context["page_type"] = "account-detail"
     context["wf_shell"] = _shell_vm(request, context, active="holdings")

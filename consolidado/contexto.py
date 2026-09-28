@@ -450,6 +450,7 @@ def arvore_de_contas(
                 "id": conta_id,
                 "tipo": "conta",
                 "nome": conta_bruta["nome"],
+                "titular": grupo_bruto["nome"],
                 "subtitulo": conta_bruta["subtitulo"],
                 "moeda": conta_bruta["subtitulo"],
                 "linhas": linhas_novas,
