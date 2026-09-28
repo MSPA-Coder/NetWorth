@@ -778,73 +778,12 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             )
 
     income_composition = (context.get("analytics") or {}).get("income")
-    income_history = []
-    if income_composition and income_composition.items:
-        records = [item for item in income_composition.items if isinstance(item, IncomeRecord)]
-        grouped: dict[tuple[str, str], Decimal] = {}
-        for item in records:
-            key = (item.date.strftime("%Y-%m"), item.value.currency)
-            grouped[key] = grouped.get(key, Decimal("0")) + item.value.amount
-        max_by_currency: dict[str, Decimal] = {}
-        for (_month, currency), amount in grouped.items():
-            max_by_currency[currency] = max(max_by_currency.get(currency, Decimal("0")), amount)
-        income_history = [
-            {
-                "label": month,
-                "value": dinheiro(amount, currency),
-                "currency": currency,
-                "percent": (amount * 100 / max_by_currency[currency]) if max_by_currency[currency] else Decimal("0"),
-            }
-            for (month, currency), amount in sorted(grouped.items())
-        ]
-        totals: dict[str, Decimal] = {}
-        for item in records:
-            totals[item.value.currency] = totals.get(item.value.currency, Decimal("0")) + item.value.amount
-        income_metrics = [
-            {
-                "key": "income_total",
-                "label": "Rendimentos",
-                "value": " · ".join(dinheiro(amount, currency) for currency, amount in sorted(totals.items())),
-                "state": "ok",
-                "detail": f"{len(records)} lançamentos publicados",
-                "percent": "",
-            },
-            {
-                "key": "income_sources",
-                "label": "Fontes de renda",
-                "value": str(len({item.category or item.kind for item in records})),
-                "state": "ok",
-                "detail": "categorias publicadas",
-                "percent": "",
-            },
-            {
-                "key": "income_period",
-                "label": "Período",
-                "value": f"{records[0].date.strftime('%m/%Y')}" if records else "—",
-                "state": "ok",
-                "detail": "último recebimento publicado",
-                "percent": "",
-            },
-        ]
-        by_source: dict[tuple[str, str, str], Decimal] = {}
-        for item in records:
-            key = (item.category or item.kind or "Renda", item.value.currency, item.source)
-            by_source[key] = by_source.get(key, Decimal("0")) + item.value.amount
-        total_by_currency = next(iter(totals.values())) if len(totals) == 1 else None
-        income_sources = [
-            {
-                "key": f"{category}:{currency}:{source}",
-                "name": category,
-                "value": dinheiro(amount, currency),
-                "percent": (amount * 100 / total_by_currency) if total_by_currency else None,
-                "percent_number": (amount * 100 / total_by_currency) if total_by_currency else None,
-                "classified": bool(category),
-            }
-            for (category, currency, source), amount in sorted(by_source.items())
-        ]
-    else:
-        income_metrics = [_metric_vm(item) for item in vm.income.metrics]
-        income_sources = [breakdown(item) for item in vm.income.sources]
+    income_records = tuple(
+        item
+        for item in getattr(income_composition, "items", ())
+        if isinstance(item, IncomeRecord)
+    )
+    income_model = _income_insights_model(income_composition, income_records, context, vm)
     analytics_values = tuple((context.get("analytics") or {}).values())
     analytics_partial = any(
         getattr(item, "status", "") in {"partial", "error", "unsupported", "stale"}
@@ -910,7 +849,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
                 "active": key == context["periodo"],
                 "url": _query_url(
                     "consolidado:insights",
-                    tab="performance",
+                    tab=context.get("insights_tab") or "summary",
                     **{**tab_params, "periodo": key},
                 ),
             }
@@ -938,12 +877,270 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "available": bool(performance),
         },
         "income": {
-            "metrics": income_metrics,
-            "sources": income_sources,
-            "available": bool(income_sources),
-            "history_available": bool(income_history) or not hasattr(vm.income.history, "reason"),
-            "history": income_history,
+            **income_model,
         },
+    }
+
+
+def _income_insights_model(
+    composition: Any,
+    records: tuple[IncomeRecord, ...],
+    context: dict[str, Any],
+    view_model: Any,
+) -> dict[str, Any]:
+    """Build currency-safe, read-only Insights Rendimentos data from v3 records."""
+
+    if not records:
+        coverage_results = tuple(getattr(composition, "results", ()) or ())
+        coverage_sources = [
+            {
+                "source": result.source,
+                "status": result.status,
+                "records": len(result.items),
+                "message": result.error,
+            }
+            for result in coverage_results
+        ]
+        status = getattr(composition, "status", "unavailable")
+        return {
+            "available": False,
+            "metrics": [_metric_vm(item) for item in view_model.income.metrics],
+            "history_available": False,
+            "history_reason": "A fonte não publicou rendimentos para este período.",
+            "history": [],
+            "sources": [],
+            "by_type": _income_unavailable("tipo"),
+            "by_category": _income_unavailable("categoria"),
+            "by_instrument": _income_unavailable("instrumento"),
+            "rankings": {
+                "source": _income_unavailable("fonte"),
+                "institution": _income_unavailable("instituição"),
+            },
+            "coverage": {
+                "status": status,
+                "complete": bool(coverage_results) and all(
+                    result.status in {"ok", "empty"} for result in coverage_results
+                ),
+                "expected_sources": len(coverage_results),
+                "responded_sources": sum(
+                    result.status != "error" for result in coverage_results
+                ),
+                "publishing_sources": sum(
+                    result.status in {"ok", "partial", "stale"} for result in coverage_results
+                ),
+                "sources": coverage_sources,
+                "warnings": list(getattr(composition, "warnings", ()) or ()),
+            },
+        }
+
+    totals: dict[str, Decimal] = {}
+    monthly: dict[tuple[str, str], Decimal] = {}
+    for item in records:
+        currency = item.value.currency
+        totals[currency] = totals.get(currency, Decimal("0")) + item.value.amount
+        month = item.date.strftime("%Y-%m")
+        key = (month, currency)
+        monthly[key] = monthly.get(key, Decimal("0")) + item.value.amount
+
+    max_month_by_currency: dict[str, Decimal] = {}
+    for (_month, currency), amount in monthly.items():
+        max_month_by_currency[currency] = max(max_month_by_currency.get(currency, amount), abs(amount))
+    income_history = [
+        {
+            "label": month,
+            "value": dinheiro(amount, currency),
+            "amount": amount,
+            "currency": currency,
+            "percent": (abs(amount) * 100 / max_month_by_currency[currency])
+            if max_month_by_currency[currency]
+            else Decimal("0"),
+        }
+        for (month, currency), amount in sorted(monthly.items())
+    ]
+
+    period_start = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
+    earliest = min(item.date for item in records)
+    # The API query already defines the requested window.  Divide by that
+    # full window even when some months had no published payments.
+    start = period_start or earliest
+    end = context["data_da_tela"]
+    months_in_period = max(1, (end.year - start.year) * 12 + end.month - start.month + 1)
+    monthly_averages = {
+        currency: amount / months_in_period for currency, amount in totals.items()
+    }
+
+    def money_values(amounts: dict[str, Decimal]) -> list[dict[str, Any]]:
+        return [
+            {"currency": currency, "amount": amount, "value": dinheiro(amount, currency)}
+            for currency, amount in sorted(amounts.items())
+        ]
+
+    def aggregate(attribute: str, label: str) -> dict[str, Any]:
+        amounts: dict[tuple[str, str], Decimal] = {}
+        counts: Counter[tuple[str, str]] = Counter()
+        for item in records:
+            name = str(getattr(item, attribute) or "").strip() or "Não classificado"
+            key = (name, item.value.currency)
+            amounts[key] = amounts.get(key, Decimal("0")) + item.value.amount
+            counts[key] += 1
+        if not amounts:
+            return _income_unavailable(label)
+        by_name: dict[str, dict[str, Any]] = {}
+        for (name, currency), amount in sorted(amounts.items()):
+            row = by_name.setdefault(name, {"name": name, "values": [], "record_count": 0})
+            total = totals[currency]
+            row["values"].append(
+                {
+                    "currency": currency,
+                    "amount": amount,
+                    "value": dinheiro(amount, currency),
+                    "percent": amount * 100 / total if total else None,
+                }
+            )
+            row["record_count"] += counts[(name, currency)]
+        return {"available": True, "reason": "", "items": list(by_name.values())}
+
+    def ranking(attribute: str, label: str) -> dict[str, Any]:
+        amounts: dict[tuple[str, str], Decimal] = {}
+        counts: Counter[tuple[str, str]] = Counter()
+        for item in records:
+            name = str(getattr(item, attribute) or "").strip()
+            if not name:
+                continue
+            key = (name, item.value.currency)
+            amounts[key] = amounts.get(key, Decimal("0")) + item.value.amount
+            counts[key] += 1
+        if not amounts:
+            return _income_unavailable(label)
+        currencies: dict[str, list[dict[str, Any]]] = {}
+        for (name, currency), amount in amounts.items():
+            currencies.setdefault(currency, []).append(
+                {
+                    "name": name,
+                    "amount": amount,
+                    "value": dinheiro(amount, currency),
+                    "percent": amount * 100 / totals[currency] if totals[currency] else None,
+                    "record_count": counts[(name, currency)],
+                }
+            )
+        currency_groups = []
+        for currency, items in sorted(currencies.items()):
+            items.sort(key=lambda row: (-row["amount"], row["name"].casefold()))
+            for position, row in enumerate(items, 1):
+                row["position"] = position
+            currency_groups.append({"currency": currency, "items": items})
+        return {"available": True, "reason": "", "currencies": currency_groups}
+
+    status = getattr(composition, "status", "ok")
+    coverage_results = tuple(getattr(composition, "results", ()) or ())
+    coverage_sources = [
+        {
+            "source": result.source,
+            "status": result.status,
+            "records": len(result.items),
+            "message": result.error,
+        }
+        for result in coverage_results
+    ]
+    incomplete_statuses = {"partial", "error", "unsupported", "stale"}
+    source_count = len({item.source for item in records})
+    metrics = [
+        {
+            "key": "income_total",
+            "label": "Rendimentos",
+            "value": " · ".join(dinheiro(amount, currency) for currency, amount in sorted(totals.items())),
+            "state": "partial" if status in incomplete_statuses else "ok",
+            "detail": f"{len(records)} lançamentos publicados",
+            "percent": "",
+            "values": money_values(totals),
+        },
+        {
+            "key": "income_monthly_average",
+            "label": "Média mensal",
+            "value": " · ".join(
+                dinheiro(amount, currency) for currency, amount in sorted(monthly_averages.items())
+            ),
+            "state": "partial" if status in incomplete_statuses else "ok",
+            "detail": f"no período publicado ({months_in_period} meses)",
+            "percent": "",
+            "values": money_values(monthly_averages),
+            "months": months_in_period,
+        },
+        {
+            "key": "income_sources",
+            "label": "Fontes de renda",
+            "value": str(source_count),
+            "state": "ok",
+            "detail": "origens que publicaram lançamentos",
+            "percent": "",
+        },
+        {
+            "key": "income_period",
+            "label": "Último recebimento",
+            "value": max(item.date for item in records).strftime("%d/%m/%Y"),
+            "state": "ok",
+            "detail": "data mais recente publicada",
+            "percent": "",
+        },
+    ]
+
+    # Keep the legacy concentration list while exposing institution/source
+    # rankings separately, each ordered only within its own currency.
+    by_category: dict[tuple[str, str], Decimal] = {}
+    for item in records:
+        name = item.category or item.kind or "Renda"
+        key = (name, item.value.currency)
+        by_category[key] = by_category.get(key, Decimal("0")) + item.value.amount
+    income_sources = [
+        {
+            "key": f"{category}:{currency}",
+            "name": category,
+            "value": dinheiro(amount, currency),
+            "currency": currency,
+            "amount": amount,
+            "percent": amount * 100 / totals[currency] if totals[currency] else None,
+            "percent_number": amount * 100 / totals[currency] if totals[currency] else None,
+            "classified": category != "Não classificado",
+        }
+        for (category, currency), amount in sorted(by_category.items())
+    ]
+    return {
+        "available": True,
+        "metrics": metrics,
+        "sources": income_sources,
+        "history_available": bool(income_history),
+        "history_reason": "" if income_history else "Histórico mensal indisponível.",
+        "history": income_history,
+        "by_type": aggregate("kind", "tipo"),
+        "by_category": aggregate("category", "categoria"),
+        "by_instrument": aggregate("instrument", "instrumento"),
+        "rankings": {
+            "source": ranking("source", "fonte"),
+            "institution": ranking("institution", "instituição"),
+        },
+        "coverage": {
+            "status": status,
+            "complete": bool(coverage_results)
+            and all(result.status not in incomplete_statuses for result in coverage_results),
+            "expected_sources": len(coverage_results),
+            "responded_sources": sum(
+                result.status != "error" for result in coverage_results
+            ),
+            "publishing_sources": sum(
+                result.status in {"ok", "partial", "stale"} for result in coverage_results
+            ),
+            "sources": coverage_sources,
+            "warnings": list(getattr(composition, "warnings", ()) or ()),
+        },
+    }
+
+
+def _income_unavailable(label: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "reason": f"A fonte não publicou dados de {label}.",
+        "items": [],
+        "currencies": [],
     }
 
 

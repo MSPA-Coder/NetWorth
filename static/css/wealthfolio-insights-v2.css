@@ -48,6 +48,20 @@
 }
 .wf-insights-v2__income-history{display:grid;gap:.7rem;width:100%}.wf-insights-v2__income-history-row{display:grid;grid-template-columns:4.2rem minmax(0,1fr) auto;align-items:center;gap:.65rem;color:var(--w2-muted);font-size:.7rem}.wf-insights-v2__income-history-row i{display:block;width:var(--wf-income-width,0%);min-width:2px;height:8px;border-radius:99px;background:var(--w2-accent)}.wf-insights-v2__income-history-row strong{color:var(--w2-ink);font-size:.7rem;white-space:nowrap}
 
+.wf-insights-v2__income-controls{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;padding-bottom:.7rem;border-bottom:1px solid var(--w2-line)}
+.wf-insights-v2__income-scope{display:grid;gap:.08rem;text-align:right}
+.wf-insights-v2__income-scope .wf-insights-v2__eyebrow{margin:0}
+.wf-insights-v2__income-scope strong{font-size:.78rem}
+.wf-insights-v2__income-scope small{color:var(--w2-muted);font-size:.68rem}
+.wf-insights-v2__income-parity{margin-top:1rem}
+.wf-insights-v2__income-parity-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin:0 0 .7rem}
+.wf-insights-v2__income-parity-head h2{font-size:1.05rem}
+.wf-insights-v2__income-parity-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.8rem;margin-bottom:.8rem}
+.wf-insights-v2__income-parity-grid .wf-insights-v2__panel{margin:0}
+.wf-insights-v2__income-coverage{margin-bottom:0}
+@media(max-width:900px){.wf-insights-v2__income-parity-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.wf-insights-v2__income-parity-head{align-items:flex-start;flex-direction:column;gap:.25rem}.wf-insights-v2__income-scope{text-align:left}.wf-insights-v2__income-parity-grid{grid-template-columns:1fr}}
+
 /* Insights parity layer: Wealthfolio keeps the analysis switcher and account
    picker in one compact title bar, then presents the summary as a small set
    of grouped cards. These rules stay scoped to the Insights route. */

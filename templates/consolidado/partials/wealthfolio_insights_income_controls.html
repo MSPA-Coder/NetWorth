@@ -1,0 +1,11 @@
+<section class="wf-insights-v2__income-controls" aria-label="Filtros de rendimentos">
+  <div class="wf-insights-v2__periods">
+    <span>Período</span>
+    {% for item in wf_insights.periods %}<a href="{{ item.url }}"{% if item.active %} class="is-active" aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+  </div>
+  <div class="wf-insights-v2__income-scope" role="status">
+    <span class="wf-insights-v2__eyebrow">Escopo</span>
+    <strong>Carteira consolidada</strong>
+    <small>O contrato de rendimentos ainda não publica o identificador da conta.</small>
+  </div>
+</section>

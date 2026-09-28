@@ -12,7 +12,11 @@ from django.test import Client
 
 from consolidado import leitor, wealthfolio_views
 from consolidado.fontes import Fonte
-from consolidado.wealthfolio_compat.analytics import IncomeRecord, PerformanceRecord
+from consolidado.wealthfolio_compat.analytics import (
+    AnalyticsSourceResult,
+    IncomeRecord,
+    PerformanceRecord,
+)
 from consolidado.wealthfolio_compat.models import Money
 
 pytestmark = pytest.mark.django_db
@@ -85,6 +89,13 @@ def test_dashboard_and_insights_routes_render(logged_client):
     assert 'data-insights-widget="concentration"' in insights_body
     assert 'data-widget-edit' in insights_body
     assert "Portfolio Insights" not in insights_body
+
+    income = logged_client.get("/insights/", {"tab": "income"})
+    income_body = income.content.decode()
+    assert income.status_code == 200
+    assert 'aria-label="Filtros de rendimentos"' in income_body
+    assert 'data-income-parity' in income_body
+    assert 'data-income-coverage' in income_body
 
 
 def test_insights_performance_periods_match_supported_periods_and_selection(logged_client):
@@ -348,6 +359,95 @@ def test_published_insight_resource_is_not_hidden_by_empty_summary(logged_client
     assert response.context["wf_insights"]["summary"]["available"] is False
     assert response.context["wf_insights"][resource]["available"] is True
     assert "Insights indisponíveis" not in response.content.decode()
+
+
+def test_income_insights_expose_monthly_average_breakdowns_rankings_and_currency_scopes(
+    logged_client, monkeypatch
+):
+    records = (
+        IncomeRecord(
+            "income-1", date(2026, 9, 3), "Dividendo ITUB4", Money(Decimal("120"), "BRL"),
+            "CRV", kind="dividend", instrument="ITUB4", institution="Corretora A", category="Dividendos",
+        ),
+        IncomeRecord(
+            "income-2", date(2026, 9, 10), "JCP ITUB4", Money(Decimal("30"), "BRL"),
+            "CRV", kind="jcp", instrument="ITUB4", institution="Corretora A", category="Juros sobre capital",
+        ),
+        IncomeRecord(
+            "income-3", date(2026, 8, 7), "Dividend ETF", Money(Decimal("20"), "USD"),
+            "CRV", kind="dividend", instrument="ETF-US", institution="Corretora B", category="Dividendos",
+        ),
+    )
+    composition = SimpleNamespace(
+        items=records,
+        status="partial",
+        warnings=("Fonte secundária indisponível",),
+        results=(
+            AnalyticsSourceResult("CRV", "income", "ok", items=records, total=3),
+            AnalyticsSourceResult("CRV secundária", "income", "unsupported", error="Não publica renda"),
+        ),
+    )
+    monkeypatch.setattr(
+        wealthfolio_views,
+        "_analytics_context",
+        lambda _context: {"income": composition},
+    )
+
+    response = logged_client.get("/insights/", {"tab": "income", "periodo": "1a", "data": "2026-09-27"})
+
+    assert response.status_code == 200
+    income = response.context["wf_insights"]["income"]
+    assert income["available"] is True
+    average = next(metric for metric in income["metrics"] if metric["key"] == "income_monthly_average")
+    assert average["months"] == 13
+    assert average["values"] == [
+        {"currency": "BRL", "amount": Decimal("150") / 13, "value": wealthfolio_views.dinheiro(Decimal("150") / 13, "BRL")},
+        {"currency": "USD", "amount": Decimal("20") / 13, "value": wealthfolio_views.dinheiro(Decimal("20") / 13, "USD")},
+    ]
+    assert income["coverage"]["status"] == "partial"
+    assert income["coverage"]["complete"] is False
+    assert income["coverage"]["expected_sources"] == 2
+    assert income["coverage"]["responded_sources"] == 2
+    assert income["coverage"]["publishing_sources"] == 1
+    assert {item["name"] for item in income["by_type"]["items"]} == {"dividend", "jcp"}
+    assert {item["name"] for item in income["by_category"]["items"]} == {
+        "Dividendos", "Juros sobre capital"
+    }
+    assert {item["name"] for item in income["by_instrument"]["items"]} == {"ITUB4", "ETF-US"}
+    source_rankings = income["rankings"]["source"]["currencies"]
+    assert {item["currency"] for item in source_rankings} == {"BRL", "USD"}
+    brl_ranking = next(item["items"] for item in source_rankings if item["currency"] == "BRL")
+    assert brl_ranking[0]["value"] == "R$ 150,00"
+    institution_rankings = income["rankings"]["institution"]["currencies"]
+    assert len(institution_rankings) == 2
+
+
+def test_income_insights_without_records_marks_all_derived_values_unavailable(logged_client, monkeypatch):
+    composition = SimpleNamespace(
+        items=(),
+        status="error",
+        warnings=("A fonte não respondeu",),
+        results=(AnalyticsSourceResult("CRV", "income", "error", error="A fonte não respondeu"),),
+    )
+    monkeypatch.setattr(
+        wealthfolio_views,
+        "_analytics_context",
+        lambda _context: {"income": composition},
+    )
+
+    response = logged_client.get("/insights/", {"tab": "income"})
+
+    assert response.status_code == 200
+    income = response.context["wf_insights"]["income"]
+    assert income["available"] is False
+    assert income["history_available"] is False
+    assert income["history"] == []
+    assert income["by_type"]["available"] is False
+    assert income["by_category"]["items"] == []
+    assert income["rankings"]["institution"]["available"] is False
+    assert income["coverage"]["status"] == "error"
+    assert income["coverage"]["responded_sources"] == 0
+    assert income["coverage"]["publishing_sources"] == 0
 
 
 def test_empty_performance_resource_renders_one_unavailable_message(logged_client):

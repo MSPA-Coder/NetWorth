@@ -1,0 +1,64 @@
+{# Read-only income parity panels. Every value comes from published IncomeRecord fields. #}
+<section class="wf-insights-v2__income-parity" aria-label="Detalhamento de rendimentos" data-income-parity>
+  <div class="wf-insights-v2__income-parity-head">
+    <div>
+      <p class="wf-insights-v2__eyebrow">Análise de rendimentos</p>
+      <h2>Distribuição publicada</h2>
+    </div>
+    <span class="wf-insights-v2__availability">Carteira consolidada · somente leitura</span>
+  </div>
+  <div class="wf-insights-v2__income-parity-grid">
+    <section class="wf-insights-v2__panel" data-income-breakdown="tipo">
+      <header class="wf-insights-v2__panel-head">
+        <div><p class="wf-insights-v2__eyebrow">Composição</p><h2>Por tipo</h2></div>
+        <span class="wf-insights-v2__availability">Publicado</span>
+      </header>
+      {% if wf_insights.income.by_type.available %}
+        <ul class="wf-insights-v2__rows">
+          {% for item in wf_insights.income.by_type.items %}
+            <li><span>{{ item.name }}<small>{{ item.record_count }} lançamentos</small></span><strong>{% for value in item.values %}{{ value.value }}{% if not forloop.last %} · {% endif %}{% endfor %}</strong></li>
+          {% endfor %}
+        </ul>
+      {% else %}<div class="wf-insights-v2__unavailable" role="status"><strong>Tipo indisponível</strong><span>{{ wf_insights.income.by_type.reason }}</span></div>{% endif %}
+    </section>
+    <section class="wf-insights-v2__panel" data-income-breakdown="categoria">
+      <header class="wf-insights-v2__panel-head">
+        <div><p class="wf-insights-v2__eyebrow">Composição</p><h2>Por categoria</h2></div>
+        <span class="wf-insights-v2__availability">Publicado</span>
+      </header>
+      {% if wf_insights.income.by_category.available %}
+        <ul class="wf-insights-v2__rows">
+          {% for item in wf_insights.income.by_category.items %}
+            <li><span>{{ item.name }}<small>{{ item.record_count }} lançamentos</small></span><strong>{% for value in item.values %}{{ value.value }}{% if not forloop.last %} · {% endif %}{% endfor %}</strong></li>
+          {% endfor %}
+        </ul>
+      {% else %}<div class="wf-insights-v2__unavailable" role="status"><strong>Categoria indisponível</strong><span>{{ wf_insights.income.by_category.reason }}</span></div>{% endif %}
+    </section>
+    <section class="wf-insights-v2__panel" data-income-ranking="instrumento">
+      <header class="wf-insights-v2__panel-head">
+        <div><p class="wf-insights-v2__eyebrow">Ranking</p><h2>Maiores ativos</h2></div>
+        <span class="wf-insights-v2__availability">Por moeda</span>
+      </header>
+      {% if wf_insights.income.by_instrument.available %}
+        <ul class="wf-insights-v2__rows">
+          {% for item in wf_insights.income.by_instrument.items|slice:':10' %}
+            <li><span>{{ item.name }}<small>{{ item.record_count }} lançamentos</small></span><strong>{% for value in item.values %}{{ value.value }}{% if not forloop.last %} · {% endif %}{% endfor %}</strong></li>
+          {% endfor %}
+        </ul>
+      {% else %}<div class="wf-insights-v2__unavailable" role="status"><strong>Ranking indisponível</strong><span>{{ wf_insights.income.by_instrument.reason }}</span></div>{% endif %}
+    </section>
+  </div>
+  <section class="wf-insights-v2__panel wf-insights-v2__income-coverage" data-income-coverage>
+    <header class="wf-insights-v2__panel-head">
+      <div><p class="wf-insights-v2__eyebrow">Cobertura da fonte</p><h2>Origem dos lançamentos</h2></div>
+      <span class="wf-insights-v2__availability">{{ wf_insights.income.coverage.status|default:'indisponível' }}</span>
+    </header>
+    {% if wf_insights.income.coverage.sources %}
+      <ul class="wf-insights-v2__rows">
+        {% for source in wf_insights.income.coverage.sources %}
+          <li><span>{{ source.source }}<small>{{ source.status }} · {{ source.records }} lançamentos{% if source.message %} · {{ source.message }}{% endif %}</small></span><strong>{% if source.status == 'ok' %}Disponível{% elif source.status == 'empty' %}Sem lançamentos{% else %}Parcial{% endif %}</strong></li>
+        {% endfor %}
+      </ul>
+    {% else %}<div class="wf-insights-v2__unavailable" role="status"><strong>Nenhuma fonte respondeu</strong><span>{{ wf_insights.income.history_reason }}</span></div>{% endif %}
+  </section>
+</section>
