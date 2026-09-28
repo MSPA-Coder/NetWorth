@@ -41,6 +41,27 @@ from consolidado.wealthfolio_compat.view_models import (
 PERIODS = contexto.PERIODOS_DASHBOARD
 
 
+def _normalize_insights_query(request: HttpRequest) -> None:
+    """Accept links whose query separators arrived escaped as ``\\&``.
+
+    Some browser integrations serialize an ampersand as ``\\&`` when opening
+    a copied local URL.  In that case the backslash becomes part of the value
+    (for example ``filtro=...\\``), invalidating the opaque filter id.  The
+    canonical links emitted by NetWorth do not contain this escape; accepting
+    it here keeps pasted/bookmarked Insights URLs equivalent to them.
+    """
+    query = request.GET.copy()
+    changed = False
+    for key in query:
+        values = query.getlist(key)
+        normalized = [value.rstrip("\\") for value in values]
+        if normalized != values:
+            query.setlist(key, normalized)
+            changed = True
+    if changed:
+        request.GET = query
+
+
 def _date_and_period(request: HttpRequest, *, dashboard_default: bool = False) -> tuple[date, str, date]:
     raw = (request.GET.get("data") or "").strip()
     try:
@@ -1591,6 +1612,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def insights_view(request: HttpRequest) -> HttpResponse:
+    _normalize_insights_query(request)
     context = _base_context(request, visao="insights")
     context["analytics"] = _analytics_context(context)
     context["insights_tab"] = request.GET.get("tab") or "summary"
@@ -1879,6 +1901,7 @@ def dashboard_api(request: HttpRequest) -> JsonResponse:
 @login_required
 @require_GET
 def insights_api(request: HttpRequest) -> JsonResponse:
+    _normalize_insights_query(request)
     context = _base_context(request, visao="insights")
     context["insights_tab"] = request.GET.get("tab") or "summary"
     insight = context["insights"] or {}

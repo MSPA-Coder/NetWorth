@@ -141,6 +141,20 @@ def test_insights_breakdown_link_is_canonical_and_keeps_filtered_data(logged_cli
     assert "Nenhuma exposição publicada." not in filtered.content.decode()
 
 
+def test_insights_accepts_browser_escaped_ampersands_in_filter_url(logged_client):
+    escaped = (
+        r"/insights/?visao=insights\&periodo=1a\&data=2026-09-27"
+        r"\&dimensao=classe\&filtro_dimensao=classe"
+        r"\&filtro=insight-f33baa9cdcee07bdbc2e\&ordenar=valor\&direcao=desc"
+    )
+
+    response = logged_client.get(escaped)
+
+    assert response.status_code == 200
+    assert response.context["insights"]["filtro_nome"] == "Caixa"
+    assert response.context["wf_insights"]["summary"]["details"]
+
+
 def test_insights_account_picker_marks_current_group_and_preserves_valid_get_filters(logged_client):
     filter_id = wealthfolio_views.insights_builder.id_item("classe", "Não classificado")
     params = {
