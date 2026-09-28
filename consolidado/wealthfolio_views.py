@@ -10,10 +10,11 @@ NetWorth's contract.  Legacy URLs are translated to this surface in
 from __future__ import annotations
 
 import json
+import math
 from collections import Counter
 from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
@@ -753,17 +754,24 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         for item in performance_composition.items:
             if not isinstance(item, PerformanceRecord):
                 continue
-            points = [
+            ordered_points = sorted(item.points)
+            statistics = _performance_insights_statistics(ordered_points)
+            points_json = [
                 {"date": point_day.isoformat(), "value": str(value)}
-                for point_day, value in item.points
+                for point_day, value in ordered_points
             ]
-            last_value = item.points[-1][1] if item.points else None
+            last_value = ordered_points[-1][1] if ordered_points else None
             performance.append(
                 {
                     "method": item.method or "TWR",
                     "currency": item.currency or context["moeda_base"],
                     "return": _percent_label(last_value * 100 if last_value is not None else None),
-                    "series_json": json.dumps(points, ensure_ascii=False),
+                    "series_json": json.dumps(points_json, ensure_ascii=False),
+                    "statistics": statistics,
+                    "start": item.start.isoformat() if item.start else (points_json[0]["date"] if points_json else ""),
+                    "end": item.end.isoformat() if item.end else (points_json[-1]["date"] if points_json else ""),
+                    "source": item.source,
+                    "link": item.link,
                 }
             )
     else:
@@ -774,6 +782,11 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
                     "currency": item.get("moeda") or context["moeda_base"],
                     "return": _percent_label(item.get("retorno_percentual")),
                     "series_json": item.get("serie_json") or "[]",
+                    "statistics": _performance_insights_statistics(_legacy_performance_points(item.get("serie_json"))),
+                    "start": "",
+                    "end": "",
+                    "source": "",
+                    "link": item.get("link") or "",
                 }
             )
 
@@ -875,10 +888,121 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "periods": context.get("periodos_dashboard") or (),
             "items": performance,
             "available": bool(performance),
+            "coverage": _performance_insights_coverage(performance_composition),
         },
         "income": {
             **income_model,
         },
+    }
+
+
+def _performance_insights_statistics(
+    points: list[tuple[date, Decimal]] | tuple[tuple[date, Decimal], ...],
+) -> list[dict[str, Any]]:
+    """Derive descriptive TWR statistics without merging currency series."""
+
+    ordered = sorted(points)
+    cumulative_return = ordered[-1][1] if ordered else None
+    monthly_returns: list[tuple[date, Decimal]] = []
+    for (_previous_date, previous_return), (observed_date, observed_return) in zip(
+        ordered, ordered[1:], strict=False
+    ):
+        previous_index = Decimal("1") + previous_return
+        observed_index = Decimal("1") + observed_return
+        if previous_index <= 0 or observed_index < 0:
+            continue
+        monthly_returns.append((observed_date, observed_index / previous_index - Decimal("1")))
+
+    annualized: Decimal | None = None
+    if len(ordered) >= 2:
+        elapsed_days = (ordered[-1][0] - ordered[0][0]).days
+        first_index = Decimal("1") + ordered[0][1]
+        last_index = Decimal("1") + ordered[-1][1]
+        if elapsed_days > 0 and first_index > 0 and last_index >= 0:
+            try:
+                annualized_float = math.pow(float(last_index / first_index), 365.0 / elapsed_days) - 1.0
+            except (OverflowError, ValueError):
+                annualized_float = math.inf
+            if math.isfinite(annualized_float):
+                annualized = Decimal(str(annualized_float))
+
+    volatility: Decimal | None = None
+    if len(monthly_returns) >= 2:
+        values = [value for _day, value in monthly_returns]
+        average = sum(values, Decimal("0")) / Decimal(len(values))
+        variance = sum(((value - average) ** 2 for value in values), Decimal("0")) / Decimal(len(values) - 1)
+        volatility = variance.sqrt() * Decimal("12").sqrt()
+
+    max_drawdown: Decimal | None = None
+    indices = [Decimal("1") + value for _day, value in ordered]
+    if indices and all(value > 0 for value in indices):
+        peak = indices[0]
+        max_drawdown = Decimal("0")
+        for index in indices:
+            peak = max(peak, index)
+            drawdown = index / peak - Decimal("1")
+            max_drawdown = min(max_drawdown, drawdown)
+
+    best = max(monthly_returns, key=lambda item: item[1]) if monthly_returns else None
+    worst = min(monthly_returns, key=lambda item: item[1]) if monthly_returns else None
+
+    def metric(key: str, label: str, value: Decimal | None, detail: str, *, percent: bool = True) -> dict[str, Any]:
+        available = value is not None
+        return {
+            "key": key,
+            "label": label,
+            "value": _percent_label(value * 100 if value is not None and percent else value),
+            "number": value,
+            "state": "ok" if available else "unavailable",
+            "detail": detail if available else "Série publicada insuficiente para este cálculo.",
+        }
+
+    return [
+        metric("return_twr", "Retorno TWR", cumulative_return, "retorno acumulado publicado pela origem"),
+        metric("annualized_return", "Retorno anualizado", annualized, "anualização geométrica desde o primeiro ponto observado"),
+        metric("annualized_volatility", "Volatilidade anualizada", volatility, f"{len(monthly_returns)} retornos mensais observados"),
+        metric("max_drawdown", "Drawdown máximo", max_drawdown, "calculado sobre o índice TWR publicado"),
+        metric("best_month", "Melhor mês", best[1] if best else None, best[0].strftime("%m/%Y") if best else ""),
+        metric("worst_month", "Pior mês", worst[1] if worst else None, worst[0].strftime("%m/%Y") if worst else ""),
+    ]
+
+
+def _legacy_performance_points(series_json: str | None) -> list[tuple[date, Decimal]]:
+    """Read the legacy published JSON series for the same derived metrics."""
+
+    try:
+        points = json.loads(series_json or "[]")
+        return [
+            (
+                date.fromisoformat(str(point.get("date", point.get("data")))),
+                Decimal(str(point.get("value", point.get("valor")))),
+            )
+            for point in points
+            if point.get("date", point.get("data"))
+            and point.get("value", point.get("valor")) is not None
+        ]
+    except (AttributeError, InvalidOperation, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+
+def _performance_insights_coverage(composition: Any) -> dict[str, Any]:
+    results = tuple(getattr(composition, "results", ()) or ())
+    return {
+        "status": getattr(composition, "status", "unavailable"),
+        "complete": bool(results) and all(result.status in {"ok", "empty"} for result in results),
+        "expected_sources": len(results),
+        "responded_sources": sum(result.status != "error" for result in results),
+        "publishing_sources": sum(result.status in {"ok", "partial", "stale"} for result in results),
+        "sources": [
+            {
+                "source": result.source,
+                "status": result.status,
+                "records": len(result.items),
+                "message": result.error,
+            }
+            for result in results
+        ],
+        "warnings": list(getattr(composition, "warnings", ()) or ()),
     }
 
 

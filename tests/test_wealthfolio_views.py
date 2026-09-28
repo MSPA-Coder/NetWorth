@@ -97,6 +97,12 @@ def test_dashboard_and_insights_routes_render(logged_client):
     assert 'data-income-parity' in income_body
     assert 'data-income-coverage' in income_body
 
+    performance = logged_client.get("/insights/", {"tab": "performance"})
+    performance_body = performance.content.decode()
+    assert performance.status_code == 200
+    assert 'data-performance-details' in performance_body
+    assert 'data-performance-metric="return_twr"' in performance_body
+
 
 def test_insights_performance_periods_match_supported_periods_and_selection(logged_client):
     response = logged_client.get(
@@ -472,6 +478,73 @@ def test_performance_item_without_points_renders_its_own_unavailable_state(logge
     body = response.content.decode()
     assert "Série TWR indisponível: a origem não publicou pontos." in body
     assert "Desempenho indisponível: nenhuma série TWR foi publicada pelas fontes." not in body
+    statistics = response.context["wf_insights"]["performance"]["items"][0]["statistics"]
+    assert all(item["state"] == "unavailable" for item in statistics)
+
+
+def test_performance_insights_derive_risk_and_return_metrics_from_published_twr(logged_client, monkeypatch):
+    record = PerformanceRecord(
+        "series-brl",
+        "BRL",
+        "TWR",
+        "CRV",
+        start=date(2026, 1, 1),
+        end=date(2026, 4, 1),
+        points=(
+            (date(2026, 4, 1), Decimal("0.20")),
+            (date(2026, 1, 1), Decimal("0")),
+            (date(2026, 2, 1), Decimal("0.10")),
+            (date(2026, 3, 1), Decimal("0")),
+        ),
+        link="/performance",
+    )
+    composition = SimpleNamespace(
+        items=(record,),
+        status="partial",
+        warnings=("Outra fonte sem série",),
+        results=(
+            AnalyticsSourceResult("CRV", "performance", "ok", items=(record,), total=1),
+            AnalyticsSourceResult("CRV secundária", "performance", "unsupported", error="Não publica TWR"),
+        ),
+    )
+    monkeypatch.setattr(
+        wealthfolio_views,
+        "_analytics_context",
+        lambda _context: {"performance": composition},
+    )
+
+    response = logged_client.get("/insights/", {"tab": "performance", "periodo": "1a", "data": "2026-04-01"})
+
+    assert response.status_code == 200
+    performance = response.context["wf_insights"]["performance"]
+    assert performance["available"] is True
+    assert performance["coverage"]["status"] == "partial"
+    assert performance["coverage"]["complete"] is False
+    assert performance["coverage"]["responded_sources"] == 2
+    assert performance["coverage"]["publishing_sources"] == 1
+    item = performance["items"][0]
+    assert item["return"] == "20,00%"
+    assert item["source"] == "CRV"
+    assert item["link"] == "/performance"
+    metrics = {metric["key"]: metric for metric in item["statistics"]}
+    assert metrics["return_twr"]["value"] == "20,00%"
+    assert metrics["annualized_return"]["state"] == "ok"
+    assert metrics["annualized_volatility"]["state"] == "ok"
+    assert metrics["max_drawdown"]["number"] == Decimal("1") / Decimal("1.1") - Decimal("1")
+    assert metrics["best_month"]["value"] == "20,00%"
+    assert metrics["best_month"]["detail"] == "04/2026"
+    assert metrics["worst_month"]["detail"] == "03/2026"
+
+
+def test_legacy_performance_series_accepts_actual_data_valor_contract():
+    points = wealthfolio_views._legacy_performance_points(
+        '[{"data":"2026-01-31","valor":"0"},{"data":"2026-02-28","valor":"0.04"}]'
+    )
+
+    assert points == [
+        (date(2026, 1, 31), Decimal("0")),
+        (date(2026, 2, 28), Decimal("0.04")),
+    ]
 
 
 @pytest.mark.sentinela_front

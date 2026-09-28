@@ -59,6 +59,16 @@
 .wf-insights-v2__income-parity-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.8rem;margin-bottom:.8rem}
 .wf-insights-v2__income-parity-grid .wf-insights-v2__panel{margin:0}
 .wf-insights-v2__income-coverage{margin-bottom:0}
+.wf-insights-v2__performance{order:2}
+.wf-insights-v2__performance-details{order:3;margin:1rem 0}
+.wf-insights-v2__performance-details .wf-insights-v2__income-parity-head{margin-bottom:.7rem}
+.wf-insights-v2__performance-series{margin-bottom:.8rem}
+.wf-insights-v2__metric-row--derived{grid-template-columns:repeat(6,minmax(0,1fr));margin-top:0}
+.wf-insights-v2__metric-row--derived article{min-width:0}
+.wf-insights-v2__metric-row--derived article.is-unavailable{opacity:.72}
+.wf-insights-v2__source-link{display:inline-block;margin-top:.65rem;text-decoration:underline;text-underline-offset:2px}
+.wf-insights-v2__performance-coverage{margin:.6rem 0;color:var(--w2-muted);font-size:.72rem}
+.wf-insights-v2__performance > .wf-insights-v2__metric-row{display:none}
 @media(max-width:900px){.wf-insights-v2__income-parity-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.wf-insights-v2__income-parity-head{align-items:flex-start;flex-direction:column;gap:.25rem}.wf-insights-v2__income-scope{text-align:left}.wf-insights-v2__income-parity-grid{grid-template-columns:1fr}}
 

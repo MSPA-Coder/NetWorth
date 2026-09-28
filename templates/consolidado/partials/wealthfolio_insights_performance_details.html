@@ -1,0 +1,28 @@
+{# Derived read-only TWR metrics. Values are never combined across currencies. #}
+<section class="wf-insights-v2__performance-details" aria-label="Métricas detalhadas de desempenho" data-performance-details>
+  <header class="wf-insights-v2__income-parity-head">
+    <div><p class="wf-insights-v2__eyebrow">Métricas publicadas</p><h2>Risco e retorno por moeda</h2></div>
+    <span class="wf-insights-v2__availability">Derivado da série TWR mensal</span>
+  </header>
+  {% for item in wf_insights.performance.items %}
+    <section class="wf-insights-v2__panel wf-insights-v2__performance-series" data-performance-currency="{{ item.currency }}">
+      <header class="wf-insights-v2__panel-head">
+        <div><p class="wf-insights-v2__eyebrow">Série {{ item.method }}</p><h2>{{ item.currency }}</h2></div>
+        <span class="wf-insights-v2__availability">{{ item.start }}{% if item.end %} → {{ item.end }}{% endif %}{% if item.source %} · {{ item.source }}{% endif %}</span>
+      </header>
+      <div class="wf-insights-v2__metric-row wf-insights-v2__metric-row--derived">
+        {% for metric in item.statistics %}
+          <article data-performance-metric="{{ metric.key }}" class="{% if metric.state == 'unavailable' %}is-unavailable{% endif %}">
+            <span>{{ metric.label }}</span>
+            {% if metric.state == 'ok' %}<strong>{{ metric.value }}</strong>{% else %}<strong>Indisponível</strong>{% endif %}
+            <small>{{ metric.detail }}</small>
+          </article>
+        {% empty %}<article><strong>Sem métricas publicadas</strong><small>A série não possui pontos suficientes.</small></article>{% endfor %}
+      </div>
+      {% if item.link %}<a class="wf-insights-v2__muted wf-insights-v2__source-link" href="{{ item.link }}" target="_blank" rel="noopener">Abrir performance na origem →</a>{% endif %}
+    </section>
+  {% empty %}<div class="wf-insights-v2__unavailable" role="status"><strong>Performance indisponível</strong><span>Nenhuma série TWR foi publicada pelas fontes.</span></div>{% endfor %}
+  {% if wf_insights.performance.coverage.sources %}
+    <p class="wf-insights-v2__performance-coverage" role="status">Cobertura: {% for source in wf_insights.performance.coverage.sources %}{{ source.source }} ({{ source.status }}){% if not forloop.last %} · {% endif %}{% endfor %}</p>
+  {% endif %}
+</section>
