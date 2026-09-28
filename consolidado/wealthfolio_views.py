@@ -316,8 +316,13 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
                 "active": item.get("ativa", False),
             }
         )
+    selected_group = context.get("grupo_selecionado") or ""
     account_options = [
-        {"id": item.get("id"), "name": item.get("nome")}
+        {
+            "id": item.get("id"),
+            "name": item.get("nome"),
+            "selected": item.get("id") == selected_group,
+        }
         for item in context.get("arvore_drilldown") or ()
     ]
     detail_rows = []
@@ -475,12 +480,26 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         tab: _query_url("consolidado:insights", tab=tab, **tab_params)
         for tab in ("summary", "performance", "income")
     }
+    form_params = {
+        "tab": context.get("insights_tab") or "summary",
+        "periodo": context["periodo"],
+        "data": context["data_da_tela"].isoformat(),
+        "dimensao": normalized_insights.get("dimensao") or "classe",
+        "busca": normalized_insights.get("busca") or "",
+        "ordenar": normalized_insights.get("ordenar") or "valor",
+        "direcao": normalized_insights.get("direcao") or "desc",
+    }
+    if filter_dimension and filter_id:
+        form_params.update(filtro_dimensao=filter_dimension, filtro=filter_id)
+    if context.get("conta_selecionada"):
+        form_params["conta"] = context["conta_selecionada"]
     return {
         "tab": context.get("insights_tab") or "summary",
         "partial": not vm.shell.coverage.complete or analytics_partial,
         "warnings": analytics_warnings,
         "period": context["periodo"],
         "tab_urls": tab_urls,
+        "form_params": form_params,
         "periods": [
             {
                 "key": key,

@@ -10,13 +10,12 @@
   </a>
 </nav>
 <form class="wf2-insights-account" method="get" action="{% url 'consolidado:insights' %}" data-wf2-insights-filter>
-  <input type="hidden" name="tab" value="{{ wf_insights.tab|default:'summary' }}">
-  <input type="hidden" name="periodo" value="{{ wf_insights.period|default:'1a' }}">
+  {% for name, value in wf_insights.form_params.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
   <label class="wf2-insights-account__label" for="wf2-insights-account">Conta</label>
   <span class="wf2-insights-account__icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 8h18v11H3zM5 8V5h14v3M7 12h4"/></svg></span>
   <select id="wf2-insights-account" name="grupo" aria-label="Conta" data-wf2-insights-account>
     <option value="">Todas as contas</option>
-    {% for grupo in wf_insights.account_options %}<option value="{{ grupo.id }}">{{ grupo.name }}</option>{% endfor %}
+    {% for grupo in wf_insights.account_options %}<option value="{{ grupo.id }}"{% if grupo.selected %} selected{% endif %}>{{ grupo.name }}</option>{% endfor %}
   </select>
   <button class="wf2-insights-account__submit" type="submit">Aplicar</button>
 </form>

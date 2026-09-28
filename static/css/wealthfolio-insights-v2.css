@@ -230,7 +230,10 @@
 }
 @media (max-width: 680px) {
   .wf2-topbar > .wf2-insights-account {
+    display: flex;
     width: auto;
+    max-width: 100%;
+    visibility: visible;
     margin: 0;
     padding: 0 2px 4px 39px;
     border: 0;
@@ -244,4 +247,9 @@
     background: var(--wf2-surface);
   }
   .wf2-insights-account__icon { display: none; }
+}
+
+.wf-insights-v2__chips .is-disabled {
+  cursor: not-allowed;
+  opacity: .55;
 }

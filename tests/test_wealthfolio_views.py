@@ -125,6 +125,83 @@ def test_insights_tab_links_drop_unknown_filter_id(logged_client):
     assert "filtro_dimensao" not in tab_query
 
 
+def test_insights_account_picker_marks_current_group_and_preserves_valid_get_filters(logged_client):
+    filter_id = wealthfolio_views.insights_builder.id_item("classe", "Não classificado")
+    params = {
+        "tab": "performance",
+        "periodo": "5a",
+        "data": "2026-09-20",
+        "dimensao": "classe",
+        "filtro_dimensao": "classe",
+        "filtro": filter_id,
+        "busca": "ETF",
+        "ordenar": "nome",
+        "direcao": "asc",
+    }
+    initial = logged_client.get("/insights/", params)
+    group_id = initial.context["wf_insights"]["account_options"][0]["id"]
+    params["grupo"] = group_id
+    response = logged_client.get("/insights/", params)
+
+    assert response.status_code == 200
+    options = response.context["wf_insights"]["account_options"]
+    assert [option["id"] for option in options if option["selected"]] == [group_id]
+    form_params = response.context["wf_insights"]["form_params"]
+    assert form_params == {
+        "tab": "performance",
+        "periodo": "5a",
+        "data": "2026-09-20",
+        "dimensao": "classe",
+        "busca": "ETF",
+        "ordenar": "nome",
+        "direcao": "asc",
+        "filtro_dimensao": "classe",
+        "filtro": filter_id,
+    }
+    assert f'value="{group_id}" selected' in response.content.decode()
+    assert 'name="filtro_dimensao"' in response.content.decode()
+
+
+def test_insights_account_form_drops_invalid_filter_pair(logged_client):
+    response = logged_client.get(
+        "/insights/",
+        {
+            "tab": "income",
+            "periodo": "3a",
+            "data": "2026-09-20",
+            "dimensao": "moeda",
+            "filtro_dimensao": "classe",
+            "filtro": "unknown-id",
+            "ordenar": "unknown-sort",
+            "direcao": "sideways",
+            "stage": "unsupported-here",
+        },
+    )
+
+    assert response.status_code == 200
+    form_params = response.context["wf_insights"]["form_params"]
+    assert form_params["tab"] == "income"
+    assert form_params["periodo"] == "1a"
+    assert form_params["data"] == "2026-09-20"
+    assert form_params["dimensao"] == "moeda"
+    assert form_params["ordenar"] == "valor"
+    assert form_params["direcao"] == "desc"
+    assert "filtro" not in form_params and "filtro_dimensao" not in form_params
+    assert "stage" not in form_params
+
+
+def test_insights_unsupported_controls_are_disabled(logged_client):
+    insights_response = logged_client.get("/insights/", {"tab": "performance"})
+    accounts_response = logged_client.get("/accounts/")
+
+    assert insights_response.status_code == 200
+    insights_body = insights_response.content.decode()
+    assert '<span class="is-disabled" aria-disabled="true">Conta</span>' in insights_body
+    assert '<span class="is-disabled" aria-disabled="true">Benchmark</span>' in insights_body
+    assert accounts_response.status_code == 200
+    assert 'aria-label="Filtrar contas" disabled aria-disabled="true"' in accounts_response.content.decode()
+
+
 @pytest.mark.parametrize("tab", ["performance", "income"])
 def test_published_insight_resource_is_not_hidden_by_empty_summary(logged_client, monkeypatch, tab):
     monkeypatch.setattr(wealthfolio_views.insights_builder, "montar", lambda *_args, **_kwargs: {})
