@@ -94,6 +94,54 @@ def test_accounts_list_uses_opaque_child_links_search_and_map_mode(pages_client)
     assert "wf2p-account-map" in mapa.content.decode()
 
 
+def test_accounts_list_opens_each_account_when_institution_is_repeated(pages_client, monkeypatch):
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(
+                fonte=CB,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(
+                        fonte=CB.nome,
+                        papel="caixa",
+                        titular="Espósito",
+                        instituicao="Mercado Pago",
+                        descricao="conta 01",
+                        moeda="BRL",
+                        valor=Decimal("100.00"),
+                    ),
+                    leitor.Linha(
+                        fonte=CB.nome,
+                        papel="caixa",
+                        titular="Espósito",
+                        instituicao="Mercado Pago",
+                        descricao="conta 02",
+                        moeda="USD",
+                        valor=Decimal("20.00"),
+                    ),
+                ],
+            )
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: snapshot)
+
+    response = pages_client.get("/accounts/")
+
+    rows = response.context["wf_page"]["rows"]
+    assert response.status_code == 200
+    assert len(rows) == 2
+    assert len({row["url"].split("account_id=", 1)[1] for row in rows}) == 2
+    details = [pages_client.get(row["url"]) for row in rows]
+    assert [detail.context["wf_page"]["account"]["name"] for detail in details] == [
+        "Mercado Pago · conta 01",
+        "Mercado Pago · conta 02",
+    ]
+    assert [detail.context["wf_page"]["rows"][0]["name"] for detail in details] == [
+        "conta 01",
+        "conta 02",
+    ]
+
+
 def test_holding_detail_and_state_contracts_remain_present(pages_client):
     detail = pages_client.get("/holdings/ETF%20Brasil/")
     assert detail.status_code == 200
