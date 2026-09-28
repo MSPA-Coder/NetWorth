@@ -1508,7 +1508,7 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
         matching = [
             line
             for line in account.get("linhas") or ()
-            if needle in str(line_value(line, "descricao")).strip().casefold()
+            if needle == str(line_value(line, "descricao")).strip().casefold()
         ]
         if matching:
             currencies = {str(line_value(line, "moeda")) for line in matching}
@@ -1531,6 +1531,10 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
                 ] if len(currencies) == 1 else account.get("totais_por_moeda") or (),
                 "linhas": matching,
             }
+        else:
+            # A stale or mistyped account filter must not quietly show the
+            # institution aggregate as if it were the requested account.
+            account = None
     context["account"] = account
     context["page_type"] = "account-detail"
     context["wf_shell"] = _shell_vm(request, context, active="holdings")

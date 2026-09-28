@@ -1,4 +1,5 @@
 from decimal import Decimal
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from django.apps import apps
@@ -103,6 +104,46 @@ def test_dashboard_account_children_keep_account_drilldown(logged_client):
     assert detail.status_code == 200
     assert detail.context["wf_page"]["account"]["name"] == "Banco · Conta"
     assert len(detail.context["wf_page"]["rows"]) == 1
+
+
+def test_dashboard_group_account_drilldown_targets_exact_published_lines(logged_client, monkeypatch):
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(
+                fonte=CB,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(CB.nome, "caixa", "Esposita", "Mercado Pago", "Conta Á 01", "BRL", Decimal("100")),
+                    leitor.Linha(CB.nome, "caixa", "Esposita", "Mercado Pago", "Conta Á 010", "BRL", Decimal("200")),
+                ],
+            )
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_: snapshot)
+
+    dashboard = logged_client.get("/dashboard/", {"tab": "investments"})
+    group = next(item for item in dashboard.context["wf_dashboard"]["investments"]["accounts"] if item["name"] == "Esposita")
+    child = next(item for item in group["children"] if item["name"] == "Mercado Pago · Conta Á 01")
+    parsed_url = urlsplit(child["url"])
+
+    assert parsed_url.path == "/accounts/Mercado%20Pago/"
+    assert parse_qs(parsed_url.query)["account"] == ["Conta Á 01"]
+
+    group_id = parse_qs(urlsplit(group["url"]).query)["grupo"][0]
+    expanded = logged_client.get("/dashboard/", {"tab": "investments", "grupo": group_id})
+    expanded_group = next(item for item in expanded.context["wf_dashboard"]["investments"]["accounts"] if item["name"] == "Esposita")
+    assert expanded_group["expanded"] is True
+    assert next(item for item in expanded_group["children"] if item["name"] == "Mercado Pago · Conta Á 01")["url"] == child["url"]
+
+    detail = logged_client.get(child["url"])
+    assert detail.status_code == 200
+    assert detail.context["wf_page"]["account"]["name"] == "Mercado Pago · Conta Á 01"
+    assert [row["name"] for row in detail.context["wf_page"]["rows"]] == ["Conta Á 01"]
+
+    for filter_key in ("account", "conta"):
+        invalid = logged_client.get("/accounts/Mercado%20Pago/", {filter_key: "Conta 02"})
+        assert invalid.context["wf_page"]["state"] == "empty"
+        assert invalid.context["wf_page"]["rows"] == ()
 
 
 def test_dashboard_api_keeps_currency_and_coverage(logged_client):
