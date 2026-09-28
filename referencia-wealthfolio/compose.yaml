@@ -1,4 +1,4 @@
-# Instância de REFERÊNCIA do Wealthfolio 3.8.0, só para comparar telas com o
+# Instância de REFERÊNCIA do Wealthfolio 3.9.1, só para comparar telas com o
 # NetWorth. Não é parte do NetWorth nem vai para produção.
 #
 #   docker compose -f referencia-wealthfolio/compose.yaml up -d
@@ -14,7 +14,7 @@ name: wealthfolio-referencia
 
 services:
   wealthfolio:
-    image: afadil/wealthfolio@sha256:3c6f117828949204029c2b4a391f039e62987b4e091139e11b04e6764b5f6866
+    image: ghcr.io/wealthfolio/wealthfolio@sha256:0ebd0147463f3637afce8cf33e0601a7c5c060e70f15c19d5762435f5819234a
     restart: "no"
     env_file: .env
     environment:

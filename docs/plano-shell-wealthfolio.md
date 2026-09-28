@@ -63,7 +63,7 @@ login único e das permissões por titular que o CB já tem.
 
 | Fase | Entrega |
 | --- | --- |
-| 0. Referência | Instância 3.8.0 restaurada em `referencia-wealthfolio/`; NOTICE aponta ao código-fonte público. **Feito em 23/09/2026.** |
+| 0. Referência | Instância 3.9.1 restaurada em `referencia-wealthfolio/`; NOTICE aponta ao código-fonte público. **Atualizado em 27/09/2026.** |
 | 1. Meta revisada | Esta seção. **Feito em 23/09/2026.** |
 | 2. Limpeza | Um só caminho de dados: `leitor.consolidar_v2` → `Consolidado` → `consolidado/contexto.py` → view-models → templates. O caminho paralelo (`adapters`/`normalize`/`contracts`/`SnapshotDTO`), que só os testes usavam, foi retirado; `views.py` e os templates `patrimonio.html`/`historico.html`, sem rota, também. **Feito em 23/09/2026.** |
 | 3. Diferencial | Patrimônio projetado em `/projecao/` e cartão na aba Patrimônio líquido. O CB publica `GET /patrimonio/v3/projection` (PR sistema-financeiro#76, em produção desde 23/09/2026); o NetWorth soma os investimentos de hoje, trata aporte como neutro, converte pela taxa de hoje e lista as premissas na tela. Proventos anunciados ficam para quando o CRV os publicar. |
@@ -87,11 +87,16 @@ cobertura e moeda), não a comparação com a referência.
 
 ## Referência
 
-- Wealthfolio `3.8.0`, revisão `8f6f9898d30e84d7215e01d3d06cd65e02c9ab1b`;
+- Wealthfolio `3.9.1`, revisão `392f272c5b15a4af45dc2ff71dcbec474f47112a`;
 - imagem local com digest
-  `sha256:3c6f117828949204029c2b4a391f039e62987b4e091139e11b04e6764b5f6866`,
+  `sha256:0ebd0147463f3637afce8cf33e0601a7c5c060e70f15c19d5762435f5819234a`,
   definida em `referencia-wealthfolio/compose.yaml` (volume externo
   `wealthfolio-data`), em `http://127.0.0.1:8088`.
+
+O shell do NetWorth continua documentado com o baseline de código 3.8.0
+abaixo; a atualização da instância de referência não altera, por si só, a
+atribuição do código já adaptado. A próxima rodada de comparação deve registrar
+as diferenças introduzidas na 3.9.1 antes de qualquer nova adaptação.
 
 Serve para consultar e comparar ideias, não como portão de aceite.
 
