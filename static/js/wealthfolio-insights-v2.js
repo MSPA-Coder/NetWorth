@@ -24,7 +24,18 @@
     var svg = frame.querySelector("[data-wf-performance-chart]");
     var series = readSeries(frame);
     if (!svg || series.length < 2) {
-      if (frame) frame.setAttribute("data-chart-state", "unavailable");
+      if (frame) {
+        frame.setAttribute("data-chart-state", "unavailable");
+        var message = frame.querySelector("[data-wf-performance-state]");
+        if (!message) {
+          message = document.createElement("span");
+          message.setAttribute("data-wf-performance-state", "");
+          message.setAttribute("role", "status");
+          message.className = "wf-insights-v2__chart-caption";
+          frame.appendChild(message);
+        }
+        message.textContent = "Série insuficiente para desenhar o gráfico; a origem publicou menos de dois pontos.";
+      }
       return;
     }
     var width = 760;

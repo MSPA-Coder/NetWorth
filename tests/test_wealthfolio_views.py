@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
@@ -223,6 +224,43 @@ def test_published_insight_resource_is_not_hidden_by_empty_summary(logged_client
     assert response.context["wf_insights"]["summary"]["available"] is False
     assert response.context["wf_insights"][resource]["available"] is True
     assert "Insights indisponíveis" not in response.content.decode()
+
+
+def test_empty_performance_resource_renders_one_unavailable_message(logged_client):
+    response = logged_client.get("/insights/", {"tab": "performance"})
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert body.count("Desempenho indisponível: nenhuma série TWR foi publicada pelas fontes.") == 1
+
+
+def test_performance_item_without_points_renders_its_own_unavailable_state(logged_client, monkeypatch):
+    record = PerformanceRecord("empty-series", "BRL", "TWR", "CRV", points=())
+    monkeypatch.setattr(
+        wealthfolio_views,
+        "_analytics_context",
+        lambda _context: {"performance": SimpleNamespace(items=(record,), status="ok", warnings=())},
+    )
+
+    response = logged_client.get("/insights/", {"tab": "performance"})
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Série TWR indisponível: a origem não publicou pontos." in body
+    assert "Desempenho indisponível: nenhuma série TWR foi publicada pelas fontes." not in body
+
+
+@pytest.mark.sentinela_front
+def test_single_point_performance_series_keeps_accessible_insufficient_state():
+    """A one-point series must not disappear and imply that no data was published."""
+    script = (Path(__file__).parents[1] / "static" / "js" / "wealthfolio-insights-v2.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "series.length < 2" in script
+    assert "Série insuficiente para desenhar o gráfico" in script
+    assert 'message.setAttribute("role", "status")' in script
+    assert "frame.appendChild(message)" in script
 
 
 def test_account_detail_resolves_groups_and_published_account_filter(logged_client):

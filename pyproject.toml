@@ -60,3 +60,4 @@ DJANGO_SETTINGS_MODULE = "networth.settings"
 testpaths = ["tests"]
 addopts = "-q --tb=short"
 pythonpath = ["."]
+markers = ["sentinela_front: protects a critical frontend behavior without a browser test"]
