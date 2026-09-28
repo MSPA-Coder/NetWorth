@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -80,6 +81,9 @@ def test_dashboard_and_insights_routes_render(logged_client):
     assert insights.status_code == 200
     insights_body = insights.content.decode()
     assert "Exposição da carteira" in insights_body
+    assert 'data-insights-widget="accounts"' in insights_body
+    assert 'data-insights-widget="concentration"' in insights_body
+    assert 'data-widget-edit' in insights_body
     assert "Portfolio Insights" not in insights_body
 
 
@@ -263,6 +267,52 @@ def test_insights_account_form_drops_invalid_filter_pair(logged_client):
     assert form_params["direcao"] == "desc"
     assert "filtro" not in form_params and "filtro_dimensao" not in form_params
     assert "stage" not in form_params
+
+
+def test_insights_summary_widgets_use_published_lines_and_keep_currency_scopes(logged_client, monkeypatch):
+    snapshot = _snapshot()
+    investment = replace(
+        snapshot.leituras[1].linhas[0],
+        classe="acao",
+        ganho_nao_realizado=Decimal("6.25"),
+        retorno=Decimal("0.125"),
+    )
+    usd_investment = replace(
+        investment,
+        descricao="ETF USD",
+        moeda="USD",
+        valor=Decimal("75.00"),
+        ganho_nao_realizado=None,
+        retorno=None,
+        id_de_origem="usd-1",
+    )
+    investment_reading = replace(snapshot.leituras[1], linhas=[investment, usd_investment])
+    snapshot = replace(snapshot, leituras=[snapshot.leituras[0], investment_reading])
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: snapshot)
+
+    response = logged_client.get("/insights/", {"tab": "summary", "data": "2026-09-27"})
+
+    assert response.status_code == 200
+    widgets = response.context["wf_insights"]["summary"]["widgets"]
+    assert widgets["accounts"]["available"] is True
+    assert len(widgets["accounts"]["items"]) == 3
+    assert any("R$ 100,00" in item["value"] for item in widgets["accounts"]["items"])
+    assert {item["name"] for item in widgets["composition"]["items"]} == {"Caixa", "Investimentos"}
+    investments_item = next(item for item in widgets["composition"]["items"] if item["name"] == "Investimentos")
+    assert investments_item["percent_number"] is None
+    assert investments_item["percent_by_currency"]["BRL"] == Decimal("33.33333333333333333333333333")
+    assert investments_item["percent_by_currency"]["USD"] == Decimal("100")
+    assert widgets["classes"]["available"] is True
+    assert widgets["regions"]["available"] is False
+    assert widgets["sectors"]["available"] is False
+    assert widgets["dimensions"]["available"] is True
+    assert widgets["dimensions"]["items"][0]["name"].startswith("Classe:")
+    assert widgets["concentration"]["available"] is True
+    assert widgets["movers"]["available"] is True
+    mover = widgets["movers"]["items"][0]
+    assert mover["value"] == "R$ 6,25"
+    assert mover["percent_number"] == Decimal("12.500")
+    assert "não representa o período selecionado" in mover["detail"]
 
 
 def test_insights_unsupported_controls_are_disabled(logged_client):

@@ -386,6 +386,286 @@ def _metric_vm(metric: Any) -> dict[str, Any]:
     }
 
 
+def _insights_distribution_widget(
+    lines: list[Any],
+    *,
+    label: str,
+    key_for: Any,
+    name_for: Any,
+    filter_dimension: str = "",
+    context: dict[str, Any],
+    omit_unclassified: bool = False,
+) -> dict[str, Any]:
+    """Build a currency-safe read-only distribution from published lines."""
+
+    groups: dict[str, list[Any]] = {}
+    unclassified = 0
+    for line in lines:
+        name = name_for(line)
+        if not name:
+            unclassified += 1
+            continue
+        if omit_unclassified and name in {
+            insights_builder.NAO_CLASSIFICADO,
+            insights_builder.NAO_INFORMADO,
+        }:
+            unclassified += 1
+            continue
+        groups.setdefault(str(key_for(line, name)), []).append(line)
+
+    if not groups:
+        return {
+            "available": False,
+            "reason": f"A fonte ainda não publica dados de {label.lower()}.",
+            "items": [],
+        }
+
+    denominators: dict[str, Decimal] = {}
+    for line in lines:
+        currency = str(getattr(line, "moeda", "") or "")
+        denominators[currency] = denominators.get(currency, Decimal("0")) + abs(
+            getattr(line, "valor", Decimal("0")) or Decimal("0")
+        )
+
+    items = []
+    for _key, grouped_lines in groups.items():
+        name = str(name_for(grouped_lines[0]))
+        amounts: dict[str, Decimal] = {}
+        exposures: dict[str, Decimal] = {}
+        for line in grouped_lines:
+            currency = str(getattr(line, "moeda", "") or "")
+            amount = getattr(line, "valor", Decimal("0")) or Decimal("0")
+            amounts[currency] = amounts.get(currency, Decimal("0")) + amount
+            exposures[currency] = exposures.get(currency, Decimal("0")) + abs(amount)
+        amount_text = " · ".join(
+            dinheiro(amount, currency) for currency, amount in sorted(amounts.items())
+        )
+        percent_by_currency = {
+            currency: (exposure * 100 / denominators[currency])
+            if denominators.get(currency)
+            else None
+            for currency, exposure in sorted(exposures.items())
+        }
+        percent_number = (
+            next(iter(percent_by_currency.values()))
+            if len(percent_by_currency) == 1
+            else None
+        )
+        url = ""
+        if filter_dimension:
+            filter_id = insights_builder.id_item(filter_dimension, name)
+            params: dict[str, Any] = {
+                "tab": "summary",
+                "periodo": context["periodo"],
+                "data": context["data_da_tela"].isoformat(),
+                "dimensao": filter_dimension,
+                "filtro_dimensao": filter_dimension,
+                "filtro": filter_id,
+            }
+            for source_key, target_key in (
+                ("grupo_selecionado", "grupo"),
+                ("conta_selecionada", "conta"),
+            ):
+                if context.get(source_key):
+                    params[target_key] = context[source_key]
+            url = _query_url("consolidado:insights", **params)
+        else:
+            links = {str(getattr(line, "link", "") or "") for line in grouped_lines}
+            if len(links) == 1:
+                url = next(iter(links))
+        detail_bits = [f"{len(grouped_lines)} linha(s) publicada(s)"]
+        if len(amounts) > 1:
+            detail_bits.append("percentual calculado separadamente por moeda")
+        if unclassified:
+            detail_bits.append(f"{unclassified} linha(s) sem classificação publicada")
+        items.append(
+            {
+                "name": name,
+                "value": amount_text,
+                "percent": _percent_label(percent_number),
+                "percent_number": percent_number,
+                "percent_by_currency": percent_by_currency,
+                "detail": " · ".join(detail_bits),
+                "url": url,
+                "_sort": sum(exposures.values(), Decimal("0")),
+            }
+        )
+    items.sort(key=lambda item: (-item.pop("_sort"), item["name"].casefold()))
+    return {"available": True, "reason": "", "items": items}
+
+
+def _insights_widgets(context: dict[str, Any]) -> dict[str, Any]:
+    """Expose summary widgets backed only by the active Consolidado lines."""
+
+    lines = list(context.get("insights_lines") or ())
+    def account_key(line: Any, _name: str) -> tuple[str, ...]:
+        source = str(getattr(line, "fonte", "") or "")
+        role = str(getattr(line, "papel", "") or "").casefold()
+        owner = str(getattr(line, "titular", "") or "")
+        institution = str(getattr(line, "instituicao", "") or "")
+        currency = str(getattr(line, "moeda", "") or "")
+        if role == "investimento":
+            return source, role, institution, currency
+        return (
+            source,
+            role,
+            owner,
+            institution,
+            str(getattr(line, "descricao", "") or ""),
+            currency,
+            str(getattr(line, "id_de_origem", "") or ""),
+        )
+
+    def account_name(line: Any) -> str:
+        role = str(getattr(line, "papel", "") or "").casefold()
+        institution = str(getattr(line, "instituicao", "") or "").strip()
+        if role == "investimento":
+            return institution or "Instituição não informada"
+        description = str(getattr(line, "descricao", "") or "").strip()
+        return " · ".join(part for part in (institution, description) if part) or "Conta não informada"
+
+    accounts = _insights_distribution_widget(
+        lines,
+        label="contas",
+        key_for=account_key,
+        name_for=account_name,
+        context=context,
+    )
+    for item in accounts["items"]:
+        item["detail"] = f"{item['detail']} · saldo/exposição publicado"
+
+    composition = _insights_distribution_widget(
+        lines,
+        label="composição",
+        key_for=lambda line, name: name,
+        name_for=lambda line: (
+            "Caixa" if str(getattr(line, "papel", "")).casefold() == "caixa"
+            else "Investimentos" if str(getattr(line, "papel", "")).casefold() == "investimento"
+            else ""
+        ),
+        context=context,
+    )
+
+    def dimension_widget(dimension: str, label: str) -> dict[str, Any]:
+        return _insights_distribution_widget(
+            lines,
+            label=label,
+            key_for=lambda _line, name: name,
+            name_for=lambda line: insights_builder.nome_da_dimensao(line, dimension),
+            filter_dimension=dimension,
+            context=context,
+            omit_unclassified=dimension in {"setor", "regiao"},
+        )
+
+    dimensions = {
+        "classes": dimension_widget("classe", "classes"),
+        "regions": dimension_widget("regiao", "regiões"),
+        "sectors": dimension_widget("setor", "setores"),
+    }
+    dimension_items = []
+    dimension_labels = (("classes", "Classe"), ("regions", "Região"), ("sectors", "Setor"))
+    for dimension_key, dimension_label in dimension_labels:
+        for item in dimensions[dimension_key]["items"]:
+            dimension_items.append(
+                {
+                    **item,
+                    "name": f"{dimension_label}: {item['name']}",
+                }
+            )
+    dimensions_widget = {
+        "available": bool(dimension_items),
+        "reason": "" if dimension_items else "As fontes não publicaram classificações por dimensão.",
+        "items": dimension_items,
+    }
+
+    investments = [
+        line for line in lines
+        if str(getattr(line, "papel", "")).casefold() == "investimento"
+    ]
+    concentration: dict[str, Any]
+    by_currency: dict[str, list[Any]] = {}
+    for line in investments:
+        currency = str(getattr(line, "moeda", "") or "")
+        by_currency.setdefault(currency, []).append(line)
+    concentration_items = []
+    for currency, currency_lines in sorted(by_currency.items()):
+        total_exposure = sum(
+            (abs(getattr(line, "valor", Decimal("0")) or Decimal("0")) for line in currency_lines),
+            Decimal("0"),
+        )
+        if not total_exposure:
+            continue
+        ranked = sorted(
+            currency_lines,
+            key=lambda line: abs(getattr(line, "valor", Decimal("0")) or Decimal("0")),
+            reverse=True,
+        )[:10]
+        for line in ranked:
+            amount = getattr(line, "valor", Decimal("0")) or Decimal("0")
+            weight = abs(amount) * 100 / total_exposure
+            concentration_items.append(
+                {
+                    "name": str(getattr(line, "descricao", "") or "Posição sem nome"),
+                    "value": dinheiro(amount, currency),
+                    "percent": _percent_label(weight),
+                    "percent_number": weight,
+                    "detail": f"Participação na exposição publicada em {currency}",
+                    "url": str(getattr(line, "link", "") or ""),
+                }
+            )
+    concentration = {
+        "available": bool(concentration_items),
+        "reason": "" if concentration_items else "A fonte não publicou posições com exposição para medir concentração.",
+        "items": concentration_items,
+    }
+
+    movers_by_currency: dict[str, list[Any]] = {}
+    for line in investments:
+        if getattr(line, "ganho_nao_realizado", None) is None and getattr(line, "retorno", None) is None:
+            continue
+        currency = str(getattr(line, "moeda", "") or "")
+        movers_by_currency.setdefault(currency, []).append(line)
+    mover_items = []
+    for currency, currency_lines in sorted(movers_by_currency.items()):
+        ranked = sorted(
+            currency_lines,
+            key=lambda line: abs(
+                getattr(line, "retorno", None)
+                if getattr(line, "retorno", None) is not None
+                else getattr(line, "ganho_nao_realizado", Decimal("0")) or Decimal("0")
+            ),
+            reverse=True,
+        )[:10]
+        for line in ranked:
+            gain = getattr(line, "ganho_nao_realizado", None)
+            return_ratio = getattr(line, "retorno", None)
+            mover_items.append(
+                {
+                    "name": str(getattr(line, "descricao", "") or "Posição sem nome"),
+                    "value": dinheiro(gain, currency) if gain is not None else "Não publicado",
+                    "percent": _percent_label(return_ratio * 100 if return_ratio is not None else None, signed=True),
+                    "percent_number": return_ratio * 100 if return_ratio is not None else None,
+                    "detail": "Variação não realizada publicada pela fonte; não representa o período selecionado.",
+                    "url": str(getattr(line, "link", "") or ""),
+                }
+            )
+    movers = {
+        "available": bool(mover_items),
+        "reason": "" if mover_items else "A fonte não publicou retorno nem resultado não realizado das posições.",
+        "items": mover_items,
+    }
+    return {
+        "accounts": accounts,
+        "composition": composition,
+        "dimensions": dimensions_widget,
+        "classes": dimensions["classes"],
+        "regions": dimensions["regions"],
+        "sectors": dimensions["sectors"],
+        "movers": movers,
+        "concentration": concentration,
+    }
+
+
 def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str, Any]:
     """Adapt the immutable Insights tree to display-only template data."""
 
@@ -650,6 +930,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "details": detail_rows,
             "target_available": getattr(summary.target_allocation, "available", False),
             "target_reason": getattr(summary.target_allocation, "reason", ""),
+            "widgets": _insights_widgets(context),
         },
         "performance": {
             "periods": context.get("periodos_dashboard") or (),
