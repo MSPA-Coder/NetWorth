@@ -14,7 +14,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -915,6 +915,124 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
     }
 
 
+def _holding_history_sections(context: dict[str, Any], row: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Project the source's position history, with quantity-event fallback.
+
+    Newer CRV instances publish price/value/quantity points through
+    ``holding-history``. Older instances still publish the v3 quantity events;
+    those remain useful and are shown explicitly without inventing prices.
+    """
+    sources = [source for source in fontes_configuradas() if source.papel == "investimento"]
+    start = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
+    end = context["data_da_tela"]
+    ticker = str(row.get("descricao") or "").strip()
+    target_ticker = ticker.casefold()
+    target_currency = str(row.get("moeda") or "").strip().upper()
+
+    history_results = tuple(
+        fetch_all_analytics(
+            source,
+            resource="holding-history",
+            inicio=start,
+            fim=end,
+            extra={"ticker": ticker},
+        )
+        for source in sources
+    )
+    history = compose_analytics("holding-history", history_results)
+    points = [
+        {
+            "date": item.date.strftime("%d/%m/%Y"),
+            "_sort_date": item.date,
+            "price": dinheiro(item.price, item.currency),
+            "quantity": format(item.quantity, "f").replace(".", ","),
+            "value": dinheiro(item.value, item.currency),
+            "price_date": item.price_date.strftime("%d/%m/%Y") if item.price_date else "—",
+        }
+        for item in history.items
+        if str(getattr(item, "currency", "")).upper() == target_currency
+    ]
+    points.sort(key=lambda item: item["_sort_date"], reverse=True)
+    for item in points:
+        item.pop("_sort_date", None)
+
+    event_results = tuple(
+        fetch_all_analytics(source, resource="events", inicio=start, fim=end)
+        for source in sources
+    )
+    events = compose_analytics("events", event_results)
+    target_paths = {
+        urlsplit(link).path.rstrip("/") or "/"
+        for link in row.get("links") or ()
+        if isinstance(link, str) and link
+    }
+    movements = []
+    for event in events.items:
+        if str(getattr(event, "instrument", "")).strip().casefold() != target_ticker:
+            continue
+        if target_currency and str(getattr(event, "currency", "")).upper() != target_currency:
+            continue
+        source = next(
+            (
+                configured
+                for configured in sources
+                if str(getattr(event, "source", "")).casefold() in {
+                    configured.apelido.casefold(),
+                    {
+                        "crv": "controle-renda-variavel",
+                        "cb": "controle-bancario",
+                    }.get(configured.apelido.casefold(), configured.apelido.casefold()),
+                }
+            ),
+            None,
+        )
+        event_path = str(getattr(event, "link", "") or "").rstrip("/") or "/"
+        if target_paths and event_path not in target_paths:
+            continue
+        origin_url = source.link(event.link) if source and event.link else ""
+        quantity = getattr(event, "quantity", None)
+        movements.append(
+            {
+                "date": event.date.strftime("%d/%m/%Y"),
+                "_sort_date": event.date,
+                "kind": event.kind,
+                "quantity": format(quantity, "f").replace(".", ",") if quantity is not None else "—",
+                "source_url": origin_url,
+            }
+        )
+    movements.sort(key=lambda item: item["_sort_date"], reverse=True)
+    for item in movements:
+        item.pop("_sort_date", None)
+
+    if points:
+        return ({
+            "kicker": "Histórico publicado da posição",
+            "title": "Evolução de mercado",
+            "subtitle": "Preço e valor calculados pela origem",
+            "points": tuple(points),
+            "events": tuple(movements),
+            "empty_title": "Histórico não publicado",
+            "empty_message": "A fonte não publicou pontos para esta posição e período.",
+        },)
+
+    if movements:
+        empty_message = "A fonte não publicou preço/valor histórico; veja as movimentações de quantidade abaixo."
+    elif history.warnings and not events.items:
+        empty_message = "; ".join(history.warnings)
+    elif not sources:
+        empty_message = "O Controle de Renda Variável não está configurado para publicar este histórico."
+    else:
+        empty_message = "Nenhum histórico foi publicado para esta posição no período selecionado."
+    return ({
+        "kicker": "Histórico publicado da posição",
+        "title": "Movimentações de quantidade",
+        "subtitle": "Sem preços ou valores históricos",
+        "events": tuple(movements),
+        "empty_title": "Histórico de movimentações indisponível" if (history.warnings or events.warnings or not sources) and not movements else "Nenhuma movimentação publicada",
+        "empty_message": empty_message,
+    },)
+
+
 def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dict[str, Any]:
     titles = {
         "holdings": "Posições",
@@ -1126,10 +1244,12 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 "source_label": ", ".join(row.get("instituicoes") or ()),
                 "source_url": row.get("link") or "",
             }
+            page["sections"] = _holding_history_sections(context, row)
         else:
             page["state"] = "empty"
         page["stats"] = ()
-        page["sections"] = ()
+        if not row:
+            page["sections"] = ()
     elif kind in {"accounts", "account-detail"}:
         accounts = context["consolidado"].por_instituicao()
         if kind == "accounts":

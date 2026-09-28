@@ -70,6 +70,19 @@ class PerformanceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class HoldingHistoryRecord:
+    """Ponto de mercado publicado pela origem para uma posição."""
+
+    id: str
+    date: date
+    currency: str
+    price: Decimal
+    quantity: Decimal
+    value: Decimal
+    price_date: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EventRecord:
     id: str
     date: date
@@ -231,6 +244,24 @@ def _event(source: str, item: Mapping[str, Any], index: int) -> EventRecord:
     )
 
 
+def _holding_history(source: str, item: Mapping[str, Any], index: int) -> HoldingHistoryRecord:
+    if not isinstance(item, Mapping):
+        raise DTOError(f"itens[{index}]: esperado objeto")
+    currency = _text(item.get("moeda", item.get("currency")), field_name=f"itens[{index}].moeda").upper()
+    day = _date(item.get("data"), f"itens[{index}].data")
+    price_date = _date(item.get("preco_em"), f"itens[{index}].preco_em") if item.get("preco_em") else None
+    return HoldingHistoryRecord(
+        id=_text(item.get("id"), field_name=f"itens[{index}].id", required=False)
+        or f"{source}:holding-history:{index}",
+        date=day,
+        currency=currency,
+        price=_decimal(item.get("preco"), field_name=f"itens[{index}].preco"),
+        quantity=_decimal(item.get("quantidade"), field_name=f"itens[{index}].quantidade"),
+        value=_decimal(item.get("valor"), field_name=f"itens[{index}].valor"),
+        price_date=price_date,
+    )
+
+
 def normalize_analytics_payload(
     payload: Mapping[str, Any],
     *,
@@ -248,7 +279,12 @@ def normalize_analytics_payload(
     raw_items = payload.get("itens", [])
     if not isinstance(raw_items, list):
         raise DTOError("itens analíticos: esperado array")
-    parser = {"income": _income, "performance": _performance, "events": _event}.get(resource)
+    parser = {
+        "income": _income,
+        "performance": _performance,
+        "events": _event,
+        "holding-history": _holding_history,
+    }.get(resource)
     if parser is None:
         raise DTOError(f"recurso analítico não suportado: {resource}")
     items = tuple(parser(source, item, index) for index, item in enumerate(raw_items))
@@ -311,7 +347,7 @@ def fetch_analytics(
     extra: Mapping[str, str] | None = None,
     transport: ReadOnlyTransport | None = None,
 ) -> AnalyticsSourceResult[Any]:
-    if resource not in {"income", "performance", "events"}:
+    if resource not in {"income", "performance", "events", "holding-history"}:
         raise ValueError("recurso analítico inválido")
     if page < 1 or page_size < 1 or page_size > PAGE_SIZE_MAX:
         return AnalyticsSourceResult(fonte.apelido, resource, STATUS_ERROR, error="paginação inválida")
@@ -352,6 +388,7 @@ def fetch_all_analytics(
     resource: str,
     inicio: date | None = None,
     fim: date | None = None,
+    extra: Mapping[str, str] | None = None,
     fetch=fetch_analytics,
 ) -> AnalyticsSourceResult[Any]:
     """Todas as páginas de um recurso, ou erro: meia série não vira série.
@@ -361,7 +398,16 @@ def fetch_all_analytics(
     """
     items: list[Any] = []
     for page in range(1, MAX_PAGES + 1):
-        result = fetch(fonte, resource=resource, inicio=inicio, fim=fim, page=page, page_size=PAGE_SIZE_SOURCE)
+        fetch_kwargs = {
+            "resource": resource,
+            "inicio": inicio,
+            "fim": fim,
+            "page": page,
+            "page_size": PAGE_SIZE_SOURCE,
+        }
+        if extra:
+            fetch_kwargs["extra"] = extra
+        result = fetch(fonte, **fetch_kwargs)
         if result.status in {STATUS_ERROR, STATUS_UNSUPPORTED}:
             return result
         items.extend(result.items)
@@ -392,6 +438,7 @@ __all__ = [
     "AnalyticsComposition",
     "AnalyticsSourceResult",
     "EventRecord",
+    "HoldingHistoryRecord",
     "IncomeRecord",
     "PerformanceRecord",
     "STATUS_EMPTY",

@@ -96,6 +96,33 @@ def test_performance_and_events_keep_series_and_quantities_separate():
     assert events.items[0].quantity == Decimal("10")
 
 
+def test_holding_history_preserves_source_price_quantity_and_value():
+    result = normalize_analytics_payload(
+        {
+            "contrato": "patrimonio/v3",
+            "recurso": "holding-history",
+            "sistema": "controle-renda-variavel",
+            "itens": [
+                {
+                    "data": "2026-09-01",
+                    "preco": "0.26",
+                    "preco_em": "2026-09-01",
+                    "quantidade": "254000",
+                    "valor": "66040.00",
+                    "moeda": "BRL",
+                }
+            ],
+        },
+        resource="holding-history",
+    )
+
+    assert result.status == "ok"
+    point = result.items[0]
+    assert point.price == Decimal("0.26")
+    assert point.quantity == Decimal("254000")
+    assert point.value == Decimal("66040.00")
+
+
 def test_unsupported_resource_is_visible_and_does_not_create_rows():
     class FakeTransport:
         def get(self, path, *, timeout, headers=None):

@@ -77,7 +77,9 @@ indisponível, sem tabela alternativa, quando a fonte não publica o dado. O
 aceite segue o critério desta seção (consistente, legível, correto sobre
 cobertura e moeda), não a comparação com a referência.
 
-- `/holdings/` e `/holdings/<id>/`;
+- `/holdings/` e `/holdings/<id>/`; o detalhe já consome o contrato de
+  histórico publicado pelo CRV (`holding-history`) quando disponível e recua
+  para os eventos de quantidade publicados por versões anteriores;
 - `/accounts/` e `/accounts/<id>/`;
 - `/activities/`;
 - `/spending/insights/` e `/spending/budget/`;
