@@ -126,6 +126,21 @@ def test_insights_tab_links_drop_unknown_filter_id(logged_client):
     assert "filtro_dimensao" not in tab_query
 
 
+def test_insights_breakdown_link_is_canonical_and_keeps_filtered_data(logged_client):
+    response = logged_client.get("/insights/", {"tab": "summary", "dimensao": "classe"})
+
+    assert response.status_code == 200
+    detail = response.context["wf_insights"]["summary"]["details"][0]
+    assert detail["url"].startswith("/insights/?")
+
+    filtered = logged_client.get(detail["url"])
+
+    assert filtered.status_code == 200
+    assert filtered.context["wf_insights"]["summary"]["available"] is True
+    assert filtered.context["wf_insights"]["summary"]["details"]
+    assert "Nenhuma exposição publicada." not in filtered.content.decode()
+
+
 def test_insights_account_picker_marks_current_group_and_preserves_valid_get_filters(logged_client):
     filter_id = wealthfolio_views.insights_builder.id_item("classe", "Não classificado")
     params = {

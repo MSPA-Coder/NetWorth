@@ -304,7 +304,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "percent": _percent_label(item.percent),
             "percent_number": item.percent,
             "classified": item.classified,
-            "url": published.get("url") or "#",
+            "url": _insights_href(published.get("url")) or "#",
         }
 
     dimensions = []
@@ -331,7 +331,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         detail_rows.append(
             {
                 "name": item.get("nome") or "Não classificado",
-                "url": item.get("url") or "#",
+                "url": _insights_href(item.get("url")) or "#",
                 "institutions": item.get("instituicoes") or (),
                 "lines": item.get("linhas", 0),
                 "percent": _percent_label(item.get("percentual")),
@@ -545,6 +545,14 @@ def _query_url(route: str, **params: Any) -> str:
     filtered = {key: value for key, value in params.items() if value not in (None, "")}
     target = reverse(route)
     return f"{target}?{urlencode(filtered)}" if filtered else target
+
+
+def _insights_href(value: str | None) -> str:
+    """Return a canonical same-origin URL for an Insights drill-down."""
+    raw = str(value or "")
+    if raw.startswith("?"):
+        return f"{reverse('consolidado:insights')}{raw}"
+    return raw
 
 
 def _shell_vm(request: HttpRequest, context: dict[str, Any], *, active: str) -> dict[str, Any]:

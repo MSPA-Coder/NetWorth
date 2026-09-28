@@ -40,7 +40,12 @@
       node.style.flexBasis = numericAttribute(node, "data-wf2-flex-percent", 0, 100) + "%";
     });
     shell.querySelectorAll("[data-wf-block]").forEach(function (node) {
-      node.style.setProperty("--wf-block", numericAttribute(node, "data-wf-block", 2, 100));
+      var percent = numericAttribute(node, "data-wf-block", 2, 100);
+      node.style.setProperty("--wf-block", percent);
+      // `grid-column: span max(...)` is not supported consistently across
+      // browsers. Publish a valid integer span from the same source value so
+      // the composition blocks remain visible and clickable everywhere.
+      node.style.gridColumn = "span " + Math.max(2, Math.min(12, Math.ceil(percent / 10)));
     });
 
     function setPrivacy(hidden, persist) {
