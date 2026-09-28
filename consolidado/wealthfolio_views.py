@@ -30,7 +30,7 @@ from consolidado import insights as insights_builder
 from consolidado.cambio import MOEDA_BASE, converter_totais
 from consolidado.fontes import fontes_configuradas
 from consolidado.templatetags.dinheiro import dinheiro
-from consolidado.wealthfolio_compat.activities import compose_activities, fetch_activities
+from consolidado.wealthfolio_compat.activities import compose_activities, fetch_all_activities
 from consolidado.wealthfolio_compat.analytics import (
     IncomeRecord,
     PerformanceRecord,
@@ -2202,20 +2202,97 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         if not row:
             page["sections"] = ()
     elif kind in {"accounts", "account-detail"}:
-        accounts = context["consolidado"].por_instituicao()
         if kind == "accounts":
-            page["rows"] = [
-                {
-                    "url": reverse("consolidado:account_detail", kwargs={"account_id": row["instituicao"]}),
-                    "name": row["instituicao"],
-                    "institution": row["instituicao"],
-                    "type": "Conta publicada",
-                    "currency": row["moeda"],
-                    "value": dinheiro(row["total"], row["moeda"]),
-                    "line_count": len(row.get("linhas") or ()),
-                }
-                for row in accounts
-            ]
+            # A lista usa a mesma árvore de drill-down do Dashboard.  O
+            # agrupamento legado por instituição/moeda perde a identidade de
+            # contas homônimas; o ID opaco da conta mantém o clique estável e
+            # evita que duas moedas abram o mesmo detalhe.
+            def line_value(line: Any, name: str, default: Any = "") -> Any:
+                if isinstance(line, dict):
+                    return line.get(name, default)
+                return getattr(line, name, default)
+
+            def account_url(child: dict[str, Any], institution: str) -> str:
+                target = reverse(
+                    "consolidado:account_detail",
+                    kwargs={"account_id": institution or child.get("nome") or "conta"},
+                )
+                query = request.GET.copy()
+                query["account_id"] = child["id"]
+                query.pop("busca", None)
+                return f"{target}?{query.urlencode()}" if query else target
+
+            rows = []
+            search = (request.GET.get("busca") or "").strip().casefold()
+            for group in context.get("arvore_drilldown") or ():
+                for child in group.get("contas") or ():
+                    lines = child.get("linhas") or ()
+                    institution = next(
+                        (
+                            str(line_value(line, "instituicao") or "").strip()
+                            for line in lines
+                            if line_value(line, "instituicao")
+                        ),
+                        "",
+                    )
+                    owners = tuple(
+                        dict.fromkeys(
+                            str(line_value(line, "titular") or "").strip()
+                            for line in lines
+                            if str(line_value(line, "titular") or "").strip()
+                        )
+                    )
+                    owner = ", ".join(owners) or (group.get("nome") or "")
+                    source_names = tuple(
+                        dict.fromkeys(
+                            str(line_value(line, "fonte") or "").strip()
+                            for line in lines
+                            if str(line_value(line, "fonte") or "").strip()
+                        )
+                    )
+                    searchable = " ".join(
+                        (child.get("nome") or "", institution, owner, child.get("moeda") or "", *source_names)
+                    ).casefold()
+                    if search and search not in searchable:
+                        continue
+                    totals = child.get("totais_por_moeda") or ()
+                    value = (
+                        dinheiro(totals[0].get("total"), totals[0].get("moeda"))
+                        if len(totals) == 1
+                        else " · ".join(
+                            dinheiro(item.get("total"), item.get("moeda")) for item in totals
+                        )
+                    )
+                    rows.append(
+                        {
+                            "url": account_url(child, institution or group.get("nome") or ""),
+                            "name": child.get("nome") or "Conta publicada",
+                            "institution": institution or "—",
+                            "owner": owner,
+                            "type": "Carteira publicada" if any(
+                                line_value(line, "papel") == "investimento" for line in lines
+                            ) else "Conta publicada",
+                            "currency": child.get("moeda") or "",
+                            "value": value or "Indisponível",
+                            "line_count": len(lines),
+                            "source": ", ".join(source_names),
+                        }
+                    )
+            page["rows"] = rows
+            page["accounts_mode"] = "mapa" if request.GET.get("modo") == "mapa" else "lista"
+            page["accounts_list_url"] = _query_url(
+                "consolidado:accounts",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+                busca=request.GET.get("busca") or "",
+            )
+            page["accounts_map_url"] = _query_url(
+                "consolidado:accounts",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+                busca=request.GET.get("busca") or "",
+                modo="mapa",
+            )
             if not page["rows"]:
                 page["state"] = "empty"
         else:
@@ -2759,12 +2836,17 @@ def activities_view(request: HttpRequest) -> HttpResponse:
         except (TypeError, ValueError):
             page_limit = 100
         inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
+        # ``conta`` is a source-specific opaque ID in Controle Bancário and a
+        # display label (or absent) in CRV. Fetching with one shared value can
+        # therefore reject the CB request or be silently ignored by CRV. The
+        # shell filters this field locally after materializing all pages;
+        # status/natureza remain safe source hints and are also applied locally.
         activity_filters = {
             key: (request.GET.get(key) or "").strip()
-            for key in ("conta", "categoria", "status", "natureza", "instrumento")
+            for key in ("categoria", "status", "natureza", "instrumento")
         }
         context["activity_composition"] = compose_activities(
-            fetch_activities(
+            fetch_all_activities(
                 fonte,
                 inicio=inicio,
                 fim=context["data_da_tela"],

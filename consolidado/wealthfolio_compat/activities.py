@@ -305,12 +305,101 @@ def fetch_activities(
         return ActivitySourceResult(_source_name(None, fonte.apelido), STATUS_ERROR, error=str(exc), fetched_at=response.fetched_at)
 
 
+def fetch_all_activities(
+    fonte: Fonte,
+    *,
+    inicio: date | None = None,
+    fim: date | None = None,
+    page: int = 1,
+    page_size: int = PAGE_SIZE_MAX,
+    filters: Mapping[str, str] | None = None,
+    transport: ReadOnlyTransport | None = None,
+    max_pages: int = 100,
+) -> ActivitySourceResult:
+    """Busca todas as páginas publicadas por uma fonte, sem escrever.
+
+    A tela de Atividades é uma consulta combinada. Limitar cada fonte à
+    primeira página fazia busca e filtros locais parecerem funcionar apenas
+    para os 100 lançamentos mais recentes. O envelope já publica ``paginas``;
+    consumimos essa paginação até um limite defensivo e mantemos uma lacuna
+    explícita se alguma página posterior falhar.
+    """
+    first = fetch_activities(
+        fonte,
+        inicio=inicio,
+        fim=fim,
+        page=page,
+        page_size=page_size,
+        filters=filters,
+        transport=transport,
+    )
+    if first.status == STATUS_ERROR or first.pages <= page:
+        return first
+    if max_pages < 1:
+        raise ValueError("max_pages deve ser positivo")
+
+    collected = list(first.activities)
+    last_page = min(first.pages, page + max_pages - 1)
+    for current_page in range(page + 1, last_page + 1):
+        result = fetch_activities(
+            fonte,
+            inicio=inicio,
+            fim=fim,
+            page=current_page,
+            page_size=first.page_size,
+            filters=filters,
+            transport=transport,
+        )
+        if result.status == STATUS_ERROR:
+            return ActivitySourceResult(
+                first.source,
+                STATUS_PARTIAL,
+                tuple(collected),
+                first.total,
+                page,
+                first.page_size,
+                first.pages,
+                error=f"página {current_page}: {result.error or 'a fonte não respondeu'}",
+                fetched_at=result.fetched_at or first.fetched_at,
+            )
+        collected.extend(result.activities)
+
+    if last_page < first.pages:
+        return ActivitySourceResult(
+            first.source,
+            STATUS_PARTIAL,
+            tuple(collected),
+            first.total,
+            page,
+            first.page_size,
+            first.pages,
+            error=f"limite de {max_pages} páginas atingido",
+            fetched_at=first.fetched_at,
+        )
+    return ActivitySourceResult(
+        first.source,
+        first.status,
+        tuple(collected),
+        first.total,
+        page,
+        first.page_size,
+        first.pages,
+        fetched_at=first.fetched_at,
+    )
+
+
 def compose_activities(results: Iterable[ActivitySourceResult]) -> ActivityComposition:
     normalized = tuple(results)
     activities = tuple(sorted((item for result in normalized for item in result.activities), key=lambda item: (item.date, item.source, item.id), reverse=True))
     expected = len(normalized)
     responded = sum(result.status != STATUS_ERROR for result in normalized)
-    omissions = tuple(dict.fromkeys(f"{result.source}: {result.error}" for result in normalized if result.status == STATUS_ERROR and result.error))
+    omissions = tuple(
+        dict.fromkeys(
+            f"{result.source}: {result.error}"
+            for result in normalized
+            if result.error and result.status in {STATUS_ERROR, STATUS_PARTIAL}
+        )
+    )
     if not expected or not activities and not omissions:
         status = STATUS_EMPTY
     elif omissions:
@@ -334,6 +423,7 @@ __all__ = [
     "PAGE_SIZE_DEFAULT",
     "PAGE_SIZE_MAX",
     "compose_activities",
+    "fetch_all_activities",
     "fetch_activities",
     "normalize_activities_payload",
 ]

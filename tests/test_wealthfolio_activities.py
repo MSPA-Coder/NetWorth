@@ -6,6 +6,7 @@ from consolidado.fontes import Fonte
 from consolidado.wealthfolio_compat.activities import (
     compose_activities,
     fetch_activities,
+    fetch_all_activities,
     normalize_activities_payload,
 )
 from consolidado.wealthfolio_compat.models import DTOError
@@ -104,3 +105,36 @@ def test_empty_payload_has_explicit_empty_state():
     result = normalize_activities_payload(payload(itens=[], paginacao={"total": 0, "pagina": 1, "tamanho": 100, "paginas": 0}))
     assert result.status == "empty"
     assert result.activities == ()
+
+
+def test_fetch_all_activities_materializes_every_published_page():
+    class FakeTransport:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, *, timeout, headers=None):
+            self.calls.append(path)
+            page = int(path.split("page=")[1].split("&", 1)[0])
+            item = {
+                "id": f"CB:atividade:{page}",
+                "data": f"2026-09-{20 - page:02d}",
+                "descricao": f"Lançamento {page}",
+                "tipo": "entrada",
+                "status": "realizado",
+                "moeda": "BRL",
+                "valor": str(page),
+            }
+            return TransportResponse(
+                200,
+                payload("controle-bancario", itens=[item], paginacao={"pagina": page, "tamanho": 1, "total": 3, "paginas": 3}),
+            )
+
+    transport = FakeTransport()
+    result = fetch_all_activities(
+        Fonte("CB", "Controle Bancário", "caixa", "http://cb", "secret"),
+        page_size=1,
+        transport=transport,
+    )
+    assert result.status == "ok"
+    assert [item.description for item in result.activities] == ["Lançamento 1", "Lançamento 2", "Lançamento 3"]
+    assert len(transport.calls) == 3

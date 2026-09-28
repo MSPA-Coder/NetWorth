@@ -77,6 +77,23 @@ def test_account_detail_keeps_unicode_drilldown_and_read_only(pages_client):
     assert pages_client.post("/accounts/Mercado%20Pago/").status_code == 405
 
 
+def test_accounts_list_uses_opaque_child_links_search_and_map_mode(pages_client):
+    response = pages_client.get("/accounts/", {"periodo": "1a", "data": "2026-09-27"})
+    assert response.status_code == 200
+    rows = response.context["wf_page"]["rows"]
+    assert {row["name"] for row in rows} == {"Mercado Pago · conta 01", "Corretora"}
+    assert all("account_id=conta-" in row["url"] for row in rows)
+    assert "Mercado%20Pago" in next(row["url"] for row in rows if row["institution"] == "Mercado Pago")
+
+    filtered = pages_client.get("/accounts/", {"busca": "mercado", "periodo": "1a"})
+    assert [row["institution"] for row in filtered.context["wf_page"]["rows"]] == ["Mercado Pago"]
+    assert "Corretora" not in filtered.content.decode()
+
+    mapa = pages_client.get("/accounts/", {"modo": "mapa", "periodo": "1a"})
+    assert mapa.context["wf_page"]["accounts_mode"] == "mapa"
+    assert "wf2p-account-map" in mapa.content.decode()
+
+
 def test_holding_detail_and_state_contracts_remain_present(pages_client):
     detail = pages_client.get("/holdings/ETF%20Brasil/")
     assert detail.status_code == 200

@@ -127,6 +127,15 @@
 .wf2p-account-overview__count { display: grid; gap: 2px; justify-items: end; }
 .wf2p-account-overview__count strong { color: var(--wf2-accent); font-size: 2rem; letter-spacing: -.08em; }
 .wf2p-account-overview__count span { color: var(--wf2-muted); font-size: .67rem; }
+.wf2p-account-map { padding: 17px; border: 1px solid var(--wf2-border); border-radius: var(--wf2-radius); background: var(--wf2-surface); box-shadow: var(--wf2-shadow); }
+.wf2p-account-map__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.wf2p-account-map__card { display: grid; gap: 6px; min-height: 132px; padding: 16px; border: 1px solid var(--wf2-border); border-radius: 13px; background: linear-gradient(145deg, var(--wf2-card), var(--wf2-surface-muted)); color: var(--wf2-ink); text-decoration: none; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.wf2p-account-map__card:hover, .wf2p-account-map__card:focus-visible { border-color: var(--wf2-accent); box-shadow: 0 8px 24px rgba(38, 39, 32, .10); outline: none; transform: translateY(-2px); }
+.wf2p-account-map__card strong { font-size: .94rem; letter-spacing: -.025em; }
+.wf2p-account-map__card span:not(.wf2p-account-map__eyebrow) { color: var(--wf2-muted); font-size: .72rem; }
+.wf2p-account-map__card b { margin-top: auto; font-size: 1.05rem; letter-spacing: -.04em; }
+.wf2p-account-map__card small, .wf2p-account-map__eyebrow { color: var(--wf2-muted); font-size: .63rem; }
+.wf2p-account-map__eyebrow { text-transform: uppercase; letter-spacing: .08em; }
 .wf2p-insight-intro, .wf2p-settings-hero, .wf2p-assistant-hero, .wf2p-capability-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 22px; border: 1px solid var(--wf2-border); border-radius: var(--wf2-radius); background: linear-gradient(120deg, var(--wf2-card), var(--wf2-surface)); box-shadow: var(--wf2-shadow); }
 .wf2p-insight-intro h3, .wf2p-settings-hero h3, .wf2p-assistant-hero h3, .wf2p-capability-hero h3 { margin: 0; font-size: 1.18rem; letter-spacing: -.05em; }
 .wf2p-insight-intro p:last-child, .wf2p-settings-hero p:last-child, .wf2p-assistant-hero p:last-child, .wf2p-capability-hero p:last-child { max-width: 620px; margin: 6px 0 0; color: var(--wf2-muted); font-size: .72rem; }

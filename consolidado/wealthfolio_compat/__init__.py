@@ -12,6 +12,7 @@ from .activities import (
     ActivitySourceResult,
     compose_activities,
     fetch_activities,
+    fetch_all_activities,
     normalize_activities_payload,
 )
 from .analytics import (
@@ -43,6 +44,7 @@ __all__ = [
     "TransportResponse",
     "compose_activities",
     "compose_analytics",
+    "fetch_all_activities",
     "fetch_activities",
     "fetch_analytics",
     "normalize_activities_payload",
