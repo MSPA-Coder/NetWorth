@@ -28,8 +28,11 @@ CONTRACT = "patrimonio/v3"
 RESOURCE = "atividades"
 TIMEOUT_SECONDS = 8
 MAX_BYTES = 8 * 1024 * 1024
+# Both publisher implementations cap this read-only contract at 100 rows per
+# request.  Keeping the client limit in sync is important: asking for 500 is
+# rejected with HTTP 400 before either source can publish an activity.
 PAGE_SIZE_DEFAULT = 100
-PAGE_SIZE_MAX = 500
+PAGE_SIZE_MAX = 100
 SEM_DESCRICAO = "(sem descrição)"
 
 STATUS_OK = "ok"

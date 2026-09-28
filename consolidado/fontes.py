@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit, urlunsplit
 
 from sharedauth.secrets import SegredoInvalidoError, resolver_segredo
 
@@ -56,7 +57,23 @@ class Fonte:
 
     def link(self, caminho: str) -> str:
         """O endereço, para o navegador, de um caminho publicado pela fonte."""
-        return f"{(self.endereco_publico or self.url).rstrip('/')}{caminho}"
+        base = (self.endereco_publico or self.url).rstrip("/")
+        raw = str(caminho or "").strip()
+        parsed = urlsplit(raw)
+        if parsed.scheme and parsed.netloc:
+            source_hosts = {
+                urlsplit(self.url).netloc.casefold(),
+                urlsplit(self.endereco_publico).netloc.casefold(),
+            }
+            # Publishers may already return an absolute URL. Map an absolute
+            # URL belonging to this source to its browser-facing base, and do
+            # not ever concatenate the base a second time.
+            if parsed.netloc.casefold() in source_hosts:
+                suffix = urlunsplit(("", "", parsed.path or "/", parsed.query, parsed.fragment))
+                return f"{base}{suffix}"
+            return raw
+        suffix = raw if raw.startswith("/") else f"/{raw}"
+        return f"{base}{suffix}"
 
 
 def _segredo(nome: str) -> str:

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import unicodedata
 from collections import Counter
 from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
@@ -80,6 +81,118 @@ def _date_and_period(request: HttpRequest, *, dashboard_default: bool = False) -
     if period == "mes_passado":
         reference = anchor.replace(day=1) - timedelta(days=1)
     return reference, period, anchor
+
+
+def _activity_source_key(value: Any) -> str:
+    """Normalize the two known publisher names to one comparison key."""
+
+    key = str(value or "").strip().casefold().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "cb": "controle-bancario",
+        "controle-bancario": "controle-bancario",
+        "controle-bancário": "controle-bancario",
+        "crv": "controle-renda-variavel",
+        "controle-renda-variavel": "controle-renda-variavel",
+        "controle-renda-variável": "controle-renda-variavel",
+        "controle-de-renda-variavel": "controle-renda-variavel",
+        "controle-de-renda-variável": "controle-renda-variavel",
+    }
+    return aliases.get(key, key)
+
+
+def _activity_label_key(value: Any) -> str:
+    """Compare labels published with accents, spaces, or punctuation varied."""
+
+    decomposed = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "".join(character for character in decomposed if not unicodedata.combining(character) and character.isalnum())
+
+
+def _activity_composition_for_context(context: dict[str, Any]):
+    """Fetch the read-only activity extension for one visible date window."""
+
+    fontes = fontes_configuradas()
+    if not fontes:
+        return None
+    inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])
+    return compose_activities(
+        fetch_all_activities(
+            fonte,
+            inicio=inicio,
+            fim=context["data_da_tela"],
+        )
+        for fonte in fontes
+    )
+
+
+def _account_activity_rows(account: dict[str, Any], composition: Any) -> tuple[dict[str, Any], ...]:
+    """Keep only activities unambiguously published for the selected account."""
+
+    if composition is None:
+        return ()
+
+    def field(line: Any, name: str, default: Any = "") -> Any:
+        if isinstance(line, dict):
+            return line.get(name, default)
+        return getattr(line, name, default)
+
+    lines = tuple(account.get("linhas") or ())
+
+    def matches(activity: Any) -> bool:
+        activity_source = _activity_source_key(activity.source)
+        activity_account = _activity_label_key(activity.account)
+        activity_institution = _activity_label_key(activity.institution)
+        activity_owner = _activity_label_key(activity.owner)
+        for line in lines:
+            if _activity_source_key(field(line, "fonte")) != activity_source:
+                continue
+            line_account = _activity_label_key(field(line, "descricao") or field(line, "nome"))
+            line_institution = _activity_label_key(field(line, "instituicao"))
+            line_owner = _activity_label_key(field(line, "titular"))
+            if line_institution and activity_institution and line_institution != activity_institution:
+                continue
+            if line_owner and activity_owner and line_owner != activity_owner:
+                continue
+            # CB publishes the account label; CRV activities intentionally do
+            # not, so broker/owner is the safest available scope there.
+            if activity_account:
+                if line_account and activity_account == line_account:
+                    return True
+                continue
+            if line_institution or line_owner:
+                return True
+        return False
+
+    rows = []
+    for activity in composition.activities:
+        if not matches(activity):
+            continue
+        value = activity.realized_value or activity.value
+        amount = -abs(value.amount) if activity.kind == gastos.TIPO_DESPESA else value.amount
+        value = type(value)(amount, value.currency)
+        source = next(
+            (
+                fonte
+                for fonte in fontes_configuradas()
+                if _activity_source_key(fonte.apelido) == _activity_source_key(activity.source)
+                or _activity_source_key(fonte.nome) == _activity_source_key(activity.source)
+            ),
+            None,
+        )
+        rows.append(
+            {
+                "url": source.link(activity.link) if source and activity.link else activity.link,
+                "date": activity.date.strftime("%d/%m/%Y"),
+                "description": activity.description,
+                "detail": " · ".join(part for part in (activity.institution, activity.instrument) if part),
+                "nature": activity.category_kind or activity.kind,
+                "status": activity.status,
+                "currency": value.currency,
+                "net": dinheiro(value.amount, value.currency),
+                "inflow": dinheiro(value.amount if value.amount >= 0 else Decimal("0"), value.currency),
+                "outflow": dinheiro(abs(value.amount) if value.amount < 0 else Decimal("0"), value.currency),
+            }
+        )
+    return tuple(rows)
 
 
 def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool = False) -> dict[str, Any]:
@@ -2514,6 +2627,47 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 page["state"] = "empty"
         else:
             account = context.get("account")
+            page["back_url"] = _query_url(
+                "consolidado:accounts",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+            )
+            account_tab = context.get("account_detail_tab") or "holdings"
+            if account_tab not in {"holdings", "activities", "snapshots"}:
+                account_tab = "holdings"
+            page["account_tab"] = account_tab
+
+            def account_tab_url(tab: str) -> str:
+                query = request.GET.copy()
+                if tab == "holdings":
+                    query.pop("tab", None)
+                else:
+                    query["tab"] = tab
+                suffix = urlencode(query, doseq=True)
+                return f"{request.path}?{suffix}" if suffix else request.path
+
+            page["account_tabs"] = tuple(
+                {
+                    "key": tab,
+                    "label": label,
+                    "active": account_tab == tab,
+                    "url": account_tab_url(tab),
+                }
+                for tab, label in (
+                    ("holdings", "Posições"),
+                    ("activities", "Atividades"),
+                    ("snapshots", "Snapshots"),
+                )
+            )
+            page["account_activity_state"] = "unavailable"
+            page["account_activity_rows"] = ()
+            page["account_activity_message"] = (
+                "A fonte ainda não publicou atividades individuais para esta consulta."
+            )
+            page["account_snapshot_state"] = "unavailable"
+            page["account_snapshot_message"] = (
+                "As fontes atuais não publicam snapshots de conta; o histórico de posições fica disponível no detalhe de cada ativo."
+            )
             if account:
                 totals = account.get("totais_por_moeda") or ()
                 if account.get("total") is not None:
@@ -2568,6 +2722,17 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                     }
                     for line in account.get("linhas") or ()
                 ]
+                if account_tab == "activities":
+                    composition = context.get("account_activity_composition")
+                    if composition is not None:
+                        if composition.status == "error":
+                            page["account_activity_state"] = "error"
+                            page["account_activity_message"] = "; ".join(composition.coverage.omissions) or "As fontes não responderam."
+                        else:
+                            page["account_activity_rows"] = _account_activity_rows(account, composition)
+                            page["account_activity_state"] = "ready" if page["account_activity_rows"] else "empty"
+                            if page["account_activity_state"] == "empty":
+                                page["account_activity_message"] = "Nenhuma atividade publicada para esta conta no período selecionado."
             else:
                 page["state"] = "empty"
     elif kind == "activities":
@@ -3046,7 +3211,15 @@ def account_detail_view(request: HttpRequest, account_id: str) -> HttpResponse:
                 "totais_por_moeda": totals,
                 "linhas": group_lines,
             }
+    requested_tab = (request.GET.get("tab") or "holdings").strip().casefold()
+    if requested_tab not in {"holdings", "activities", "snapshots"}:
+        requested_tab = "holdings"
     context["account"] = account
+    context["account_detail_tab"] = requested_tab
+    if account and requested_tab == "activities":
+        # The source extension is fetched only when the user opens the tab;
+        # the normal account view remains as cheap as the published snapshot.
+        context["account_activity_composition"] = _activity_composition_for_context(context)
     context["page_type"] = "account-detail"
     context["wf_shell"] = _shell_vm(request, context, active="holdings")
     context["wf_page"] = _page_vm(context, kind="account-detail", request=request)
@@ -3067,7 +3240,7 @@ def activities_view(request: HttpRequest) -> HttpResponse:
         except (TypeError, ValueError):
             page_number = 1
         try:
-            page_limit = min(500, max(1, int(page_size)))
+            page_limit = min(100, max(1, int(page_size)))
         except (TypeError, ValueError):
             page_limit = 100
         inicio = contexto.inicio_do_periodo(context["periodo"], context["data_da_tela"])

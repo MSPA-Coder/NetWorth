@@ -77,6 +77,24 @@ def test_account_detail_keeps_unicode_drilldown_and_read_only(pages_client):
     assert pages_client.post("/accounts/Mercado%20Pago/").status_code == 405
 
 
+def test_account_detail_exposes_wealthfolio_tabs_and_explicit_snapshot_state(pages_client):
+    response = pages_client.get("/accounts/Mercado%20Pago/")
+    assert response.status_code == 200
+    assert [item["key"] for item in response.context["wf_page"]["account_tabs"]] == [
+        "holdings",
+        "activities",
+        "snapshots",
+    ]
+    assert response.context["wf_page"]["account_tab"] == "holdings"
+    assert 'aria-current="page"' in response.content.decode()
+
+    snapshots = pages_client.get("/accounts/Mercado%20Pago/", {"tab": "snapshots"})
+    assert snapshots.status_code == 200
+    assert snapshots.context["wf_page"]["account_tab"] == "snapshots"
+    assert snapshots.context["wf_page"]["account_snapshot_state"] == "unavailable"
+    assert "Histórico de snapshots indisponível" in snapshots.content.decode()
+
+
 def test_accounts_list_uses_opaque_child_links_search_and_map_mode(pages_client):
     response = pages_client.get("/accounts/", {"periodo": "1a", "data": "2026-09-27"})
     assert response.status_code == 200

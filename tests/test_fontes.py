@@ -108,3 +108,15 @@ def test_o_endereco_publico_vale_so_para_o_link(monkeypatch):
 
     assert fonte.endereco_do_resumo == "http://host.docker.internal:5201/patrimonio/v1/resumo"
     assert fonte.link("/x") == "http://localhost:5201/x"
+
+
+def test_link_preserva_e_normaliza_endereco_absoluto_da_fonte(monkeypatch):
+    monkeypatch.setenv("FONTE_CB_URL", "http://host.docker.internal:5201")
+    monkeypatch.setenv("FONTE_CB_ENDERECO_PUBLICO", "http://localhost:5201")
+    monkeypatch.setenv("FONTE_CB_TOKEN", "um-token-qualquer")
+
+    (fonte,) = fontes.fontes_configuradas()
+
+    assert fonte.link("http://host.docker.internal:5201/transactions/7/?x=1") == "http://localhost:5201/transactions/7/?x=1"
+    assert fonte.link("http://localhost:5201/transactions/7/?x=1") == "http://localhost:5201/transactions/7/?x=1"
+    assert fonte.link("https://externo.teste/arquivo") == "https://externo.teste/arquivo"

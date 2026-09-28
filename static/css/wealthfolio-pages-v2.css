@@ -136,6 +136,15 @@
 .wf2p-account-map__card b { margin-top: auto; font-size: 1.05rem; letter-spacing: -.04em; }
 .wf2p-account-map__card small, .wf2p-account-map__eyebrow { color: var(--wf2-muted); font-size: .63rem; }
 .wf2p-account-map__eyebrow { text-transform: uppercase; letter-spacing: .08em; }
+.wf2p-account-tabs { display: flex; gap: 2px; margin: 0 0 16px; overflow-x: auto; border-bottom: 1px solid var(--wf2-border); }
+.wf2p-account-tabs a { padding: 10px 15px 9px; border-bottom: 2px solid transparent; color: var(--wf2-muted); font-size: .78rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
+.wf2p-account-tabs a:hover, .wf2p-account-tabs a:focus-visible { color: var(--wf2-ink); outline: none; }
+.wf2p-account-tabs a[aria-current="page"] { border-color: var(--wf2-accent); color: var(--wf2-ink); }
+.wf2p-account-state { display: grid; gap: 7px; min-height: 170px; place-items: center; padding: 32px 22px; border: 1px dashed var(--wf2-border); border-radius: var(--wf2-radius); background: var(--wf2-surface); color: var(--wf2-muted); text-align: center; }
+.wf2p-account-state--panel { margin-top: 0; }
+.wf2p-account-state strong { color: var(--wf2-ink); font-size: .95rem; }
+.wf2p-account-state p { max-width: 620px; margin: 0; font-size: .76rem; }
+.wf2p-ledger td small { display: block; margin-top: 3px; color: var(--wf2-muted); font-size: .68rem; }
 .wf2p-insight-intro, .wf2p-settings-hero, .wf2p-assistant-hero, .wf2p-capability-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 22px; border: 1px solid var(--wf2-border); border-radius: var(--wf2-radius); background: linear-gradient(120deg, var(--wf2-card), var(--wf2-surface)); box-shadow: var(--wf2-shadow); }
 .wf2p-insight-intro h3, .wf2p-settings-hero h3, .wf2p-assistant-hero h3, .wf2p-capability-hero h3 { margin: 0; font-size: 1.18rem; letter-spacing: -.05em; }
 .wf2p-insight-intro p:last-child, .wf2p-settings-hero p:last-child, .wf2p-assistant-hero p:last-child, .wf2p-capability-hero p:last-child { max-width: 620px; margin: 6px 0 0; color: var(--wf2-muted); font-size: .72rem; }
