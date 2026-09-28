@@ -194,3 +194,165 @@ def test_settings_section_and_holdings_tab_are_query_driven(pages_client):
     assert tabs["ativos"]["active"] is True
     assert tabs["investimentos"]["active"] is False
     assert "periodo=1a" in tabs["passivos"]["url"]
+
+
+def test_holdings_filters_apply_to_published_positions_and_keep_currency_boundaries(pages_client, monkeypatch):
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[]),
+            leitor.Leitura(
+                fonte=CRV,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(
+                        CRV.nome, "investimento", "Mariano", "XP", "PETR4", "BRL", Decimal("100"),
+                        quantidade=Decimal("10"), classe="ação", custo=Decimal("90"),
+                        ganho_nao_realizado=Decimal("10"),
+                    ),
+                    leitor.Linha(
+                        CRV.nome, "investimento", "Cláudia", "XP", "MSFT", "USD", Decimal("80"),
+                        quantidade=Decimal("2"), classe="ação", custo=Decimal("70"),
+                        ganho_nao_realizado=Decimal("10"),
+                    ),
+                    leitor.Linha(
+                        CRV.nome, "investimento", "Cláudia", "Rico", "BOVA11", "BRL", Decimal("300"),
+                        quantidade=Decimal("3"), classe="ETF", custo=Decimal("250"),
+                        ganho_nao_realizado=Decimal("50"),
+                    ),
+                    leitor.Linha(
+                        CRV.nome, "investimento", "Mariano", "Rico", "VALE3", "BRL", Decimal("50"),
+                        quantidade=Decimal("5"), classe="ação", custo=Decimal("55"),
+                        ganho_nao_realizado=Decimal("-5"),
+                    ),
+                ],
+            ),
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: snapshot)
+
+    response = pages_client.get(
+        "/holdings/",
+        {
+            "periodo": "1a",
+            "data": "2026-09-27",
+            "titular": "Mariano",
+            "moeda": "BRL",
+            "classe": "ação",
+            "instituicao": "Rico",
+            "ordenar": "nome",
+            "direcao": "asc",
+        },
+    )
+
+    assert response.status_code == 200
+    page = response.context["wf_page"]
+    assert [(row["name"], row["currency"]) for row in page["rows"]] == [("VALE3", "BRL")]
+    assert page["rows"][0]["return_percent"] == "-9,09%"
+    assert "periodo=1a" in response.content.decode()
+    assert 'name="titular"' in response.content.decode()
+    assert "Titular" in response.content.decode()
+    assert 'name="moeda"' in response.content.decode()
+    assert 'name="classe"' in response.content.decode()
+    assert 'name="instituicao"' in response.content.decode()
+    assert 'name="ordenar"' in response.content.decode()
+    assert 'name="direcao"' in response.content.decode()
+    assert '<input type="checkbox" name="fechada" value="1" disabled>' in response.content.decode()
+
+
+def test_holdings_value_order_groups_mixed_currencies_instead_of_comparing_them(pages_client, monkeypatch):
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[]),
+            leitor.Leitura(
+                fonte=CRV,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(CRV.nome, "investimento", "Pessoa", "A", "BRL grande", "BRL", Decimal("500")),
+                    leitor.Linha(CRV.nome, "investimento", "Pessoa", "A", "BRL pequeno", "BRL", Decimal("10")),
+                    leitor.Linha(CRV.nome, "investimento", "Pessoa", "B", "USD", "USD", Decimal("100")),
+                ],
+            ),
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: snapshot)
+
+    response = pages_client.get("/holdings/", {"ordenar": "valor", "direcao": "desc"})
+
+    assert response.status_code == 200
+    rows = response.context["wf_page"]["rows"]
+    assert [(row["currency"], row["name"]) for row in rows] == [
+        ("BRL", "BRL grande"),
+        ("BRL", "BRL pequeno"),
+        ("USD", "USD"),
+    ]
+    assert "dentro de cada moeda" in response.context["wf_page"]["sort_notice"]
+
+
+def test_holding_link_selects_the_published_description_and_currency(pages_client, monkeypatch):
+    snapshot = leitor.Consolidado(
+        leituras=[
+            leitor.Leitura(fonte=CB, estado=leitor.OK, linhas=[]),
+            leitor.Leitura(
+                fonte=CRV,
+                estado=leitor.OK,
+                linhas=[
+                    leitor.Linha(CRV.nome, "investimento", "Pessoa", "A", "DUAL", "BRL", Decimal("100")),
+                    leitor.Linha(CRV.nome, "investimento", "Pessoa", "B", "DUAL", "USD", Decimal("25")),
+                ],
+            ),
+        ]
+    )
+    monkeypatch.setattr(wealthfolio_views.leitor, "consolidar_v2", lambda **_kwargs: snapshot)
+
+    listing = pages_client.get("/holdings/")
+    usd = next(row for row in listing.context["wf_page"]["rows"] if row["currency"] == "USD")
+    detail = pages_client.get(usd["url"])
+
+    assert detail.status_code == 200
+    assert detail.context["wf_page"]["item"]["currency"] == "USD"
+    assert detail.context["wf_page"]["item"]["value"] == "US$ 25,00"
+
+
+def test_spending_category_filters_are_functional_and_preserve_scope(pages_client, monkeypatch):
+    analysis = {
+        "disponivel": True,
+        "motivo": "",
+        "categorias": [
+            {
+                "label": "Saúde",
+                "value": "R$ 120,00",
+                "lines": 2,
+                "percent": "60,0%",
+                "percent_number": Decimal("60"),
+                "delta": {"label": "+R$ 20,00", "percent": "+20,0%", "direction": "up", "amount": Decimal("20")},
+            },
+            {
+                "label": "Lazer",
+                "value": "R$ 80,00",
+                "lines": 1,
+                "percent": "40,0%",
+                "percent_number": Decimal("40"),
+                "delta": {"label": "−R$ 10,00", "percent": "−11,1%", "direction": "down", "amount": Decimal("-10")},
+            },
+        ],
+        "meses": [],
+        "lancamentos": 3,
+        "anterior": None,
+        "comparavel": True,
+    }
+    monkeypatch.setattr(wealthfolio_views.gastos, "analise", lambda *args, **kwargs: analysis)
+
+    response = pages_client.get(
+        "/spending/insights/",
+        {"periodo": "1a", "data": "2026-09-27", "stage": "where", "filtro": "up"},
+    )
+
+    assert response.status_code == 200
+    page = response.context["wf_page"]
+    assert [row["label"] for row in page["categories"]] == ["Saúde"]
+    assert page["category_counts"] == {"all": 2, "up": 1, "down": 1}
+    assert page["category_filter"] == "up"
+    body = response.content.decode()
+    assert "Subiram" in body and 'aria-current="page"' in body
+    assert "disabled>Todas" not in body
+    assert "periodo=1a" in next(item["url"] for item in page["category_filters"] if item["key"] == "down")

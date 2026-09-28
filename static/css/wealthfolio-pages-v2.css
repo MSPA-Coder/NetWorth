@@ -293,9 +293,12 @@ body:has(.wf2p-reference-page) .wf2-topbar__actions { visibility: hidden; }
 .wf2p-spending-plan header p { margin: 3px 0 0; color: var(--wf2-muted); font-size: .71rem; }
 .wf2p-select-button { padding: 6px 9px; border: 1px solid var(--wf2-border); border-radius: 7px; background: var(--wf2-surface-muted); color: var(--wf2-ink); font: inherit; font-size: .68rem; }
 .wf2p-plan-filters { display: flex; flex-wrap: wrap; gap: 7px; }
-.wf2p-plan-filters button { padding: 7px 11px; border: 1px solid var(--wf2-border); border-radius: 999px; background: var(--wf2-surface); color: var(--wf2-muted); font: inherit; font-size: .68rem; }
-.wf2p-plan-filters button b { margin-left: 5px; font-weight: 700; }
-.wf2p-plan-filters button.is-active { border-color: var(--wf2-ink); background: var(--wf2-ink); color: var(--wf2-surface); }
+.wf2p-plan-filters button,
+.wf2p-plan-filters a { padding: 7px 11px; border: 1px solid var(--wf2-border); border-radius: 999px; background: var(--wf2-surface); color: var(--wf2-muted); font: inherit; font-size: .68rem; text-decoration: none; }
+.wf2p-plan-filters button b,
+.wf2p-plan-filters a b { margin-left: 5px; font-weight: 700; }
+.wf2p-plan-filters button.is-active,
+.wf2p-plan-filters a.is-active { border-color: var(--wf2-ink); background: var(--wf2-ink); color: var(--wf2-surface); }
 .wf2p-spending-table { min-width: 600px; }
 .wf2p-progress { display: inline-block; width: 110px; height: 7px; overflow: hidden; border-radius: 4px; background: var(--wf2-border); vertical-align: middle; }
 .wf2p-progress i { display: block; height: 100%; background: #ad6e4e; }

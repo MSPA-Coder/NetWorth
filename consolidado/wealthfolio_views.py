@@ -1901,69 +1901,243 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
             tab_urls.append({"key": key, "label": label, "active": key == holding_type, "url": f"{request.path}?{query_string}" if query_string else request.path})
         page["holding_tabs"] = tuple(tab_urls)
 
-        raw_rows = context["holdings"]
-        # The v2 position aggregate is the authoritative investment view. For
-        # the other Wealthfolio tabs only expose source rows whose published
-        # role supports that view; never reinterpret an investment as a debt.
-        if holding_type in {"ativos", "passivos"}:
-            def line_value(line: Any, name: str, default: Any = "") -> Any:
-                if isinstance(line, dict):
-                    return line.get(name, default)
-                return getattr(line, name, default)
+        def line_value(line: Any, name: str, default: Any = "") -> Any:
+            if isinstance(line, dict):
+                return line.get(name, default)
+            return getattr(line, name, default)
 
-            wanted = {"passivo", "liability", "liabilities"} if holding_type == "passivos" else None
-            grouped: dict[tuple[str, str], dict[str, Any]] = {}
-            for line in context["consolidado"].linhas:
+        all_lines = list(context["consolidado"].linhas)
+        wanted = {"passivo", "liability", "liabilities"}
+        if holding_type == "investimentos":
+            candidate_lines = [
+                line for line in all_lines
+                if str(line_value(line, "papel", "investimento")).strip().casefold() == "investimento"
+            ]
+        else:
+            candidate_lines = []
+            for line in all_lines:
                 role = str(line_value(line, "papel", "")).strip().casefold()
-                is_liability = role in {"passivo", "liability", "liabilities"}
-                if (wanted is not None) != is_liability:
-                    continue
-                name = str(line_value(line, "descricao", "—"))
-                currency = str(line_value(line, "moeda", ""))
-                bucket = grouped.setdefault((name, currency), {"descricao": name, "moeda": currency, "valor": Decimal("0"), "quantidade": Decimal("0"), "instituicoes": set(), "ganho": Decimal("0"), "ganho_informado": False})
-                value = line_value(line, "valor", Decimal("0"))
-                bucket["valor"] += value if isinstance(value, Decimal) else Decimal(str(value or 0))
-                quantity = line_value(line, "quantidade", None)
-                if quantity is not None:
-                    bucket["quantidade"] += quantity if isinstance(quantity, Decimal) else Decimal(str(quantity))
-                gain = line_value(line, "ganho_nao_realizado", None)
-                if gain is not None:
-                    bucket["ganho"] += gain if isinstance(gain, Decimal) else Decimal(str(gain))
-                    bucket["ganho_informado"] = True
-                institution = str(line_value(line, "instituicao", "") or "")
-                if institution:
-                    bucket["instituicoes"].add(institution)
-            raw_rows = list(grouped.values())
-            for row in raw_rows:
-                row["ganho_nao_realizado"] = row.pop("ganho") if row.pop("ganho_informado") else None
+                is_liability = role in wanted
+                if is_liability == (holding_type == "passivos"):
+                    candidate_lines.append(line)
 
-        page["rows"] = [
-            {
-                "url": reverse("consolidado:holding_detail", kwargs={"holding_id": row["descricao"]}),
-                "name": row["descricao"],
-                "ticker": row["descricao"],
-                "institution": ", ".join(row.get("instituicoes") or ()),
-                "detail": ", ".join(sorted(row.get("instituicoes") or ())),
-                "currency": row["moeda"],
-                "quantity": row.get("quantidade"),
-                "price": dinheiro(
-                    row["valor"] / row["quantidade"], row["moeda"]
-                ) if row.get("quantidade") else "Indisponível",
-                "value": dinheiro(row.get("valor"), row["moeda"]),
-                "weight": _percent_label(row.get("percentual")),
-                "return": dinheiro(row.get("ganho_nao_realizado"), row["moeda"])
-                if row.get("ganho_nao_realizado") is not None else "Indisponível",
-                "return_percent": _percent_label(row.get("retorno_percentual"), signed=True),
+        def published_values(field: str, *, include_unclassified: bool = False) -> list[tuple[str, str]]:
+            values = {
+                str(line_value(line, field, "") or "").strip()
+                for line in candidate_lines
             }
-            for row in raw_rows
-        ]
+            values.discard("")
+            options = [(value, value) for value in sorted(values, key=str.casefold)]
+            if include_unclassified and any(not str(line_value(line, field, "") or "").strip() for line in candidate_lines):
+                options.append(("__sem_classificacao__", "Não classificada"))
+            return options
+
+        filter_specs = (
+            ("titular", "Titular", "titular", False),
+            ("moeda", "Moeda", "moeda", False),
+            ("classe", "Classe", "classe", True),
+            ("instituicao", "Instituição", "instituicao", False),
+        )
+        filters = []
+        active_filters: dict[str, str] = {}
+        for query_name, label, field, include_unclassified in filter_specs:
+            options = [("", f"Todas{'' if query_name == 'titular' else ' as ' + label.lower() + 's'}")]
+            options.extend(published_values(field, include_unclassified=include_unclassified))
+            requested = request.GET.get(query_name, "")
+            option_values = {value for value, _label in options}
+            selected = requested if requested in option_values else ""
+            active_filters[query_name] = selected
+            filters.append(
+                {
+                    "name": query_name,
+                    "label": label,
+                    "options": tuple(
+                        {"value": value, "label": option_label, "active": value == selected}
+                        for value, option_label in options
+                    ),
+                }
+            )
+
+        order_options = (
+            ("valor", "Valor"),
+            ("nome", "Nome"),
+            ("retorno", "Rentabilidade"),
+            ("peso", "Peso na moeda"),
+            ("quantidade", "Quantidade"),
+            ("moeda", "Moeda"),
+        )
+        requested_order = request.GET.get("ordenar", "valor")
+        sort_field = requested_order if requested_order in {value for value, _label in order_options} else "valor"
+        direction = request.GET.get("direcao", "desc")
+        if direction not in {"asc", "desc"}:
+            direction = "desc"
+        filters.extend(
+            (
+                {
+                    "name": "ordenar",
+                    "label": "Ordenar por",
+                    "options": tuple(
+                        {"value": value, "label": label, "active": value == sort_field}
+                        for value, label in order_options
+                    ),
+                },
+                {
+                    "name": "direcao",
+                    "label": "Ordem",
+                    "options": (
+                        {"value": "desc", "label": "Decrescente", "active": direction == "desc"},
+                        {"value": "asc", "label": "Crescente", "active": direction == "asc"},
+                    ),
+                },
+            )
+        )
+        page["toolbar"].update(
+            filters=tuple(filters),
+            search=request.GET.get("busca", ""),
+            hidden_params=(
+                {"name": "tipo", "value": holding_type},
+                {"name": "periodo", "value": context["periodo"]},
+                {"name": "data", "value": context["data_da_tela"].isoformat()},
+            ),
+        )
+
+        def decimal_value(value: Any) -> Decimal | None:
+            if value is None:
+                return None
+            return value if isinstance(value, Decimal) else Decimal(str(value or 0))
+
+        filtered_lines = []
+        for line in candidate_lines:
+            if active_filters["titular"] and str(line_value(line, "titular", "") or "").strip() != active_filters["titular"]:
+                continue
+            if active_filters["moeda"] and str(line_value(line, "moeda", "") or "").strip() != active_filters["moeda"]:
+                continue
+            if active_filters["instituicao"] and str(line_value(line, "instituicao", "") or "").strip() != active_filters["instituicao"]:
+                continue
+            if active_filters["classe"]:
+                line_class = str(line_value(line, "classe", "") or "").strip()
+                if active_filters["classe"] == "__sem_classificacao__":
+                    if line_class:
+                        continue
+                elif line_class != active_filters["classe"]:
+                    continue
+            filtered_lines.append(line)
+
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+        for line in filtered_lines:
+            name = str(line_value(line, "descricao", "—") or "—")
+            currency = str(line_value(line, "moeda", "") or "")
+            key = (name, currency)
+            bucket = grouped.setdefault(
+                key,
+                {
+                    "descricao": name,
+                    "moeda": currency,
+                    "valor": Decimal("0"),
+                    "exposicao_bruta": Decimal("0"),
+                    "quantidade": Decimal("0"),
+                    "quantidade_informada": False,
+                    "ganho": Decimal("0"),
+                    "ganho_informado": False,
+                    "custo": Decimal("0"),
+                    "custo_informado": False,
+                    "instituicoes": set(),
+                    "titulares": set(),
+                    "classes": set(),
+                },
+            )
+            value = decimal_value(line_value(line, "valor", Decimal("0"))) or Decimal("0")
+            bucket["valor"] += value
+            exposure = decimal_value(line_value(line, "exposicao_bruta", None))
+            bucket["exposicao_bruta"] += abs(exposure if exposure is not None else value)
+            quantity = decimal_value(line_value(line, "quantidade", None))
+            if quantity is not None:
+                bucket["quantidade"] += quantity
+                bucket["quantidade_informada"] = True
+            gain = decimal_value(line_value(line, "ganho_nao_realizado", None))
+            if gain is not None:
+                bucket["ganho"] += gain
+                bucket["ganho_informado"] = True
+            cost = decimal_value(line_value(line, "custo", None))
+            if cost is not None:
+                bucket["custo"] += cost
+                bucket["custo_informado"] = True
+            for attr, set_name in (("instituicao", "instituicoes"), ("titular", "titulares"), ("classe", "classes")):
+                text_value = str(line_value(line, attr, "") or "").strip()
+                if text_value:
+                    bucket[set_name].add(text_value)
+
+        totals_by_currency: dict[str, Decimal] = {}
+        for bucket in grouped.values():
+            currency = bucket["moeda"]
+            totals_by_currency[currency] = totals_by_currency.get(currency, Decimal("0")) + bucket["exposicao_bruta"]
+
+        rows = []
+        for bucket in grouped.values():
+            gain = bucket["ganho"] if bucket["ganho_informado"] else None
+            cost = bucket["custo"] if bucket["custo_informado"] else None
+            quantity = bucket["quantidade"] if bucket["quantidade_informada"] else None
+            detail_url = reverse("consolidado:holding_detail", kwargs={"holding_id": bucket["descricao"]})
+            if bucket["moeda"]:
+                detail_url = f"{detail_url}?{urlencode({'moeda': bucket['moeda']})}"
+            rows.append(
+                {
+                    "url": detail_url,
+                    "name": bucket["descricao"],
+                    "ticker": bucket["descricao"],
+                    "institution": ", ".join(sorted(bucket["instituicoes"])),
+                    "detail": ", ".join(sorted(bucket["instituicoes"])),
+                    "owner": ", ".join(sorted(bucket["titulares"])),
+                    "class": ", ".join(sorted(bucket["classes"])),
+                    "currency": bucket["moeda"],
+                    "quantity": quantity,
+                    "price": dinheiro(bucket["valor"] / quantity, bucket["moeda"])
+                    if quantity else "Indisponível",
+                    "value": dinheiro(bucket["valor"], bucket["moeda"]),
+                    "value_number": bucket["valor"],
+                    "weight_number": bucket["exposicao_bruta"] / totals_by_currency[bucket["moeda"]] * 100
+                    if totals_by_currency.get(bucket["moeda"]) else None,
+                    "weight": _percent_label(
+                        bucket["exposicao_bruta"] / totals_by_currency[bucket["moeda"]] * 100
+                    ) if totals_by_currency.get(bucket["moeda"]) else "Indisponível",
+                    "return": dinheiro(gain, bucket["moeda"]) if gain is not None else "Indisponível",
+                    "return_number": gain / abs(cost) * 100
+                    if gain is not None and cost not in {None, Decimal("0")} else None,
+                    "return_percent": _percent_label(gain / abs(cost) * 100, signed=True)
+                    if gain is not None and cost not in {None, Decimal("0")} else "Indisponível",
+                }
+            )
+
         search = (request.GET.get("busca") or "").strip().casefold()
         if search:
-            page["rows"] = [
-                row for row in page["rows"]
-                if search in f"{row['name']} {row['detail']}".casefold()
-            ]
-        page["toolbar"]["search"] = request.GET.get("busca") or ""
+            rows = [row for row in rows if search in f"{row['name']} {row['detail']} {row['owner']} {row['class']}".casefold()]
+
+        reverse_order = direction == "desc"
+        if sort_field in {"valor", "peso", "quantidade"}:
+            numeric_key = {"valor": "value_number", "peso": "weight_number", "quantidade": "quantity"}[sort_field]
+            # Monetary amounts and position weights are meaningful only within
+            # a currency scope. Keep currencies grouped and sort within each.
+            rows.sort(
+                key=lambda row: (
+                    row["currency"],
+                    -(abs(row[numeric_key]) if row[numeric_key] is not None else Decimal("0"))
+                    if reverse_order else (abs(row[numeric_key]) if row[numeric_key] is not None else Decimal("0")),
+                    row["name"].casefold(),
+                )
+            )
+        elif sort_field == "retorno":
+            rows.sort(key=lambda row: (row["return_number"] is None, -row["return_number"] if row["return_number"] is not None and reverse_order else row["return_number"] or Decimal("0"), row["name"].casefold()))
+        elif sort_field == "moeda":
+            rows.sort(key=lambda row: (row["currency"], row["name"].casefold()), reverse=reverse_order)
+        else:
+            rows.sort(key=lambda row: row["name"].casefold(), reverse=reverse_order)
+
+        page["rows"] = rows
+        page["sort_notice"] = (
+            "Valores, pesos e quantidades são ordenados dentro de cada moeda."
+            if sort_field in {"valor", "peso", "quantidade"} and len({row["currency"] for row in rows}) > 1
+            else ""
+        )
         if not page["rows"]:
             page.update(state="empty", empty_title="Nenhuma posição publicada")
     elif kind == "holding-detail":
@@ -2184,23 +2358,60 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
         stage = request.GET.get("stage", "where")
         if stage not in {"where", "changed", "when"}:
             stage = "where"
+        category_filter = request.GET.get("filtro", "all")
+        if category_filter not in {"all", "up", "down"}:
+            category_filter = "all"
+        scope_params = {
+            "periodo": context["periodo"],
+            "data": context["data_da_tela"].isoformat(),
+        }
         page["stages"] = [
-            {"label": label, "url": _query_url("consolidado:spending_insights", stage=key, periodo=context["periodo"]), "active": stage == key}
+            {
+                "label": label,
+                "url": _query_url(
+                    "consolidado:spending_insights",
+                    stage=key,
+                    filtro=category_filter,
+                    **scope_params,
+                ),
+                "active": stage == key,
+            }
             for key, label in (("where", "Onde"), ("changed", "O que mudou"), ("when", "Quando"))
         ]
         analysis = context.get("analise_gastos") or {"disponivel": False, "motivo": "", "categorias": [], "meses": []}
-        categories = list(analysis["categorias"])
+        all_categories = list(analysis["categorias"])
+        page["category_counts"] = {
+            "all": len(all_categories),
+            "up": sum(1 for row in all_categories if row["delta"]["direction"] == "up"),
+            "down": sum(1 for row in all_categories if row["delta"]["direction"] == "down"),
+        }
+        categories = (
+            all_categories
+            if category_filter == "all"
+            else [row for row in all_categories if row["delta"]["direction"] == category_filter]
+        )
         if stage == "changed":
             categories.sort(key=lambda row: -abs(row["delta"].get("amount") or Decimal("0")))
         page["stage"] = stage
         page["categories"] = categories
+        page["category_filter"] = category_filter
         page["months"] = analysis["meses"]
         page["analysis_reason"] = analysis["motivo"]
-        page["category_counts"] = {
-            "all": len(categories),
-            "up": sum(1 for row in categories if row["delta"]["direction"] == "up"),
-            "down": sum(1 for row in categories if row["delta"]["direction"] == "down"),
-        }
+        page["category_filters"] = tuple(
+            {
+                "key": key,
+                "label": label,
+                "count": page["category_counts"][key],
+                "active": category_filter == key,
+                "url": _query_url(
+                    "consolidado:spending_insights",
+                    stage=stage,
+                    filtro=key,
+                    **scope_params,
+                ),
+            }
+            for key, label in (("all", "Todas"), ("up", "Subiram"), ("down", "Caíram"))
+        )
         previous = analysis.get("anterior")
         page["previous_label"] = (
             f"{previous.inicio:%d/%m/%Y} a {previous.fim:%d/%m/%Y}"
@@ -2346,8 +2557,13 @@ def holdings_view(request: HttpRequest) -> HttpResponse:
 @require_GET
 def holding_detail_view(request: HttpRequest, holding_id: str) -> HttpResponse:
     context = _base_context(request, visao="investimentos")
+    currency_filter = request.GET.get("moeda") or ""
     context["holding"] = next(
-        (item for item in context["holdings"] if str(item.get("descricao", "")) == holding_id),
+        (
+            item for item in context["holdings"]
+            if str(item.get("descricao", "")) == holding_id
+            and (not currency_filter or str(item.get("moeda", "")) == currency_filter)
+        ),
         None,
     )
     context["holding_id"] = holding_id
