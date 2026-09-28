@@ -568,6 +568,7 @@ def test_account_detail_resolves_groups_and_published_account_filter(logged_clie
 
     assert group.status_code == 200
     assert group.context["wf_page"]["account"]["name"] == "Pessoa"
+    assert group.context["wf_page"]["account"]["source_url"] == "/contas/cb-conta-1"
     assert "Conta" in group.content.decode()
     assert filtered.status_code == 200
     assert filtered.context["wf_page"]["account"]["name"] == "Banco · Conta"

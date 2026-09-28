@@ -132,6 +132,43 @@ def test_dashboard_matrix_has_one_active_tab_and_preserves_period(logged_client)
         assert all("data=2026-09-20" in item["url"] for item in view["tabs"])
 
 
+def test_net_worth_breakdown_links_supported_categories_and_exposes_chart_points(logged_client):
+    client, _snapshot = logged_client
+    response = client.get(
+        "/dashboard/",
+        {"tab": "net-worth", "periodo": "3m", "data": "2026-09-20"},
+    )
+
+    assert response.status_code == 200
+    details = {item["label"]: item for item in response.context["wf_dashboard"]["net_worth"]["details"]}
+    assert details["Investimentos"]["url"].startswith("/holdings/?")
+    assert "periodo=3m" in details["Investimentos"]["url"]
+    assert details["Caixa"]["url"].startswith("/accounts/?")
+    assert details["Patrimônio líquido"]["url"] == ""
+    body = response.content.decode()
+    assert "wf2-chart__point" in body
+    assert "wf2-chart__axis-label" in body
+
+
+def test_insights_summary_exposes_wealthfolio_widget_catalog_without_fake_links(logged_client):
+    client, _snapshot = logged_client
+    response = client.get(
+        "/insights/",
+        {"tab": "summary", "periodo": "3m", "data": "2026-09-20"},
+    )
+
+    assert response.status_code == 200
+    widgets = response.context["wf_insights"]["summary"]["widgets_order"]
+    assert [widget["id"] for widget in widgets] == [
+        "value", "cash", "invested", "bookCost", "pnl", "accounts",
+        "classes", "regions", "sectors", "composition", "targets",
+        "breakdown", "movers", "concentration",
+    ]
+    body = response.content.decode()
+    assert body.count("data-insights-widget=") == 14
+    assert 'href="#"' not in body
+
+
 @pytest.mark.parametrize("tab", ("summary", "performance", "income"))
 def test_insights_tabs_expose_the_same_read_only_filter_contract(logged_client, tab):
     client, _snapshot = logged_client

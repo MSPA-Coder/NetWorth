@@ -690,7 +690,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "percent": _percent_label(item.percent),
             "percent_number": item.percent,
             "classified": item.classified,
-            "url": _insights_href(published.get("url")) or "#",
+            "url": _insights_href(published.get("url")) or "",
             "selected": bool(published.get("selecionado")),
         }
 
@@ -737,7 +737,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
         detail_rows.append(
             {
                 "name": item.get("nome") or "Não classificado",
-                "url": _insights_href(item.get("url")) or "#",
+                "url": _insights_href(item.get("url")) or "",
                 "institutions": item.get("instituicoes") or (),
                 "lines": item.get("linhas", 0),
                 "percent": _percent_label(item.get("percentual")),
@@ -849,6 +849,148 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
     }
     if filter_dimension and filter_id:
         form_params.update(filtro_dimensao=filter_dimension, filtro=filter_id)
+    widget_data = _insights_widgets(context)
+    metric_cards = {
+        card["key"]: card
+        for card in (_metric_vm(metric) for metric in summary.metrics)
+    }
+
+    def metric_widget(widget_id: str, eyebrow: str, title: str, metric_key: str) -> dict[str, Any]:
+        card = metric_cards.get(metric_key) or {
+            "value": "Indisponível",
+            "state": "unavailable",
+            "detail": "A fonte não publicou esta métrica.",
+            "percent": "",
+        }
+        available = card["state"] != "unavailable" and card["value"] != "Indisponível"
+        return {
+            "id": widget_id,
+            "eyebrow": eyebrow,
+            "title": title,
+            "kind": "metric",
+            "available": available,
+            "reason": card.get("detail") or "A fonte não publicou esta métrica.",
+            "value": card.get("value") or "Indisponível",
+            "detail": card.get("detail") or "publicado pela origem",
+            "percent": card.get("percent") or "",
+            "items": (),
+        }
+
+    investment_lines = [
+        line
+        for line in context.get("insights_lines") or ()
+        if str(getattr(line, "papel", "") or "").casefold() == "investimento"
+    ]
+    pnl_widget: dict[str, Any] = {
+        "id": "pnl",
+        "eyebrow": "Resultado publicado",
+        "title": "Ganho / perda",
+        "kind": "distribution",
+        "available": False,
+        "reason": "A fonte não publicou resultado não realizado das posições.",
+        "items": [],
+    }
+    if investment_lines:
+        missing_gain = sum(
+            1 for line in investment_lines
+            if getattr(line, "ganho_nao_realizado", None) is None
+        )
+        if missing_gain:
+            pnl_widget["reason"] = (
+                f"{missing_gain} de {len(investment_lines)} posições não têm ganho/perda publicado."
+            )
+        else:
+            gains: dict[str, Decimal] = {}
+            costs: dict[str, Decimal] = {}
+            costs_complete: dict[str, bool] = {}
+            for line in investment_lines:
+                currency = str(getattr(line, "moeda", "") or "")
+                gains[currency] = gains.get(currency, Decimal("0")) + (
+                    getattr(line, "ganho_nao_realizado", Decimal("0")) or Decimal("0")
+                )
+                cost = getattr(line, "custo", None)
+                costs_complete[currency] = costs_complete.get(currency, True) and cost is not None
+                if cost is not None:
+                    costs[currency] = costs.get(currency, Decimal("0")) + cost
+            pnl_items = []
+            for currency, gain in sorted(gains.items()):
+                cost = costs.get(currency)
+                percent = gain * 100 / abs(cost) if costs_complete.get(currency) and cost else None
+                pnl_items.append(
+                    {
+                        "name": f"Resultado não realizado · {currency}",
+                        "value": dinheiro(gain, currency),
+                        "percent": _percent_label(percent, signed=True),
+                        "percent_number": percent,
+                        "detail": (
+                            "ganho sobre o custo publicado"
+                            if percent is not None
+                            else "percentual indisponível: custo não publicado"
+                        ),
+                        "url": "",
+                    }
+                )
+            pnl_widget["available"] = bool(pnl_items)
+            pnl_widget["items"] = pnl_items
+            pnl_widget["reason"] = "" if pnl_items else pnl_widget["reason"]
+
+    breakdown_widget = {
+        "id": "breakdown",
+        "eyebrow": "Detalhamento",
+        "title": "Explorar por dimensão",
+        "kind": "distribution",
+        "available": bool(detail_rows),
+        "reason": "Nenhum detalhamento foi publicado para esta dimensão.",
+        "items": [
+            {
+                "name": item["name"],
+                "value": item["value"],
+                "percent": item["percent"],
+                "percent_number": None,
+                "detail": " · ".join(
+                    part for part in (
+                        ", ".join(item["institutions"]),
+                        f"{item['lines']} linha(s)",
+                    ) if part
+                ),
+                "url": item["url"],
+            }
+            for item in detail_rows
+        ],
+    }
+    targets_widget = {
+        "id": "targets",
+        "eyebrow": "Planejamento",
+        "title": "Alocação-alvo",
+        "kind": "status",
+        "available": getattr(summary.target_allocation, "available", False),
+        "reason": getattr(summary.target_allocation, "reason", "Alocação-alvo não publicada."),
+        "value": "Publicado" if getattr(summary.target_allocation, "available", False) else "Indisponível",
+        "detail": "somente leitura",
+        "items": (),
+    }
+
+    def distribution_widget(widget_id: str, eyebrow: str, title: str) -> dict[str, Any]:
+        widget = dict(widget_data.get(widget_id) or {})
+        widget.update(id=widget_id, eyebrow=eyebrow, title=title, kind="distribution")
+        return widget
+
+    widgets_order = (
+        metric_widget("value", "Patrimônio", "Valor da carteira", "portfolio_value"),
+        metric_widget("cash", "Liquidez", "Saldo em caixa", "cash"),
+        metric_widget("invested", "Alocação", "Investimentos", "invested"),
+        metric_widget("bookCost", "Base histórica", "Custo de aquisição", "cost_basis"),
+        pnl_widget,
+        distribution_widget("accounts", "Distribuição", "Contas"),
+        distribution_widget("classes", "Distribuição", "Classes de ativos"),
+        distribution_widget("regions", "Distribuição", "Regiões"),
+        distribution_widget("sectors", "Distribuição", "Setores"),
+        distribution_widget("composition", "Composição", "Composição"),
+        targets_widget,
+        breakdown_widget,
+        distribution_widget("movers", "Variação publicada", "Movimentadores"),
+        distribution_widget("concentration", "Risco de concentração", "Concentração"),
+    )
     return {
         "tab": context.get("insights_tab") or "summary",
         "partial": not vm.shell.coverage.complete or analytics_partial,
@@ -883,7 +1025,8 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "details": detail_rows,
             "target_available": getattr(summary.target_allocation, "available", False),
             "target_reason": getattr(summary.target_allocation, "reason", ""),
-            "widgets": _insights_widgets(context),
+            "widgets": widget_data,
+            "widgets_order": widgets_order,
         },
         "performance": {
             "periods": context.get("periodos_dashboard") or (),
@@ -1528,15 +1671,65 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
                 "url": reverse("consolidado:holding_detail", kwargs={"holding_id": name}),
             }
         )
-    investment_chart = {
-        "geometry": context["grafico"],
-        "series_class": "curva-investimentos",
-        "aria_label": "Evolução dos investimentos",
-        "empty": context["grafico"] is None,
-    }
+    def chart_vm(series_class: str, aria_label: str) -> dict[str, Any]:
+        geometry = context["grafico"]
+        if geometry is None:
+            return {
+                "geometry": None,
+                "curves": (),
+                "x_marks": (),
+                "y_marks": (),
+                "series_class": series_class,
+                "aria_label": aria_label,
+                "empty": True,
+            }
+        curves = []
+        for curve in geometry.curvas:
+            if series_class and curve.classe != series_class:
+                continue
+            curves.append(
+                {
+                    "class": curve.classe,
+                    "label": curve.rotulo,
+                    "points": tuple(
+                        {
+                            "x": point.x,
+                            "y": point.y,
+                            "date": point.data.strftime("%d/%m/%Y"),
+                            "value": dinheiro(point.valor, context["moeda_base"]),
+                        }
+                        for point in curve.pontos
+                    ),
+                }
+            )
+        return {
+            "geometry": geometry,
+            "curves": tuple(curves),
+            "x_marks": geometry.eixo_x,
+            "y_marks": geometry.eixo_y,
+            "series_class": series_class,
+            "aria_label": aria_label,
+            "empty": not curves,
+        }
+
+    investment_chart = chart_vm("curva-investimentos", "Evolução dos investimentos")
     net_worth = all_vm.net_worth
     details = []
     for item in net_worth.detail_assets:
+        label_key = str(item.key or item.label or "").casefold()
+        category_url = ""
+        if "invest" in label_key:
+            category_url = _query_url(
+                "consolidado:holdings",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+            )
+        elif "caixa" in label_key or "cash" in label_key:
+            category_url = _query_url(
+                "consolidado:accounts",
+                periodo=context["periodo"],
+                data=context["data_da_tela"].isoformat(),
+            )
         details.append(
             {
                 "label": item.label,
@@ -1546,6 +1739,7 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
                 # linha, com o sinal, mas não ocupa espaço na barra.
                 "percent_number": max(item.percent or Decimal("0"), Decimal("0")),
                 "total": item.key == "total",
+                "url": category_url,
             }
         )
     spending = all_vm.spending
@@ -1624,7 +1818,7 @@ def _dashboard_vm(request: HttpRequest, context: dict[str, Any], tab: str) -> di
         "net_worth": {
             "hero_value": _money_label(net_worth.hero.values),
             "delta": _delta_vm(net_worth.hero, period_label),
-            "chart": {**investment_chart, "series_class": "curva-patrimonio", "aria_label": "Evolução do patrimônio líquido"},
+            "chart": chart_vm("curva-patrimonio", "Evolução do patrimônio líquido"),
             "details": details,
             "monthly_pace": _monthly_pace_vm(context),
         },
@@ -2322,6 +2516,24 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                         return line.get(name, default)
                     return getattr(line, name, default)
 
+                sources = {}
+                for source in fontes_configuradas():
+                    sources[source.apelido.casefold()] = source
+                    sources[source.nome.casefold()] = source
+
+                def published_source_url(line: Any) -> str:
+                    link = str(field(line, "link") or "")
+                    if not link:
+                        return ""
+                    source = sources.get(str(field(line, "fonte") or "").casefold())
+                    return source.link(link) if source else link
+
+                source_url = next(
+                    (published_source_url(line) for line in account.get("linhas") or () if published_source_url(line)),
+                    "",
+                )
+                page["account"]["source_url"] = source_url
+
                 page["rows"] = [
                     {
                         "name": field(line, "descricao"),
@@ -2329,7 +2541,7 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                         "source": field(line, "fonte"),
                         "currency": field(line, "moeda"),
                         "value": dinheiro(field(line, "valor"), field(line, "moeda")),
-                        "url": field(line, "link"),
+                        "url": published_source_url(line),
                     }
                     for line in account.get("linhas") or ()
                 ]

@@ -1,5 +1,5 @@
-{# Read-only Insight cards. Missing publication data is shown as unavailable. #}
-<section class="wf-insights-v2__widget-area" aria-label="Widgets de composição e distribuição" data-insights-widget-area>
+{# Wealthfolio-inspired Insights cards. Every value comes from the read-only VM. #}
+<section class="wf-insights-v2__widget-area" aria-label="Widgets de Insights" data-insights-widget-area>
   <div class="wf-insights-v2__widget-toolbar">
     <span class="wf-insights-v2__eyebrow">Visão geral da carteira</span>
     <div class="wf-insights-v2__widget-actions">
@@ -10,41 +10,47 @@
   <p class="wf-insights-v2__widget-status" data-widget-status role="status" aria-live="polite" hidden></p>
   <div class="wf-insights-v2__widget-manager" data-widget-manager hidden aria-label="Visibilidade dos widgets"></div>
   <div class="wf-insights-v2__widget-grid" data-insights-widget-grid>
-    <article class="wf-insights-v2__widget" data-insights-widget="accounts" aria-labelledby="wf-widget-accounts-title">
-      <header><div><p class="wf-insights-v2__eyebrow">Distribuição</p><h2 id="wf-widget-accounts-title">Contas</h2></div><div class="wf-insights-v2__widget-controls" data-widget-controls hidden><button type="button" data-widget-move="up" aria-label="Mover Contas para cima">↑</button><button type="button" data-widget-move="down" aria-label="Mover Contas para baixo">↓</button><button type="button" data-widget-hide>Ocultar</button></div></header>
-      {% if wf_insights.summary.widgets.accounts.available %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.widgets.accounts.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% empty %}<li class="wf-insights-v2__widget-empty">Nenhuma conta publicada.</li>{% endfor %}</ul>
-      {% else %}<p class="wf-insights-v2__widget-empty" role="status">{{ wf_insights.summary.widgets.accounts.reason|default:'Distribuição por conta não publicada pelas fontes.' }}</p>{% endif %}
-    </article>
+    {% for widget in wf_insights.summary.widgets_order %}
+      <article class="wf-insights-v2__widget wf-insights-v2__widget--{{ widget.kind }}" data-insights-widget="{{ widget.id }}" aria-labelledby="wf-widget-{{ widget.id }}-title">
+        <header>
+          <div>
+            <p class="wf-insights-v2__eyebrow">{{ widget.eyebrow }}</p>
+            <h2 id="wf-widget-{{ widget.id }}-title">{{ widget.title }}</h2>
+          </div>
+          <div class="wf-insights-v2__widget-controls" data-widget-controls hidden>
+            <button type="button" data-widget-move="up" aria-label="Mover {{ widget.title }} para cima">↑</button>
+            <button type="button" data-widget-move="down" aria-label="Mover {{ widget.title }} para baixo">↓</button>
+            <button type="button" data-widget-hide>Ocultar</button>
+          </div>
+        </header>
 
-    <article class="wf-insights-v2__widget" data-insights-widget="composition" aria-labelledby="wf-widget-composition-title">
-      <header><div><p class="wf-insights-v2__eyebrow">Composição</p><h2 id="wf-widget-composition-title">Composição da carteira</h2></div><div class="wf-insights-v2__widget-controls" data-widget-controls hidden><button type="button" data-widget-move="up" aria-label="Mover Composição para cima">↑</button><button type="button" data-widget-move="down" aria-label="Mover Composição para baixo">↓</button><button type="button" data-widget-hide>Ocultar</button></div></header>
-      {% if wf_insights.summary.widgets.composition.available %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.widgets.composition.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% empty %}<li class="wf-insights-v2__widget-empty">Nenhuma composição publicada.</li>{% endfor %}</ul>
-      {% elif wf_insights.summary.items %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% endfor %}</ul>
-      {% else %}<p class="wf-insights-v2__widget-empty" role="status">{{ wf_insights.summary.widgets.composition.reason|default:'Composição não publicada pelas fontes.' }}</p>{% endif %}
-    </article>
-
-    <article class="wf-insights-v2__widget" data-insights-widget="dimensions" aria-labelledby="wf-widget-dimensions-title">
-      <header><div><p class="wf-insights-v2__eyebrow">Classes, regiões e setores</p><h2 id="wf-widget-dimensions-title">Dimensões</h2></div><div class="wf-insights-v2__widget-controls" data-widget-controls hidden><button type="button" data-widget-move="up" aria-label="Mover Dimensões para cima">↑</button><button type="button" data-widget-move="down" aria-label="Mover Dimensões para baixo">↓</button><button type="button" data-widget-hide>Ocultar</button></div></header>
-      {% if wf_insights.summary.widgets.dimensions.available %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.widgets.dimensions.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% empty %}<li class="wf-insights-v2__widget-empty">Nenhuma dimensão publicada.</li>{% endfor %}</ul>
-      {% else %}<p class="wf-insights-v2__widget-empty" role="status">{{ wf_insights.summary.widgets.dimensions.reason|default:'As fontes não publicaram classificações por dimensão.' }}</p>{% endif %}
-    </article>
-
-    <article class="wf-insights-v2__widget" data-insights-widget="concentration" aria-labelledby="wf-widget-concentration-title">
-      <header><div><p class="wf-insights-v2__eyebrow">Risco de concentração</p><h2 id="wf-widget-concentration-title">Maiores posições</h2></div><div class="wf-insights-v2__widget-controls" data-widget-controls hidden><button type="button" data-widget-move="up" aria-label="Mover Maiores posições para cima">↑</button><button type="button" data-widget-move="down" aria-label="Mover Maiores posições para baixo">↓</button><button type="button" data-widget-hide>Ocultar</button></div></header>
-      {% if wf_insights.summary.widgets.concentration.available %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.widgets.concentration.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% empty %}<li class="wf-insights-v2__widget-empty">Nenhuma posição publicada.</li>{% endfor %}</ul>
-      {% else %}<p class="wf-insights-v2__widget-empty" role="status">{{ wf_insights.summary.widgets.concentration.reason|default:'Concentração não calculada pelas fontes.' }}</p>{% endif %}
-    </article>
-
-    <article class="wf-insights-v2__widget" data-insights-widget="movers" aria-labelledby="wf-widget-movers-title">
-      <header><div><p class="wf-insights-v2__eyebrow">Variação publicada</p><h2 id="wf-widget-movers-title">Movimentadores</h2></div><div class="wf-insights-v2__widget-controls" data-widget-controls hidden><button type="button" data-widget-move="up" aria-label="Mover Movimentadores para cima">↑</button><button type="button" data-widget-move="down" aria-label="Mover Movimentadores para baixo">↓</button><button type="button" data-widget-hide>Ocultar</button></div></header>
-      {% if wf_insights.summary.widgets.movers.available %}
-        <ul class="wf-insights-v2__widget-rows">{% for item in wf_insights.summary.widgets.movers.items %}<li><span class="wf-insights-v2__widget-label">{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number|default:'0' }}"></i></span><strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong></li>{% empty %}<li class="wf-insights-v2__widget-empty">Nenhuma variação publicada.</li>{% endfor %}</ul>
-      {% else %}<p class="wf-insights-v2__widget-empty" role="status">{{ wf_insights.summary.widgets.movers.reason|default:'Variações por posição não publicadas pelas fontes.' }}</p>{% endif %}
-    </article>
+        {% if widget.kind == 'metric' or widget.kind == 'status' %}
+          <div class="wf-insights-v2__widget-value"{% if not widget.available %} data-state="unavailable"{% endif %}>
+            <strong>{{ widget.value }}</strong>
+            {% if widget.percent %}<span>{{ widget.percent }}</span>{% endif %}
+            <small>{% if widget.available %}{{ widget.detail|default:'publicado pela origem' }}{% else %}{{ widget.reason }}{% endif %}</small>
+          </div>
+        {% elif widget.available %}
+          <ul class="wf-insights-v2__widget-rows">
+            {% for item in widget.items %}
+              <li>
+                <span class="wf-insights-v2__widget-label">
+                  {% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}<span>{{ item.name }}</span>{% endif %}
+                  {% if item.detail %}<small>{{ item.detail }}</small>{% endif %}
+                  {% if item.percent_number is not None %}<i class="wf-insights-v2__widget-bar" data-insights-widget-percent="{{ item.percent_number }}"></i>{% endif %}
+                </span>
+                <strong>{{ item.value }}{% if item.percent %}<small>{{ item.percent }}</small>{% endif %}</strong>
+              </li>
+            {% empty %}
+              <li class="wf-insights-v2__widget-empty">Nenhum dado publicado.</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="wf-insights-v2__widget-empty" role="status">{{ widget.reason|default:'A fonte não publicou dados para este widget.' }}</p>
+        {% endif %}
+      </article>
+    {% empty %}
+      <p class="wf-insights-v2__widget-empty" role="status">Nenhum widget disponível.</p>
+    {% endfor %}
   </div>
 </section>
