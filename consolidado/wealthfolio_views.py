@@ -10,6 +10,7 @@ NetWorth's contract.  Legacy URLs are translated to this surface in
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -102,15 +103,68 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
         pontos,
         (("patrimonio", "Patrimônio", "curva-patrimonio"), ("investimentos", "Investimentos", "curva-investimentos")),
     )
+    requested_group = request.GET.get("grupo") or ""
+    requested_account = request.GET.get("conta") or ""
+    # The Insights selector uses one compact query field.  Account options are
+    # still opaque IDs, so an account value is distinguished by its prefix and
+    # translated to the tree's canonical ``conta`` parameter here.
+    if requested_group.startswith("conta-") and not requested_account:
+        requested_account = requested_group
+        requested_group = ""
     tree = contexto.arvore_de_contas(
         consolidado.linhas,
         referencia=reference,
         visao=visao,
         periodo=period,
         data_da_tela=reference,
-        grupo_parametro=request.GET.get("grupo") or "",
-        conta_parametro=request.GET.get("conta") or "",
+        grupo_parametro=requested_group,
+        conta_parametro=requested_account,
     )
+
+    def line_key(value: Any) -> tuple[str, ...]:
+        return tuple(
+            str(getattr(value, field, "") or "")
+            for field in (
+                "fonte", "papel", "titular", "instituicao", "descricao",
+                "moeda", "id_de_origem",
+            )
+        )
+
+    def node_key(value: dict[str, Any]) -> tuple[str, ...]:
+        return tuple(
+            str(value.get(field, "") or "")
+            for field in (
+                "fonte", "papel", "titular", "instituicao", "descricao",
+                "moeda", "id_de_origem",
+            )
+        )
+
+    # Keep the source objects (rather than copied tree dictionaries) for the
+    # Insights scope.  Counter preserves duplicate published rows without
+    # guessing that equal labels represent the same source record.
+    insights_lines = consolidado.linhas
+    selected_group = tree.get("grupo_selecionado") or ""
+    selected_account = tree.get("conta_selecionada") or ""
+    if selected_group or selected_account:
+        selected_nodes: list[dict[str, Any]] = []
+        if selected_account:
+            account = tree["por_conta"].get(selected_account)
+            selected_nodes = list(account.get("linhas") or ()) if account else []
+        elif selected_group:
+            group = tree["por_grupo"].get(selected_group)
+            selected_nodes = [
+                line
+                for account in (group.get("contas") or ())
+                for line in (account.get("linhas") or ())
+            ] if group else []
+        wanted = Counter(node_key(node) for node in selected_nodes)
+        scoped: list[Any] = []
+        for line in consolidado.linhas:
+            key = line_key(line)
+            if wanted[key]:
+                scoped.append(line)
+                wanted[key] -= 1
+        insights_lines = scoped
     detail = []
     if conversion.possivel:
         # O caixa publicado inclui o saldo dos cartões (dívida). A soma fica
@@ -132,10 +186,37 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
     variacao_investimentos = contexto.variacao(investments_now, pontos[:-1], "investimentos")
     variacao_patrimonio = contexto.variacao(total_now, pontos[:-1], "patrimonio")
     insights_context = None
+    insights_query = None
     insights_overview = []
     if visao == "insights":
-        insights_context = insights_builder.montar(
+        # Validate opaque filters against the complete published snapshot as
+        # well as against the selected account scope.  A valid dimension
+        # filter must remain in the selector when the user changes scope,
+        # even if that particular account has no matching row.
+        insights_query = insights_builder.montar(
             consolidado.linhas,
+            referencia=reference,
+            periodo=period,
+            data=reference.isoformat(),
+            dimensao=request.GET.get("dimensao") or "classe",
+            filtro_dimensao=request.GET.get("filtro_dimensao") or "",
+            filtro=request.GET.get("filtro") or "",
+            busca=request.GET.get("busca") or "",
+            ordenar=request.GET.get("ordenar") or "valor",
+            direcao=request.GET.get("direcao") or "desc",
+            grupo="",
+            conta="",
+            fonte_completa=consolidado.completo,
+            quantidade_fontes=len(consolidado.fontes_que_responderam),
+            quantidade_fontes_esperadas=len(consolidado.leituras),
+            motivo_fontes="; ".join(
+                f"{item.fonte.nome}: {item.motivo or ', '.join(item.lacunas)}"
+                for item in consolidado.leituras
+                if not item.respondeu or item.lacunas
+            ),
+        )
+        insights_context = insights_builder.montar(
+            insights_lines,
             referencia=reference,
             periodo=period,
             data=reference.isoformat(),
@@ -172,7 +253,7 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
         ):
             names = {
                 insights_builder.nome_da_dimensao(line, dimension)
-                for line in consolidado.linhas
+                for line in insights_lines
             }
             names.discard(insights_builder.NAO_CLASSIFICADO)
             names.discard(insights_builder.NAO_INFORMADO)
@@ -214,10 +295,12 @@ def _base_context(request: HttpRequest, *, visao: str, dashboard_default: bool =
         "grupos_drilldown": tree["grupos"],
         "grupo_selecionado": tree["grupo_selecionado"],
         "conta_selecionada": tree["conta_selecionada"],
+        "insights_lines": insights_lines,
         "detalhamento_patrimonio": detail,
         # Kept under the old key for existing templates and callers.
         "variacao_patrimonio": variacao_patrimonio,
         "insights": insights_context,
+        "insights_query": insights_query,
         "insights_overview": insights_overview,
         "desempenhos": contexto.desempenhos(consolidado),
         "rendas": consolidado.rendas,
@@ -326,6 +409,7 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "percent_number": item.percent,
             "classified": item.classified,
             "url": _insights_href(published.get("url")) or "#",
+            "selected": bool(published.get("selecionado")),
         }
 
     dimensions = []
@@ -338,14 +422,33 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             }
         )
     selected_group = context.get("grupo_selecionado") or ""
-    account_options = [
-        {
-            "id": item.get("id"),
-            "name": item.get("nome"),
-            "selected": item.get("id") == selected_group,
-        }
-        for item in context.get("arvore_drilldown") or ()
-    ]
+    selected_account = context.get("conta_selecionada") or ""
+    account_options = []
+    # Wealthfolio's account scope is not limited to the top-level account
+    # groups.  Keep the group rows as convenient aggregates, then expose the
+    # published child accounts using their opaque IDs.  The form submits one
+    # compact ``grupo`` field; ``_base_context`` translates ``conta-*`` values
+    # back to the canonical account selector before building the tree.
+    for group in context.get("arvore_drilldown") or ():
+        group_id = group.get("id")
+        account_options.append(
+            {
+                "id": group_id,
+                "name": group.get("nome"),
+                "kind": "group",
+                "selected": bool(group_id == selected_group and not selected_account),
+            }
+        )
+        for account in group.get("contas") or ():
+            account_id = account.get("id")
+            account_options.append(
+                {
+                    "id": account_id,
+                    "name": f"{group.get('nome')} · {account.get('nome')}",
+                    "kind": "account",
+                    "selected": account_id == selected_account,
+                }
+            )
     detail_rows = []
     for item in raw.get("itens") or ():
         conversion = item.get("conversao")
@@ -487,8 +590,9 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
     if dimension and insights_builder.dimensao_valida(dimension) == dimension:
         tab_params["dimensao"] = dimension
     normalized_insights = context.get("insights") or {}
-    filter_dimension = normalized_insights.get("filtro_dimensao")
-    filter_id = normalized_insights.get("filtro")
+    query_insights = context.get("insights_query") or normalized_insights
+    filter_dimension = query_insights.get("filtro_dimensao")
+    filter_id = query_insights.get("filtro")
     if filter_dimension and filter_id and insights_builder.dimensao_valida(filter_dimension) == filter_dimension:
         tab_params.update(filtro_dimensao=filter_dimension, filtro=filter_id)
     ordering = request.GET.get("ordenar")
@@ -512,8 +616,6 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
     }
     if filter_dimension and filter_id:
         form_params.update(filtro_dimensao=filter_dimension, filtro=filter_id)
-    if context.get("conta_selecionada"):
-        form_params["conta"] = context["conta_selecionada"]
     return {
         "tab": context.get("insights_tab") or "summary",
         "partial": not vm.shell.coverage.complete or analytics_partial,
@@ -541,6 +643,8 @@ def _insights_page_vm(request: HttpRequest, context: dict[str, Any]) -> dict[str
             "metrics": [_metric_vm(item) for item in summary.metrics],
             "overview": context.get("insights_overview") or (),
             "dimension_name": raw.get("dimensao_nome") or "Classe",
+            "filter_name": query_insights.get("filtro_nome") or raw.get("filtro_nome") or "",
+            "clear_filter_url": _insights_href(raw.get("limpar_url")) or "",
             "items": [breakdown(item) for item in summary.treemap],
             "dimensions": dimensions,
             "details": detail_rows,

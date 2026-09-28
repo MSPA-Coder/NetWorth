@@ -155,6 +155,32 @@ def test_insights_accepts_browser_escaped_ampersands_in_filter_url(logged_client
     assert response.context["wf_insights"]["summary"]["details"]
 
 
+def test_insights_filtered_state_exposes_clear_filter_and_active_block(logged_client):
+    filter_id = wealthfolio_views.insights_builder.id_item("classe", "Caixa")
+    response = logged_client.get(
+        "/insights/",
+        {
+            "visao": "insights",
+            "periodo": "1a",
+            "data": "2026-09-27",
+            "dimensao": "classe",
+            "filtro_dimensao": "classe",
+            "filtro": filter_id,
+            "ordenar": "valor",
+            "direcao": "desc",
+        },
+    )
+
+    assert response.status_code == 200
+    summary = response.context["wf_insights"]["summary"]
+    assert summary["filter_name"] == "Caixa"
+    assert summary["clear_filter_url"].startswith("/insights/?")
+    assert any(item["selected"] for item in summary["items"])
+    body = response.content.decode()
+    assert 'class="wf-insights-v2__filterbar"' in body
+    assert 'class="is-selected"' in body
+
+
 def test_insights_account_picker_marks_current_group_and_preserves_valid_get_filters(logged_client):
     filter_id = wealthfolio_views.insights_builder.id_item("classe", "Não classificado")
     params = {
@@ -190,6 +216,25 @@ def test_insights_account_picker_marks_current_group_and_preserves_valid_get_fil
     }
     assert f'value="{group_id}" selected' in response.content.decode()
     assert 'name="filtro_dimensao"' in response.content.decode()
+
+
+def test_insights_account_picker_includes_child_accounts_and_scopes_rows(logged_client):
+    initial = logged_client.get("/insights/", {"tab": "summary"})
+    options = initial.context["wf_insights"]["account_options"]
+    child = next(option for option in options if option["kind"] == "account")
+
+    response = logged_client.get(
+        "/insights/",
+        {"tab": "summary", "grupo": child["id"], "periodo": "1a", "data": "2026-09-27"},
+    )
+
+    assert response.status_code == 200
+    assert response.context["conta_selecionada"] == child["id"]
+    selected = [option for option in response.context["wf_insights"]["account_options"] if option["selected"]]
+    assert [option["id"] for option in selected] == [child["id"]]
+    assert response.context["wf_insights"]["summary"]["details"]
+    assert "conta" not in response.context["wf_insights"]["form_params"]
+    assert child["id"] in response.content.decode()
 
 
 def test_insights_account_form_drops_invalid_filter_pair(logged_client):

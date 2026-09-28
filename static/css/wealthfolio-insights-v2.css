@@ -262,3 +262,33 @@
 .wf-insights-v2__svg-frame[data-chart-state="unavailable"] .wf-insights-v2__svg {
   display: none;
 }
+
+/* A filtered treemap is intentionally normalized to 100%. Keep that state
+   explicit and give the user a way back to the unfiltered composition; this
+   avoids an apparently dead self-link when the active item is clicked again. */
+.wf-insights-v2__filterbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .55rem;
+  margin: 0 0 1rem;
+  padding: .65rem .8rem;
+  border: 1px solid var(--w2-line);
+  border-radius: 8px;
+  background: #f4f3eb;
+  color: var(--w2-muted);
+  font-size: .78rem;
+}
+.wf-insights-v2__filterbar strong { color: var(--w2-ink); }
+.wf-insights-v2__filterbar a {
+  margin-left: auto;
+  color: var(--w2-accent);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wf-insights-v2__treemap a.is-selected {
+  outline: 2px solid var(--w2-accent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--w2-surface);
+}

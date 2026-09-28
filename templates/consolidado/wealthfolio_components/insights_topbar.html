@@ -15,7 +15,7 @@
   <span class="wf2-insights-account__icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 8h18v11H3zM5 8V5h14v3M7 12h4"/></svg></span>
   <select id="wf2-insights-account" name="grupo" aria-label="Conta" data-wf2-insights-account>
     <option value="">Todas as contas</option>
-    {% for grupo in wf_insights.account_options %}<option value="{{ grupo.id }}"{% if grupo.selected %} selected{% endif %}>{{ grupo.name }}</option>{% endfor %}
+    {% for grupo in wf_insights.account_options %}<option value="{{ grupo.id }}"{% if grupo.kind == 'account' %} class="wf2-insights-account__child"{% endif %}{% if grupo.selected %} selected{% endif %}>{{ grupo.name }}</option>{% endfor %}
   </select>
   <button class="wf2-insights-account__submit" type="submit">Aplicar</button>
 </form>
