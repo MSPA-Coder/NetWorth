@@ -140,9 +140,18 @@ def test_holding_detail_prefers_source_price_history_when_published(pages_client
         value=Decimal("50.00"),
         price_date=date(2026, 9, 1),
     )
+    previous_point = SimpleNamespace(
+        id="point-0",
+        date=date(2026, 8, 1),
+        currency="BRL",
+        price=Decimal("20.00"),
+        quantity=Decimal("2"),
+        value=Decimal("40.00"),
+        price_date=date(2026, 8, 1),
+    )
 
     def fetch_all(source, *, resource, inicio, fim, extra=None):
-        items = (point,) if resource == "holding-history" else ()
+        items = (previous_point, point) if resource == "holding-history" else ()
         return AnalyticsSourceResult(
             source="controle-renda-variavel", resource=resource, status="ok", items=items, total=len(items)
         )
@@ -155,6 +164,8 @@ def test_holding_detail_prefers_source_price_history_when_published(pages_client
     assert section["title"] == "Evolução de mercado"
     assert section["points"][0]["price"] == "R$ 25,00"
     assert section["points"][0]["value"] == "R$ 50,00"
+    assert section["chart"] is not None
+    assert "wf2p-history-chart" in response.content.decode()
     assert "Evolução de mercado" in response.content.decode()
 
 

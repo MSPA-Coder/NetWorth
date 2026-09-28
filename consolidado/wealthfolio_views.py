@@ -15,6 +15,7 @@ from collections import Counter
 from dataclasses import asdict, is_dataclass
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
@@ -1679,6 +1680,8 @@ def _holding_history_sections(context: dict[str, Any], row: dict[str, Any]) -> t
         {
             "date": item.date.strftime("%d/%m/%Y"),
             "_sort_date": item.date,
+            "_price_number": item.price,
+            "_value_number": item.value,
             "price": dinheiro(item.price, item.currency),
             "quantity": format(item.quantity, "f").replace(".", ","),
             "value": dinheiro(item.value, item.currency),
@@ -1688,8 +1691,17 @@ def _holding_history_sections(context: dict[str, Any], row: dict[str, Any]) -> t
         if str(getattr(item, "currency", "")).upper() == target_currency
     ]
     points.sort(key=lambda item: item["_sort_date"], reverse=True)
+    chart = None
+    if len(points) >= 2:
+        chart_points = [
+            SimpleNamespace(data=item["_sort_date"], price=item["_price_number"])
+            for item in reversed(points)
+        ]
+        chart = grafico.montar(chart_points, (("price", "Preço", "holding-detail-price"),))
     for item in points:
         item.pop("_sort_date", None)
+        item.pop("_price_number", None)
+        item.pop("_value_number", None)
 
     event_results = tuple(
         fetch_all_analytics(source, resource="events", inicio=start, fim=end)
@@ -1745,6 +1757,7 @@ def _holding_history_sections(context: dict[str, Any], row: dict[str, Any]) -> t
             "title": "Evolução de mercado",
             "subtitle": "Preço e valor calculados pela origem",
             "points": tuple(points),
+            "chart": chart,
             "events": tuple(movements),
             "empty_title": "Histórico não publicado",
             "empty_message": "A fonte não publicou pontos para esta posição e período.",
@@ -2154,9 +2167,38 @@ def _page_vm(context: dict[str, Any], *, kind: str, request: HttpRequest) -> dic
                 "source_url": row.get("link") or "",
             }
             page["sections"] = _holding_history_sections(context, row)
+            gain = row.get("ganho_nao_realizado")
+            return_percent = row.get("retorno_percentual")
+            page["stats"] = tuple(
+                stat
+                for stat in (
+                    {
+                        "label": "Ganho não realizado",
+                        "value": dinheiro(gain, row["moeda"]),
+                        "tone": "positive" if gain > 0 else "negative" if gain < 0 else "",
+                        "detail": "publicado na fotografia atual",
+                    }
+                    if gain is not None
+                    else None,
+                    {
+                        "label": "Rentabilidade total",
+                        "value": _percent_label(return_percent, signed=True),
+                        "tone": "positive" if return_percent > 0 else "negative" if return_percent < 0 else "",
+                        "detail": "ganho sobre o custo informado",
+                    }
+                    if return_percent is not None
+                    else None,
+                    {
+                        "label": "Instituições",
+                        "value": ", ".join(row.get("instituicoes") or ()) or "Indisponível",
+                        "detail": "posição publicada pelas fontes",
+                    },
+                )
+                if stat is not None
+            )
         else:
             page["state"] = "empty"
-        page["stats"] = ()
+            page["stats"] = ()
         if not row:
             page["sections"] = ()
     elif kind in {"accounts", "account-detail"}:

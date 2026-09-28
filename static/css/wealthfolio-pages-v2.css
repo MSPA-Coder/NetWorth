@@ -75,6 +75,11 @@
 .wf2p-detail-section { display: grid; gap: 10px; }
 .wf2p-detail-section .wf2p-section-heading { margin: 0 4px; }
 .wf2p-detail-section .wf2p-stat-grid { margin: 0; }
+.wf2p-history-chart { margin: 0 0 16px; padding: 14px 16px 10px; border: 1px solid var(--wf2-border); border-radius: var(--wf2-radius); background: var(--wf2-surface-muted); }
+.wf2p-history-chart svg { display: block; width: 100%; height: 220px; overflow: visible; }
+.wf2p-history-chart__grid { stroke: var(--wf2-border); stroke-width: 1; stroke-dasharray: 3 5; }
+.wf2p-history-chart__line { fill: none; stroke: var(--wf2-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.wf2p-history-chart figcaption { margin-top: 7px; color: var(--wf2-muted); font-size: .68rem; }
 .wf2p-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .wf2p-stat { min-width: 0; min-height: 94px; padding: 14px 15px; border: 1px solid var(--wf2-border); border-radius: var(--wf2-radius); background: var(--wf2-surface); box-shadow: var(--wf2-shadow); }
 .wf2p-stat span { display: block; color: var(--wf2-muted); font-size: .68rem; }
