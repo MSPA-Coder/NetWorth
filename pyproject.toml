@@ -30,6 +30,9 @@ dev = [
   "pytest>=8.3,<10",
   "pytest-django>=4.9,<5",
   "pip-audit>=2.10,<3",
+  # Os testes de configuracao carregam o compose e conferem a propriedade, em
+  # vez de procurar um trecho do texto (docs/TESTES.md, T4).
+  "pyyaml>=6,<7",
 ]
 
 [tool.hatch.build.targets.wheel]

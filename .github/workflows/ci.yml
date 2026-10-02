@@ -21,12 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Criar segredos efêmeros de CI
-        # Os quatro arquivos precisam existir para o Compose montar os
-        # segredos declarados. A senha do PostgreSQL fica com modo 0644 porque
-        # o contêiner do banco lê como `postgres` (uid 70), e não como o runner.
-        # Os tokens de fonte vão VAZIOS: é o estado "fonte ainda não concedida",
-        # e a suíte concede os seus próprios. Os valores são constantes
-        # públicas deste arquivo e não protegem nada.
+        # Os cinco arquivos precisam existir para o Compose montar os
+        # segredos declarados. Todos ficam com modo 0644: o contêiner do banco
+        # lê como `postgres` (uid 70) e o `quality` roda como uid 65532 e sem
+        # capabilities, nenhum dos dois como o runner. Um arquivo 0600 do runner
+        # seria ilegível para eles. Os tokens de fonte vão VAZIOS: é o estado
+        # "fonte ainda não concedida", e a suíte concede os seus próprios. Os
+        # valores são constantes públicas deste arquivo e não protegem nada.
         run: |
           umask 077
           mkdir -p .secrets
@@ -35,7 +36,7 @@ jobs:
           printf '%s\n' 'ci-postgres-app-password-not-for-production' > .secrets/postgres_app_password
           : > .secrets/fonte_cb_token
           : > .secrets/fonte_crv_token
-          chmod 0644 .secrets/postgres_password .secrets/postgres_app_password
+          chmod 0644 .secrets/django_secret_key .secrets/postgres_password .secrets/postgres_app_password .secrets/fonte_cb_token .secrets/fonte_crv_token
       - name: Validar Compose
         run: docker compose config --quiet
       - name: Construir quality sem cache
