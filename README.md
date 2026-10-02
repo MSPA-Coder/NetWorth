@@ -1,5 +1,15 @@
 # NetWorth
 
+> **Aposentado em 29/09/2026.** O NetWorth não roda mais em produção: os
+> contêineres foram parados, os timers de câmbio e de foto saíram do
+> `manutencao`, e o domínio `networth-mspa.duckdns.org` passou a servir o
+> Wealthfolio, que lê o Controle Bancário e o Controle de Renda Variável pelo
+> contrato `patrimonio/v4` (repositório `WealthfolioTeste`). Este repositório
+> fica arquivado como referência. O código derivado do Wealthfolio continua sob
+> a AGPL-3.0, e por isso `LICENSE` e `NOTICE.md` permanecem.
+>
+> O restante deste README descreve o sistema como ele era enquanto rodava.
+
 Responde **"quanto eu tenho"**, somando o caixa do [Controle Bancário] com os
 investimentos do [Controle de Renda Variável].
 
@@ -165,6 +175,10 @@ preenche o que faltou. No VPS quem roda é o `registrar-foto.timer` do
 repositório `manutencao`, às 07:40, depois da coleta de câmbio.
 
 ## Produção (VPS1)
+
+**Histórico.** Nada desta seção vale mais: desde 29/09/2026 o `deploy.sh` do
+`manutencao` não reconhece o projeto `networth`, e o vhost do domínio aponta
+para o Wealthfolio.
 
 `https://networth-mspa.duckdns.org`, com o mesmo arranjo dos irmãos: o Nginx
 do host termina TLS e encaminha para `127.0.0.1:5701`. O acesso SSH ao
